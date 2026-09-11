@@ -13,9 +13,7 @@
     <artifactId>domain-kernel</artifactId>
     <packaging>jar</packaging>
 
-    <!-- Pure Kotlin, no Spring deps by design (see design doc section 2) - stays unit-testable
-         without a Spring context. kotlin-maven-plugin and flatten-maven-plugin are inherited
-         from the parent's <build><plugins>; nothing to activate here. -->
+    <!-- Pure Kotlin with no infrastructure dependencies; see docs/architecture.md. -->
     <dependencies>
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>

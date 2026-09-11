@@ -48,9 +48,25 @@ request -> case graph -> evidence bundle -> resolution contract
 
 ## Current build
 
-Until the first implementation-baseline change replaces the Maven reactor, the
-legacy code continues to use Java 25, Kotlin, Spring Boot, Maven, PostgreSQL,
-Kafka, Redis, and MongoDB.
+The first Ergon implementation slice lives in `control-plane` and
+`domain-kernel`. It persists an append-only case stream plus a query timeline in
+PostgreSQL:
+
+- `POST /api/v1/tenants/{tenantId}/cases` opens a case from a goal and requester
+  observation, returning `ETag: "1"`.
+- `POST /internal/v1/tenants/{tenantId}/cases/{caseId}/connector-observations`
+  appends an attributable connector observation and requires a quoted
+  `If-Match` stream version.
+- `GET /api/v1/tenants/{tenantId}/cases/{caseId}/timeline` returns observations
+  in stream order with both occurrence and persistence times.
+
+Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
+`ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
+This slice deliberately has no authentication: tenant IDs in paths are a
+temporary development boundary and must not be exposed as an authorization
+mechanism. AI, semantic facts, contracts, policy, and execution remain later
+delivery steps. The predecessor services remain in the reactor while behavior
+is replaced incrementally.
 
 ```powershell
 .\mvnw.cmd -B -ntp verify
