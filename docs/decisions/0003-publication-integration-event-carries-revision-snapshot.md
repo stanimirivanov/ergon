@@ -1,6 +1,6 @@
 # ADR 0003: Publication integration events carry revision snapshots
 
-- Status: Accepted
+- Status: Superseded by the Ergon rewrite
 - Date: 2026-08-20
 
 ## Context

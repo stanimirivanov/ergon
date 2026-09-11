@@ -1,6 +1,6 @@
 # ADR 0001: Event time and validation ownership
 
-- Status: Accepted
+- Status: Superseded by the Ergon rewrite
 - Date: 2026-08-20
 
 ## Context

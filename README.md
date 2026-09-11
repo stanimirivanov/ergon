@@ -1,133 +1,63 @@
-# RAG Help Center
+# Ergon
 
-A backend-only reference project for a versioned, AI-powered help center, built
-with Kotlin and the current Spring ecosystem. It combines a focused
-event-sourced article lifecycle with CQRS projections, Kafka-driven indexing,
-hybrid retrieval, and citation-grounded Q&A.
+Ergon is an open-source resolution engineering platform. It turns organizational
+knowledge into safe, testable procedures that people and AI can execute, then
+records evidence of whether the requested outcome was achieved.
 
-**Phase 4 is complete:** the embedding pipeline provides deterministic chunking,
-Spring AI `EmbeddingModel`/`VectorStore` integration, transactional idempotency,
-pgvector revision replacement, collection metadata, and Kafka retry/DLT
-recovery. Retrieval has a tenant-safe `SearchKnowledge` port, semantic and
-PostgreSQL full-text adapters, relevance-thresholded reciprocal-rank fusion, a
-versioned OpenAPI-tested internal REST endpoint, database-backed
-tenant/locale/collection isolation, RFC 9457 validation responses, and explicit
-server and client timeout limits. The QA service consumes that contract through
-a typed Spring HTTP Service client.
+> **TL;DR:** Ergon models a request as an evidence-backed case, executes a
+> versioned resolution contract through policy-gated tools and human approvals,
+> and accepts resolution only when its outcome can be verified.
 
-**Phase 5 is in progress:** the QA application core gates model calls on
-retrieved context, distinguishes answered, insufficient-context, and
-model-unavailable outcomes, and validates every model citation against retrieved
-chunk metadata.
+## Status
 
-Current command API:
+Ergon is at the rewrite boundary. The repository still contains the executable
+RAG Help Center implementation that preceded it; that code is retained only as
+material for incremental, pull-request-sized replacement. New work follows the
+Ergon product model and is not required to preserve the old article or Q&A APIs.
 
-- `POST /api/v1/articles` creates a draft and returns `Location`, `ETag`,
-  article ID, and stream version.
-- `PUT /api/v1/articles/{id}/content` revises a draft using
-  `If-Match: "<stream-version>"`.
-- `X-Tenant-Id` supplies provisional tenant context until JWT claim extraction
-  replaces it in Phase 6.
-- RFC 9457 problem details represent invalid commands, missing articles, and
-  version conflicts.
+## Product model
 
-## Architecture
-
-```mermaid
-flowchart LR
-    Client --> Gateway
-    Gateway --> Ingestion[ingestion-service]
-    Gateway --> QA[qa-service]
-    Ingestion --> PG[(PostgreSQL event store + projections)]
-    Ingestion --> Kafka[(Kafka)]
-    Kafka --> Worker[embedding-worker]
-    Worker --> Vector[(PostgreSQL + pgvector)]
-    QA --> Retrieval[retrieval-service]
-    Retrieval --> Vector
-    QA --> Mongo[(MongoDB conversations)]
-    QA --> Redis[(Redis cache)]
-    QA --> Model[Chat model]
+```text
+request -> case graph -> evidence bundle -> resolution contract
+        -> authorized run -> outcome proof -> improvement proposal
 ```
 
-| Module              | Port | Role                                                    |
-|---------------------|-----:|---------------------------------------------------------|
-| `gateway`           | 8080 | Public Spring Cloud Gateway boundary                    |
-| `ingestion-service` | 8081 | Article commands, event store, CQRS projections, outbox |
-| `embedding-worker`  | 8082 | Kafka-driven chunking and vector indexing               |
-| `retrieval-service` | 8083 | Internal HTTPS/JSON hybrid retrieval API                |
-| `qa-service`        | 8084 | Grounded Q&A and conversation history                   |
-| `domain-kernel`     |    — | Small pure-Kotlin shared primitives                     |
+- A **case graph** holds the goal, observations, facts, unknowns, actions, and
+  outcomes independently of any chat or ticket channel.
+- An **evidence graph** connects claims, procedures, policies, sources, and
+  contradictions with scope and validity.
+- A **resolution contract** defines applicability, required evidence, allowed
+  capabilities, approvals, branching, compensation, and proof of success.
+- A **resolution run** is an append-only, replayable execution pinned to exact
+  contract, policy, model, prompt, evidence, and tool-schema revisions.
+- An **outcome proof** distinguishes a verified result from a sent answer or a
+  closed ticket.
+- An **improvement proposal** turns an unusual or failed case into a reviewable
+  knowledge, contract, or regression-test change.
 
-The detailed rationale is
-in [the architecture document](docs/rag-knowledge-base-design.md); executable
-phases and acceptance criteria are
-in [the implementation plan](docs/rag-knowledge-base-implementation-plan.md).
+## Read next
 
-## Technology baseline
+- [Product](docs/product.md) — purpose, users, primitives, and non-goals.
+- [Architecture](docs/architecture.md) — boundaries, runtime, trust model, and
+  target topology.
+- [Delivery](docs/delivery.md) — first vertical slice and staged rewrite.
+- [Contributing](CONTRIBUTING.md) — change size, Kotlin, SQL, testing, security,
+  and review standards.
+- [Architecture decisions](docs/decisions/README.md) — ADR policy and the status
+  of decisions inherited from RAG Help Center.
 
-- Java 25 and Kotlin 2.4.10
-- Spring Boot 4.1.0, Spring Cloud 2025.1.2, Spring AI 2.0.0
-- Maven 3.9.16 through the checked-in wrapper
-- PostgreSQL/pgvector, MongoDB, Redis, Kafka, optional Ollama
-- Jib images, Kubernetes/Helm, Prometheus/Loki/Tempo/Grafana
+## Current build
 
-## Prerequisites
-
-- JDK 25
-- Docker with Compose v2
-
-No system Maven installation is required.
-
-## Build
-
-Windows:
+Until the first implementation-baseline change replaces the Maven reactor, the
+legacy code continues to use Java 25, Kotlin, Spring Boot, Maven, PostgreSQL,
+Kafka, Redis, and MongoDB.
 
 ```powershell
 .\mvnw.cmd -B -ntp verify
 ```
 
-Linux/macOS:
-
 ```bash
 ./mvnw -B -ntp verify
 ```
 
-`verify` runs tests, ktlint, and detekt. Apply Kotlin formatting with
-`./mvnw ktlint:format`.
-
-## Local infrastructure
-
-Start the required data and messaging services:
-
-```bash
-docker compose up -d postgres redis mongodb kafka
-```
-
-Ollama is optional until the embedding and Q&A phases. Start it through the
-profile and pull the models chosen by that phase:
-
-```bash
-docker compose --profile ai up -d ollama
-```
-
-Run one service with its local profile:
-
-```bash
-./mvnw -pl ingestion-service spring-boot:run -Dspring-boot.run.profiles=local
-```
-
-Default local credentials are deliberately disposable and confined to
-`docker-compose.yml`. Kubernetes and non-local profiles obtain secrets
-externally.
-
-## Container images
-
-Each executable module uses Jib. Build into the local Docker daemon with:
-
-```bash
-./mvnw -pl ingestion-service -am package jib:dockerBuild
-```
-
-Registry publishing uses
-`fra.ocir.io/${OCIR_NAMESPACE}/rag-help-center/<module>` and external Docker/Jib
-credentials. CI does not publish images during Phase 0.
+See [CONTRIBUTING.md](CONTRIBUTING.md) before changing code or contracts.
