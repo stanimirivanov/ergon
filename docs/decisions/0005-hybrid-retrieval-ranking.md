@@ -1,6 +1,6 @@
 # ADR 0005: Hybrid retrieval ranking
 
-- Status: Accepted
+- Status: Superseded by the Ergon rewrite
 - Date: 2026-08-20
 
 ## Context

@@ -1,6 +1,6 @@
 # ADR 0004: Embedding worker projection and idempotency
 
-- Status: Accepted
+- Status: Superseded by the Ergon rewrite
 - Date: 2026-08-20
 
 ## Context
