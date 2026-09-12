@@ -1,5 +1,6 @@
 package org.ergon.controlplane.cases.adapter.out.persistence
 
+import org.ergon.cases.domain.AccountAccessStateBound
 import org.ergon.cases.domain.CaseEvent
 import org.ergon.cases.domain.CaseOpened
 import org.ergon.cases.domain.ErgonCase
@@ -23,9 +24,20 @@ class PostgresCaseProjectionWriter(
         require(events.isNotEmpty()) { "at least one stored event is required" }
         when (val first = events.first().event) {
             is CaseOpened -> insertCase(case, first)
-            is ObservationRecorded -> updateCase(case, events.first().streamVersion - 1, events.last())
+
+            is AccountAccessStateBound,
+            is ObservationRecorded,
+            -> updateCase(case, events.first().streamVersion - 1, events.last())
         }
-        events.forEach { insertTimelineEntry(case, it) }
+        events.forEach { stored ->
+            when (val event = stored.event) {
+                is AccountAccessStateBound -> insertAccountAccessFact(case, stored, event)
+
+                is CaseOpened,
+                is ObservationRecorded,
+                -> insertTimelineEntry(case, stored)
+            }
+        }
     }
 
     private fun insertCase(
@@ -110,20 +122,55 @@ class PostgresCaseProjectionWriter(
             .update()
     }
 
+    private fun insertAccountAccessFact(
+        case: ErgonCase,
+        stored: StoredCaseEvent,
+        event: AccountAccessStateBound,
+    ) {
+        jdbcClient
+            .sql(
+                """
+                INSERT INTO case_account_access_facts (
+                    tenant_id, case_id, fact_id, stream_version, event_id,
+                    observation_id, account_reference, state, bound_at, recorded_at
+                ) VALUES (
+                    :tenantId, :caseId, :factId, :streamVersion, :eventId,
+                    :observationId, :accountReference, :state, :boundAt, :recordedAt
+                )
+                """.trimIndent(),
+            ).param("tenantId", case.tenantId.value)
+            .param("caseId", case.id.value)
+            .param("factId", event.factId)
+            .param("streamVersion", stored.streamVersion)
+            .param("eventId", stored.eventId)
+            .param("observationId", event.observationId)
+            .param("accountReference", event.accountReference)
+            .param("state", event.state.name)
+            .param("boundAt", event.occurredAt.atOffset(ZoneOffset.UTC))
+            .param("recordedAt", stored.recordedAt.atOffset(ZoneOffset.UTC))
+            .update()
+    }
+
     private fun CaseEvent.eventType(): String =
         when (this) {
+            is AccountAccessStateBound -> error("account-access facts use their dedicated projection")
             is CaseOpened -> "CASE_OPENED"
             is ObservationRecorded -> "OBSERVATION_RECORDED"
         }
 
     private fun CaseEvent.summary(): String =
         when (this) {
+            is AccountAccessStateBound -> error("account-access facts use their dedicated projection")
             is CaseOpened -> "Case opened from requester observation"
             is ObservationRecorded -> "Connector observation recorded"
         }
 
     private fun CaseEvent.observation(): ObservationColumns =
         when (this) {
+            is AccountAccessStateBound -> {
+                error("account-access facts use their dedicated projection")
+            }
+
             is CaseOpened -> {
                 ObservationColumns(
                     observationId,

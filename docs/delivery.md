@@ -36,8 +36,9 @@ Implement case identity, goal, observations, facts, lifecycle events, optimistic
 concurrency, and a timeline projection. Accept one API request and one fake
 connector observation. Do not add AI.
 
-The first sub-slice covers identity, goal, source observations, append
-concurrency, and the timeline. Semantic fact binding and further lifecycle
+The first two sub-slices cover identity, goal, source observations, append
+concurrency, the timeline, and a typed account-access state bound to connector
+evidence. AI-assisted binding, additional fact types, and further lifecycle
 events remain separate PR-sized capabilities.
 
 ### 2. Contract kernel

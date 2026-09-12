@@ -37,3 +37,18 @@ data class ObservationRecorded(
     val observationContent: String,
     override val occurredAt: Instant,
 ) : CaseEvent
+
+/**
+ * Attributes a typed account-access state to one earlier connector observation.
+ *
+ * [accountReference] must be copied from that observation; accepting it from a
+ * binding caller would allow evidence to be reattributed to another account.
+ * The case aggregate permits only one account-access fact per observation.
+ */
+data class AccountAccessStateBound(
+    val factId: UUID,
+    val observationId: UUID,
+    val accountReference: String,
+    val state: AccountAccessState,
+    override val occurredAt: Instant,
+) : CaseEvent

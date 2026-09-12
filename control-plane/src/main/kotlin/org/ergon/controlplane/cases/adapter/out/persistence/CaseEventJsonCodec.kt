@@ -1,5 +1,6 @@
 package org.ergon.controlplane.cases.adapter.out.persistence
 
+import org.ergon.cases.domain.AccountAccessStateBound
 import org.ergon.cases.domain.CaseEvent
 import org.ergon.cases.domain.CaseOpened
 import org.ergon.cases.domain.ObservationRecorded
@@ -13,8 +14,17 @@ class CaseEventJsonCodec(
 ) {
     fun encode(event: CaseEvent): EncodedCaseEvent =
         when (event) {
-            is CaseOpened -> EncodedCaseEvent("CaseOpened", 1, objectMapper.writeValueAsString(event))
-            is ObservationRecorded -> EncodedCaseEvent("ObservationRecorded", 1, objectMapper.writeValueAsString(event))
+            is AccountAccessStateBound -> {
+                EncodedCaseEvent("AccountAccessStateBound", 1, objectMapper.writeValueAsString(event))
+            }
+
+            is CaseOpened -> {
+                EncodedCaseEvent("CaseOpened", 1, objectMapper.writeValueAsString(event))
+            }
+
+            is ObservationRecorded -> {
+                EncodedCaseEvent("ObservationRecorded", 1, objectMapper.writeValueAsString(event))
+            }
         }
 
     fun decode(
@@ -24,6 +34,7 @@ class CaseEventJsonCodec(
     ): CaseEvent {
         require(schemaVersion == 1) { "unsupported $eventType schema version $schemaVersion" }
         return when (eventType) {
+            "AccountAccessStateBound" -> objectMapper.readValue(payload, AccountAccessStateBound::class.java)
             "CaseOpened" -> objectMapper.readValue(payload, CaseOpened::class.java)
             "ObservationRecorded" -> objectMapper.readValue(payload, ObservationRecorded::class.java)
             else -> error("unsupported case event type $eventType")

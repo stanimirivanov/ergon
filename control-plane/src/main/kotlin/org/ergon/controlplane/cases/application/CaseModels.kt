@@ -1,5 +1,6 @@
 package org.ergon.controlplane.cases.application
 
+import org.ergon.cases.domain.AccountAccessState
 import java.time.Instant
 import java.util.UUID
 
@@ -20,6 +21,18 @@ data class RecordConnectorObservationCommand(
     val connector: String,
     val reference: String,
     val content: String,
+)
+
+/**
+ * Attributes a typed account state to an existing observation while the case
+ * remains at [expectedVersion].
+ */
+data class BindAccountAccessStateCommand(
+    val tenantId: UUID,
+    val caseId: UUID,
+    val expectedVersion: Long,
+    val observationId: UUID,
+    val state: AccountAccessState,
 )
 
 data class CaseWriteResult(
@@ -53,6 +66,30 @@ data class TimelineObservation(
     val provider: String,
     val reference: String?,
     val content: String,
+)
+
+/** Tenant-scoped account-access facts and the case version from which they were projected. */
+data class CaseAccountAccessFacts(
+    val caseId: UUID,
+    val streamVersion: Long,
+    val facts: List<AccountAccessFact>,
+)
+
+/**
+ * A typed account state with the evidence and timestamps needed to audit it.
+ *
+ * [accountReference] is inherited from [observationId]. [boundAt] records when
+ * the application accepted the meaning; [recordedAt] records when PostgreSQL
+ * made its event durable.
+ */
+data class AccountAccessFact(
+    val factId: UUID,
+    val streamVersion: Long,
+    val observationId: UUID,
+    val accountReference: String,
+    val state: AccountAccessState,
+    val boundAt: Instant,
+    val recordedAt: Instant,
 )
 
 /**

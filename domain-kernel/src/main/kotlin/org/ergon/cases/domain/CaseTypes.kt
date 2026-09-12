@@ -27,6 +27,12 @@ value class ObservationId(
     val value: UUID,
 )
 
+/** Identifies one semantic fact derived from attributable source material. */
+@JvmInline
+value class FactId(
+    val value: UUID,
+)
+
 /**
  * The outcome a requester wants Ergon to achieve, as free text.
  *
@@ -194,4 +200,15 @@ data class SourceObservation private constructor(
  */
 enum class CaseStatus {
     OPEN,
+}
+
+/**
+ * Typed account states needed by the access-restoration slice.
+ *
+ * The enum names are persisted in case events and the account-access fact
+ * projection. Adding a state requires a compatible event decoder and migration.
+ */
+enum class AccountAccessState {
+    ACTIVE,
+    LOCKED,
 }

@@ -98,6 +98,18 @@ interface CaseTimelineRepository {
     ): CaseTimeline?
 }
 
+/** Read-side lookup for typed account-access facts projected from case events. */
+interface CaseAccountAccessFactRepository {
+    /**
+     * @return the current case version and facts in stream order, or `null`
+     *   when the tenant-scoped case does not exist.
+     */
+    fun find(
+        tenantId: TenantId,
+        caseId: CaseId,
+    ): CaseAccountAccessFacts?
+}
+
 /** Supplies unpredictable identities without coupling use cases to a UUID implementation. */
 fun interface IdentityGenerator {
     /** @return a fresh identity suitable for durable use. */

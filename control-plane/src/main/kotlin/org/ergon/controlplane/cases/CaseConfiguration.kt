@@ -1,5 +1,6 @@
 package org.ergon.controlplane.cases
 
+import org.ergon.controlplane.cases.application.CaseAccountAccessFactRepository
 import org.ergon.controlplane.cases.application.CaseCommandService
 import org.ergon.controlplane.cases.application.CaseEventStore
 import org.ergon.controlplane.cases.application.CaseProjectionWriter
@@ -25,7 +26,10 @@ class CaseConfiguration {
     ) = CaseCommandService(eventStore, projectionWriter, identityGenerator, transactionRunner, clock)
 
     @Bean
-    fun caseQueryService(repository: CaseTimelineRepository) = CaseQueryService(repository)
+    fun caseQueryService(
+        repository: CaseTimelineRepository,
+        accountAccessFacts: CaseAccountAccessFactRepository,
+    ) = CaseQueryService(repository, accountAccessFacts)
 
     @Bean
     fun identityGenerator(): IdentityGenerator = IdentityGenerator(UUID::randomUUID)

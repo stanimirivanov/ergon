@@ -1,5 +1,7 @@
 package org.ergon.cases.domain
 
+import java.time.Instant
+
 /**
  * The case aggregate: owns the ordered event stream for one case and
  * enforces write-time invariants against it.
@@ -25,6 +27,8 @@ class ErgonCase private constructor(
         private set
 
     private val changes = mutableListOf<CaseEvent>()
+    private val observations = mutableMapOf<ObservationId, ObservationOrigin>()
+    private val accountAccessFactObservations = mutableSetOf<ObservationId>()
 
     /**
      * Records a new observation against this case.
@@ -42,6 +46,45 @@ class ErgonCase private constructor(
                 observationReference = observation.origin.reference,
                 observationContent = observation.content,
                 occurredAt = observation.observedAt,
+            ),
+        )
+    }
+
+    /**
+     * Attributes [state] to an account identified by an existing connector
+     * observation.
+     *
+     * The account reference is inherited from the observation rather than
+     * accepted separately, preventing a binder from attaching source material
+     * to a different account. One observation may establish this property only
+     * once; a changed state requires a new observation.
+     *
+     * @throws IllegalArgumentException if the observation is absent, is not
+     *   connector-authored, or already has an account-access fact.
+     */
+    fun bindAccountAccessState(
+        factId: FactId,
+        observationId: ObservationId,
+        state: AccountAccessState,
+        boundAt: Instant,
+    ) {
+        val origin =
+            requireNotNull(observations[observationId]) {
+                "observation ${observationId.value} does not belong to this case"
+            }
+        require(origin.type == ObservationOriginType.CONNECTOR) {
+            "account access state requires a connector observation"
+        }
+        require(observationId !in accountAccessFactObservations) {
+            "observation ${observationId.value} already has an account access state fact"
+        }
+        record(
+            AccountAccessStateBound(
+                factId = factId.value,
+                observationId = observationId.value,
+                accountReference = requireNotNull(origin.reference),
+                state = state,
+                occurredAt = boundAt,
             ),
         )
     }
@@ -72,14 +115,72 @@ class ErgonCase private constructor(
             is CaseOpened -> {
                 goal = CaseGoal.of(event.goal)
                 status = CaseStatus.OPEN
+                rememberObservation(event.observation())
             }
 
             is ObservationRecorded -> {
-                // Observation details remain in the event stream and timeline projection.
+                rememberObservation(event.observation())
+            }
+
+            is AccountAccessStateBound -> {
+                val observationId = ObservationId(event.observationId)
+                val origin =
+                    requireNotNull(observations[observationId]) {
+                        "account access fact references an unknown observation"
+                    }
+                require(origin.type == ObservationOriginType.CONNECTOR) {
+                    "account access fact requires a connector observation"
+                }
+                require(origin.reference == event.accountReference) {
+                    "account access fact must inherit its observation account reference"
+                }
+                require(accountAccessFactObservations.add(observationId)) {
+                    "observation already has an account access state fact"
+                }
             }
         }
         streamVersion++
     }
+
+    private fun rememberObservation(observation: SourceObservation) {
+        require(observations.putIfAbsent(observation.id, observation.origin) == null) {
+            "case observation identities must be unique"
+        }
+    }
+
+    private fun CaseOpened.observation() =
+        SourceObservation.create(
+            id = ObservationId(observationId),
+            origin = observationOrigin(observationOriginType, observationProvider, observationReference),
+            content = observationContent,
+            observedAt = occurredAt,
+        )
+
+    private fun ObservationRecorded.observation() =
+        SourceObservation.create(
+            id = ObservationId(observationId),
+            origin = observationOrigin(observationOriginType, observationProvider, observationReference),
+            content = observationContent,
+            observedAt = occurredAt,
+        )
+
+    private fun observationOrigin(
+        originType: ObservationOriginType,
+        provider: String,
+        reference: String?,
+    ): ObservationOrigin =
+        when (originType) {
+            ObservationOriginType.REQUESTER -> {
+                require(provider == "api" && reference == null) {
+                    "requester observation must use the canonical API origin"
+                }
+                ObservationOrigin.requesterApi()
+            }
+
+            ObservationOriginType.CONNECTOR -> {
+                ObservationOrigin.connector(provider, requireNotNull(reference))
+            }
+        }
 
     companion object {
         /**

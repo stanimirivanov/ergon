@@ -49,8 +49,8 @@ request -> case graph -> evidence bundle -> resolution contract
 ## Current build
 
 The first Ergon implementation slice lives in `control-plane` and
-`domain-kernel`. It persists an append-only case stream plus a query timeline in
-PostgreSQL:
+`domain-kernel`. It persists an append-only case stream, a source-observation
+timeline, and typed account-access facts in PostgreSQL:
 
 - `POST /api/v1/tenants/{tenantId}/cases` opens a case from a goal and requester
   observation, returning `ETag: "1"`.
@@ -59,14 +59,18 @@ PostgreSQL:
   `If-Match` stream version.
 - `GET /api/v1/tenants/{tenantId}/cases/{caseId}/timeline` returns observations
   in stream order with both occurrence and persistence times.
+- `POST /internal/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states`
+  binds `ACTIVE` or `LOCKED` to an existing connector observation.
+- `GET /api/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states`
+  returns the typed facts with their source observation and binding metadata.
 
 Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
 This slice deliberately has no authentication: tenant IDs in paths are a
 temporary development boundary and must not be exposed as an authorization
-mechanism. AI, semantic facts, contracts, policy, and execution remain later
-delivery steps. The predecessor services remain in the reactor while behavior
-is replaced incrementally.
+mechanism. AI-assisted binding, broader fact types, contracts, policy, and
+execution remain later delivery steps. The predecessor services remain in the
+reactor while behavior is replaced incrementally.
 
 ```powershell
 .\mvnw.cmd -B -ntp verify
