@@ -271,6 +271,118 @@ class CaseApiIntegrationTest(
     }
 
     @Test
+    fun `publishes and retrieves an immutable contract revision`() {
+        val tenantId = UUID.randomUUID()
+        val location = publishContract(tenantId)
+
+        mockMvc
+            .perform(get(location))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.contract.schema").value("ergon.dev/resolution-contract/v1alpha1"))
+            .andExpect(jsonPath("$.contract.key").value("restore-workspace-access"))
+            .andExpect(jsonPath("$.contract.revision").value(1))
+            .andExpect(jsonPath("$.contract.applicability.equals").value("LOCKED"))
+            .andExpect(jsonPath("$.contract.requiredEvidence[0]").value("account.access.state"))
+            .andExpect(jsonPath("$.contract.steps[0].id").value("unlock-account"))
+            .andExpect(jsonPath("$.contract.steps[0].capability").value("identity.account.unlock"))
+            .andExpect(jsonPath("$.contract.steps[0].risk").value("HIGH"))
+            .andExpect(jsonPath("$.contract.steps[0].approval").value("REQUESTER"))
+            .andExpect(jsonPath("$.contract.outcomeProof.fact").value("account.access.state"))
+            .andExpect(jsonPath("$.contract.outcomeProof.equals").value("ACTIVE"))
+            .andExpect(jsonPath("$.recordedAt").exists())
+    }
+
+    @Test
+    fun `rejects invalid and duplicate contract revisions without replacing durable meaning`() {
+        val tenantId = UUID.randomUUID()
+
+        mockMvc
+            .perform(
+                post(CONTRACT_REVISIONS_PATH, tenantId)
+                    .contentType("application/yaml")
+                    .content(VALID_CONTRACT.replace("approval: REQUESTER", "approval: NONE")),
+            ).andExpect(status().isUnprocessableContent)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:invalid-resolution-contract"))
+
+        val location = publishContract(tenantId)
+        mockMvc
+            .perform(
+                post(CONTRACT_REVISIONS_PATH, tenantId)
+                    .contentType("application/yaml")
+                    .content(VALID_CONTRACT.replace("equals: LOCKED", "equals: SUSPENDED")),
+            ).andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:contract-revision-already-exists"))
+
+        assertThatThrownBy {
+            jdbcClient
+                .sql(
+                    """
+                    UPDATE resolution_contract_revisions
+                    SET definition = definition
+                    WHERE tenant_id = :tenantId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .update()
+        }.isInstanceOf(DataAccessException::class.java)
+
+        assertThatThrownBy {
+            jdbcClient
+                .sql(
+                    """
+                    DELETE FROM resolution_contract_revisions
+                    WHERE tenant_id = :tenantId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .update()
+        }.isInstanceOf(DataAccessException::class.java)
+
+        mockMvc
+            .perform(get(location))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.contract.applicability.equals").value("LOCKED"))
+    }
+
+    @Test
+    fun `isolates contract revisions by tenant`() {
+        val ownerTenantId = UUID.randomUUID()
+        val otherTenantId = UUID.randomUUID()
+        publishContract(ownerTenantId)
+
+        mockMvc
+            .perform(
+                get(
+                    "$CONTRACT_REVISIONS_PATH/{key}/revisions/{revision}",
+                    otherTenantId,
+                    "restore-workspace-access",
+                    1,
+                ),
+            ).andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:contract-revision-not-found"))
+
+        mockMvc
+            .perform(get(CONTRACT_REVISION_PATH, ownerTenantId, "INVALID", 0))
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:invalid-contract-revision-identity"))
+
+        publishContract(otherTenantId)
+        val count =
+            jdbcClient
+                .sql(
+                    """
+                    SELECT count(*)
+                    FROM resolution_contract_revisions
+                    WHERE (tenant_id = :ownerTenantId OR tenant_id = :otherTenantId)
+                        AND contract_key = 'restore-workspace-access'
+                        AND revision = 1
+                    """.trimIndent(),
+                ).param("ownerTenantId", ownerTenantId)
+                .param("otherTenantId", otherTenantId)
+                .query(Long::class.java)
+                .single()
+        assertThat(count).isEqualTo(2)
+    }
+
+    @Test
     fun `publishes the control plane API contract`() {
         mockMvc
             .perform(get("/v3/api-docs"))
@@ -286,6 +398,8 @@ class CaseApiIntegrationTest(
             ).andExpect(content().string(containsString(ACCOUNT_ACCESS_FACTS_PATH)))
             .andExpect(content().string(containsString(INTERNAL_ACCOUNT_ACCESS_FACTS_PATH)))
             .andExpect(content().string(containsString(CONTRACT_VALIDATION_PATH)))
+            .andExpect(jsonPath("$.paths['$CONTRACT_REVISIONS_PATH'].post").exists())
+            .andExpect(jsonPath("$.paths['$CONTRACT_REVISION_PATH'].get").exists())
     }
 
     @Test
@@ -386,6 +500,10 @@ class CaseApiIntegrationTest(
                     assertThat(result.next()).isTrue()
                     assertThat(result.getString(1)).isEqualTo("case_account_access_facts")
                 }
+                statement.executeQuery("SELECT to_regclass('resolution_contract_revisions')").use { result ->
+                    assertThat(result.next()).isTrue()
+                    assertThat(result.getString(1)).isEqualTo("resolution_contract_revisions")
+                }
             }
         }
     }
@@ -449,6 +567,22 @@ class CaseApiIntegrationTest(
             ).andExpect(status().isOk)
             .andExpect(header().string("ETag", "\"3\""))
             .andExpect(jsonPath("$.streamVersion").value(3))
+    }
+
+    private fun publishContract(tenantId: UUID): String {
+        val result =
+            mockMvc
+                .perform(
+                    post(CONTRACT_REVISIONS_PATH, tenantId)
+                        .contentType("application/yaml")
+                        .content(VALID_CONTRACT),
+                ).andExpect(status().isCreated)
+                .andExpect(header().exists("Location"))
+                .andExpect(jsonPath("$.contract.key").value("restore-workspace-access"))
+                .andExpect(jsonPath("$.contract.revision").value(1))
+                .andExpect(jsonPath("$.recordedAt").exists())
+                .andReturn()
+        return requireNotNull(result.response.getHeader("Location"))
     }
 
     private fun connectorObservationId(
@@ -517,7 +651,9 @@ class CaseApiIntegrationTest(
         private const val INTERNAL_ACCOUNT_ACCESS_FACTS_PATH =
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states"
         private const val CONTRACT_VALIDATION_PATH = "/internal/v1/resolution-contracts/validate"
-        private const val PREVIOUS_SCHEMA_VERSION = "20260911210000"
+        private const val CONTRACT_REVISIONS_PATH = "/internal/v1/tenants/{tenantId}/resolution-contracts"
+        private const val CONTRACT_REVISION_PATH = "$CONTRACT_REVISIONS_PATH/{key}/revisions/{revision}"
+        private const val PREVIOUS_SCHEMA_VERSION = "20260912122500"
         private const val UPGRADE_EVENT_ID = "55555555-5555-5555-5555-555555555555"
         private const val UPGRADE_TENANT_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
         private const val UPGRADE_CASE_ID = "66666666-6666-6666-6666-666666666666"

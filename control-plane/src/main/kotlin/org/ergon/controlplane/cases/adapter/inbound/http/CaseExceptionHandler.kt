@@ -11,7 +11,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.net.URI
 
 /** Maps stable application failures to RFC 9457 problem documents without leaking adapter errors. */
-@RestControllerAdvice
+@RestControllerAdvice(
+    assignableTypes =
+        [
+            CaseController::class,
+            ConnectorObservationController::class,
+            CaseAccountAccessFactController::class,
+            AccountAccessStateBindingController::class,
+        ],
+)
 class CaseExceptionHandler {
     @ExceptionHandler(CaseNotFoundException::class)
     fun notFound(exception: CaseNotFoundException): ProblemDetail =

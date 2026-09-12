@@ -3,7 +3,7 @@ package org.ergon.controlplane.cases.application
 import org.ergon.cases.domain.CaseEvent
 import org.ergon.cases.domain.CaseId
 import org.ergon.cases.domain.ErgonCase
-import org.ergon.cases.domain.TenantId
+import org.ergon.identity.domain.TenantId
 import java.time.Instant
 import java.util.UUID
 

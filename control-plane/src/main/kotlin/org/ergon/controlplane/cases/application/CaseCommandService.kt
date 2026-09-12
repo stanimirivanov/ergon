@@ -8,7 +8,7 @@ import org.ergon.cases.domain.FactId
 import org.ergon.cases.domain.ObservationId
 import org.ergon.cases.domain.ObservationOrigin
 import org.ergon.cases.domain.SourceObservation
-import org.ergon.cases.domain.TenantId
+import org.ergon.identity.domain.TenantId
 import java.time.Clock
 
 /**

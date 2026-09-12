@@ -2,10 +2,10 @@ package org.ergon.controlplane.cases.adapter.out.persistence
 
 import org.ergon.cases.domain.AccountAccessState
 import org.ergon.cases.domain.CaseId
-import org.ergon.cases.domain.TenantId
 import org.ergon.controlplane.cases.application.AccountAccessFact
 import org.ergon.controlplane.cases.application.CaseAccountAccessFactRepository
 import org.ergon.controlplane.cases.application.CaseAccountAccessFacts
+import org.ergon.identity.domain.TenantId
 import org.springframework.jdbc.core.DataClassRowMapper
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository

@@ -2,6 +2,7 @@ package org.ergon.cases.domain
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
+import org.ergon.identity.domain.TenantId
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID

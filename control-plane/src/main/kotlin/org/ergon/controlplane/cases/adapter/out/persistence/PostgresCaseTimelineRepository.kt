@@ -1,11 +1,11 @@
 package org.ergon.controlplane.cases.adapter.out.persistence
 
 import org.ergon.cases.domain.CaseId
-import org.ergon.cases.domain.TenantId
 import org.ergon.controlplane.cases.application.CaseTimeline
 import org.ergon.controlplane.cases.application.CaseTimelineEntry
 import org.ergon.controlplane.cases.application.CaseTimelineRepository
 import org.ergon.controlplane.cases.application.TimelineObservation
+import org.ergon.identity.domain.TenantId
 import org.springframework.jdbc.core.DataClassRowMapper
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
