@@ -33,6 +33,7 @@
     </properties>
 
     <modules>
+        <module>control-plane</module>
         <module>domain-kernel</module>
         <module>embedding-worker</module>
         <module>gateway</module>
