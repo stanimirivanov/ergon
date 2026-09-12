@@ -1,11 +1,13 @@
 package org.ergon.controlplane.cases
 
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.dao.DataAccessException
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -65,24 +67,47 @@ class CaseApiIntegrationTest(
             .andExpect(jsonPath("$.entries[1].observation.reference").value("accounts/customer-42"))
             .andExpect(jsonPath("$.entries[1].observation.content").value("status=LOCKED"))
 
+        assertTimelinePreservesEventTimes(tenantId, caseId)
+    }
+
+    private fun assertTimelinePreservesEventTimes(
+        tenantId: UUID,
+        caseId: UUID,
+    ) {
         val eventTimes =
             jdbcClient
                 .sql(
                     """
-                    select occurred_at, recorded_at
-                    from case_events
-                    where tenant_id = :tenantId and case_id = :caseId
-                    order by stream_version
+                    SELECT
+                        e.occurred_at,
+                        e.recorded_at,
+                        t.occurred_at AS timeline_occurred_at,
+                        t.recorded_at AS timeline_recorded_at
+                    FROM case_events e
+                    INNER JOIN case_timeline_entries t
+                        ON t.tenant_id = e.tenant_id
+                        AND t.case_id = e.case_id
+                        AND t.stream_version = e.stream_version
+                        AND t.event_id = e.event_id
+                    WHERE e.tenant_id = :tenantId AND e.case_id = :caseId
+                    ORDER BY e.stream_version
                     """.trimIndent(),
                 ).param("tenantId", tenantId)
                 .param("caseId", caseId)
                 .query { resultSet, _ ->
-                    resultSet.getObject("occurred_at", OffsetDateTime::class.java) to
-                        resultSet.getObject("recorded_at", OffsetDateTime::class.java)
+                    EventTimelineTimes(
+                        occurredAt = resultSet.getObject("occurred_at", OffsetDateTime::class.java),
+                        recordedAt = resultSet.getObject("recorded_at", OffsetDateTime::class.java),
+                        timelineOccurredAt =
+                            resultSet.getObject("timeline_occurred_at", OffsetDateTime::class.java),
+                        timelineRecordedAt =
+                            resultSet.getObject("timeline_recorded_at", OffsetDateTime::class.java),
+                    )
                 }.list()
         assertThat(eventTimes).hasSize(2)
-        assertThat(eventTimes).allSatisfy { (occurredAt, recordedAt) ->
-            assertThat(recordedAt).isAfterOrEqualTo(occurredAt)
+        assertThat(eventTimes).allSatisfy { times ->
+            assertThat(times.timelineOccurredAt).isEqualTo(times.occurredAt)
+            assertThat(times.timelineRecordedAt).isEqualTo(times.recordedAt)
         }
     }
 
@@ -136,7 +161,7 @@ class CaseApiIntegrationTest(
 
         val ownerVersion =
             jdbcClient
-                .sql("select stream_version from cases where tenant_id = :tenantId and case_id = :caseId")
+                .sql("SELECT stream_version FROM cases WHERE tenant_id = :tenantId AND case_id = :caseId")
                 .param("tenantId", ownerTenantId)
                 .param("caseId", caseId)
                 .query(Long::class.java)
@@ -158,6 +183,39 @@ class CaseApiIntegrationTest(
                     ),
                 ),
             )
+    }
+
+    @Test
+    fun `rejects mutation of immutable case events`() {
+        val tenantId = UUID.randomUUID()
+        val caseId = openCase(tenantId)
+
+        assertThatThrownBy {
+            jdbcClient
+                .sql(
+                    """
+                    UPDATE case_events
+                    SET event_type = event_type
+                    WHERE tenant_id = :tenantId AND case_id = :caseId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("caseId", caseId)
+                .update()
+        }.isInstanceOf(DataAccessException::class.java)
+
+        val eventCount =
+            jdbcClient
+                .sql(
+                    """
+                    SELECT count(*)
+                    FROM case_events
+                    WHERE tenant_id = :tenantId AND case_id = :caseId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("caseId", caseId)
+                .query(Long::class.java)
+                .single()
+        assertThat(eventCount).isEqualTo(1)
     }
 
     private fun openCase(tenantId: UUID): UUID {
@@ -214,3 +272,10 @@ class CaseApiIntegrationTest(
         }
     }
 }
+
+private data class EventTimelineTimes(
+    val occurredAt: OffsetDateTime,
+    val recordedAt: OffsetDateTime,
+    val timelineOccurredAt: OffsetDateTime,
+    val timelineRecordedAt: OffsetDateTime,
+)

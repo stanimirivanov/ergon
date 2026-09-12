@@ -7,9 +7,6 @@ spring:
     password: ${ERGON_DATABASE_PASSWORD}
   flyway:
     table: ergon_flyway_schema_history
-  jpa:
-    hibernate:
-      ddl-auto: none
 
 server:
   port: 8090

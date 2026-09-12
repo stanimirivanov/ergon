@@ -20,6 +20,7 @@ class ErgonCase private constructor(
 
     private val changes = mutableListOf<CaseEvent>()
 
+    /** Records one validated source observation as the next uncommitted event. */
     fun record(observation: SourceObservation) {
         record(
             ObservationRecorded(
@@ -33,8 +34,10 @@ class ErgonCase private constructor(
         )
     }
 
+    /** Returns events created since construction or the last [markChangesCommitted] call. */
     fun pendingEvents(): List<CaseEvent> = changes.toList()
 
+    /** Clears pending events after their transaction has committed; aggregate state is preserved. */
     fun markChangesCommitted() = changes.clear()
 
     private fun record(event: CaseEvent) {
@@ -57,7 +60,11 @@ class ErgonCase private constructor(
     }
 
     companion object {
-        /** Opens a case from a requester observation at stream version one. */
+        /**
+         * Opens a case from a requester observation at stream version one.
+         *
+         * @throws IllegalArgumentException when [initialObservation] is not requester-originated.
+         */
         fun open(
             id: CaseId,
             tenantId: TenantId,
@@ -82,7 +89,11 @@ class ErgonCase private constructor(
             }
         }
 
-        /** Restores an aggregate from a complete, ordered history without creating new events. */
+        /**
+         * Restores an aggregate from a complete, ordered history without creating new events.
+         *
+         * @throws IllegalArgumentException when history is empty or does not start with [CaseOpened].
+         */
         fun rehydrate(
             id: CaseId,
             tenantId: TenantId,

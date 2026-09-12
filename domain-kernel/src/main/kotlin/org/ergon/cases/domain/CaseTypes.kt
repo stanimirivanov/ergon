@@ -29,7 +29,13 @@ data class CaseGoal private constructor(
     companion object {
         const val MAX_LENGTH = 500
 
-        /** Creates a normalized goal or rejects a blank or oversized value. */
+        /**
+         * Creates a normalized goal or rejects a blank or oversized value.
+         *
+         * For example, `CaseGoal.of("  Restore access  ").value` is `"Restore access"`.
+         *
+         * @throws IllegalArgumentException when the normalized goal is empty or exceeds [MAX_LENGTH].
+         */
         fun of(value: String): CaseGoal {
             val normalized = value.trim()
             require(normalized.isNotEmpty()) { "case goal must not be blank" }
@@ -65,7 +71,11 @@ data class ObservationOrigin private constructor(
                 reference = null,
             )
 
-        /** Creates a normalized connector origin with an addressable source reference. */
+        /**
+         * Creates a normalized connector origin with an addressable source reference.
+         *
+         * @throws IllegalArgumentException when the provider is not a stable machine name or the reference is blank.
+         */
         fun connector(
             provider: String,
             reference: String,
@@ -102,7 +112,11 @@ data class SourceObservation private constructor(
     companion object {
         const val MAX_CONTENT_LENGTH = 8_000
 
-        /** Creates normalized source content while preserving its source and occurrence time. */
+        /**
+         * Creates normalized source content while preserving its source and occurrence time.
+         *
+         * @throws IllegalArgumentException when content is blank or exceeds [MAX_CONTENT_LENGTH].
+         */
         fun create(
             id: ObservationId,
             origin: ObservationOrigin,
