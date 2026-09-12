@@ -78,9 +78,9 @@ Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
 This slice deliberately has no authentication: tenant IDs in paths are a
 temporary development boundary and must not be exposed as an authorization
-mechanism. Contract registry checks, automatic selection, AI-assisted binding,
-broader fact types, policy, and execution remain later delivery steps. The
-predecessor services remain in the reactor while behavior is replaced
+mechanism. Tenant capability availability, automatic selection, AI-assisted
+binding, broader fact types, policy, and execution remain later delivery steps.
+The predecessor services remain in the reactor while behavior is replaced
 incrementally.
 
 ```powershell

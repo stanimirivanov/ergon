@@ -263,6 +263,15 @@ class CaseApiIntegrationTest(
             .perform(
                 post(CONTRACT_VALIDATION_PATH)
                     .contentType("application/yaml")
+                    .content(UNREGISTERED_CONTRACT),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.requiredEvidence[0]").value("account.access.unknown"))
+            .andExpect(jsonPath("$.steps[0].capability").value("identity.account.disable"))
+
+        mockMvc
+            .perform(
+                post(CONTRACT_VALIDATION_PATH)
+                    .contentType("application/yaml")
                     .content(VALID_CONTRACT.replace("approval: REQUESTER", "approval: NONE")),
             ).andExpect(status().isUnprocessableContent)
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
@@ -303,6 +312,19 @@ class CaseApiIntegrationTest(
                     .content(VALID_CONTRACT.replace("approval: REQUESTER", "approval: NONE")),
             ).andExpect(status().isUnprocessableContent)
             .andExpect(jsonPath("$.type").value("urn:ergon:problem:invalid-resolution-contract"))
+
+        mockMvc
+            .perform(
+                post(CONTRACT_REVISIONS_PATH, tenantId)
+                    .contentType("application/yaml")
+                    .content(UNREGISTERED_CONTRACT),
+            ).andExpect(status().isUnprocessableContent)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:unregistered-contract-references"))
+            .andExpect(jsonPath("$.violations.length()").value(4))
+            .andExpect(jsonPath("$.violations[0].path").value("$.applicability.fact"))
+            .andExpect(jsonPath("$.violations[1].path").value("$.requiredEvidence[0]"))
+            .andExpect(jsonPath("$.violations[2].path").value("$.steps[0].capability"))
+            .andExpect(jsonPath("$.violations[3].path").value("$.outcomeProof.fact"))
 
         val location = publishContract(tenantId)
         mockMvc
@@ -668,6 +690,10 @@ class CaseApiIntegrationTest(
         private val VALID_CONTRACT =
             requireNotNull(CaseApiIntegrationTest::class.java.getResource("/contracts/restore-workspace-access.yaml"))
                 .readText()
+        private val UNREGISTERED_CONTRACT =
+            VALID_CONTRACT
+                .replace("account.access.state", "account.access.unknown")
+                .replace("identity.account.unlock", "identity.account.disable")
 
         private fun accountAccessFact(observationId: UUID) = """{"observationId":"$observationId","state":"LOCKED"}"""
 

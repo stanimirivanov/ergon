@@ -9,6 +9,7 @@ import org.ergon.controlplane.contracts.application.ContractRevisionNotFoundExce
 import org.ergon.controlplane.contracts.application.InvalidResolutionContractDocumentException
 import org.ergon.controlplane.contracts.application.RESOLUTION_CONTRACT_DOCUMENT_SCHEMA
 import org.ergon.controlplane.contracts.application.ResolutionContractValidationService
+import org.ergon.controlplane.contracts.application.UnregisteredContractReferencesException
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ProblemDetail
@@ -89,6 +90,19 @@ class ResolutionContractExceptionHandler {
             title = "Contract revision already exists",
             detail = exception.message.orEmpty(),
         )
+
+    @ExceptionHandler(UnregisteredContractReferencesException::class)
+    fun unregisteredReferences(exception: UnregisteredContractReferencesException): ResponseEntity<ProblemDetail> {
+        val problem =
+            ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "The resolution contract refers to unregistered semantic names.",
+            )
+        problem.type = URI.create("urn:ergon:problem:unregistered-contract-references")
+        problem.title = "Unregistered contract references"
+        problem.setProperty("violations", exception.violations.map(ContractDocumentViolation::toResponse))
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(problem)
+    }
 
     @ExceptionHandler(ContractRevisionNotFoundException::class)
     fun revisionNotFound(exception: ContractRevisionNotFoundException): ProblemDetail =
