@@ -1,5 +1,8 @@
 package org.ergon.cases.domain
 
+import org.ergon.contracts.domain.ResolutionContractIdentity
+import org.ergon.contracts.domain.ResolutionContractKey
+import org.ergon.contracts.domain.ResolutionContractRevision
 import org.ergon.identity.domain.TenantId
 import java.time.Instant
 
@@ -25,6 +28,10 @@ class ErgonCase private constructor(
         private set
 
     var streamVersion: Long = 0
+        private set
+
+    /** Exact instructions selected for this case, or `null` until planning pins them. */
+    var pinnedResolutionContract: ResolutionContractIdentity? = null
         private set
 
     private val changes = mutableListOf<CaseEvent>()
@@ -91,6 +98,29 @@ class ErgonCase private constructor(
     }
 
     /**
+     * Pins [contract] as the immutable instructions selected for this case.
+     *
+     * A case can have only one pin. Changing the chosen instructions must be
+     * modeled later as an explicit replanning decision rather than rewriting
+     * the history on which a resolution run depends.
+     *
+     * @throws IllegalArgumentException if a contract is already pinned.
+     */
+    fun pinResolutionContract(
+        contract: ResolutionContractIdentity,
+        pinnedAt: Instant,
+    ) {
+        require(pinnedResolutionContract == null) { "case already has a pinned resolution contract" }
+        record(
+            ResolutionContractRevisionPinned(
+                contractKey = contract.key.value,
+                contractRevision = contract.revision.value,
+                occurredAt = pinnedAt,
+            ),
+        )
+    }
+
+    /**
      * @return a snapshot of events applied since construction or the last
      *   [markChangesCommitted], in recording order. Nothing clears this list
      *   automatically.
@@ -139,6 +169,17 @@ class ErgonCase private constructor(
                     "observation already has an account access state fact"
                 }
             }
+
+            is ResolutionContractRevisionPinned -> {
+                require(pinnedResolutionContract == null) {
+                    "case already has a pinned resolution contract"
+                }
+                pinnedResolutionContract =
+                    ResolutionContractIdentity(
+                        key = ResolutionContractKey.of(event.contractKey),
+                        revision = ResolutionContractRevision.of(event.contractRevision),
+                    )
+            }
         }
         streamVersion++
     }
@@ -148,40 +189,6 @@ class ErgonCase private constructor(
             "case observation identities must be unique"
         }
     }
-
-    private fun CaseOpened.observation() =
-        SourceObservation.create(
-            id = ObservationId(observationId),
-            origin = observationOrigin(observationOriginType, observationProvider, observationReference),
-            content = observationContent,
-            observedAt = occurredAt,
-        )
-
-    private fun ObservationRecorded.observation() =
-        SourceObservation.create(
-            id = ObservationId(observationId),
-            origin = observationOrigin(observationOriginType, observationProvider, observationReference),
-            content = observationContent,
-            observedAt = occurredAt,
-        )
-
-    private fun observationOrigin(
-        originType: ObservationOriginType,
-        provider: String,
-        reference: String?,
-    ): ObservationOrigin =
-        when (originType) {
-            ObservationOriginType.REQUESTER -> {
-                require(provider == "api" && reference == null) {
-                    "requester observation must use the canonical API origin"
-                }
-                ObservationOrigin.requesterApi()
-            }
-
-            ObservationOriginType.CONNECTOR -> {
-                ObservationOrigin.connector(provider, requireNotNull(reference))
-            }
-        }
 
     companion object {
         /**
@@ -242,3 +249,37 @@ class ErgonCase private constructor(
         }
     }
 }
+
+private fun CaseOpened.observation() =
+    SourceObservation.create(
+        id = ObservationId(observationId),
+        origin = observationOrigin(observationOriginType, observationProvider, observationReference),
+        content = observationContent,
+        observedAt = occurredAt,
+    )
+
+private fun ObservationRecorded.observation() =
+    SourceObservation.create(
+        id = ObservationId(observationId),
+        origin = observationOrigin(observationOriginType, observationProvider, observationReference),
+        content = observationContent,
+        observedAt = occurredAt,
+    )
+
+private fun observationOrigin(
+    originType: ObservationOriginType,
+    provider: String,
+    reference: String?,
+): ObservationOrigin =
+    when (originType) {
+        ObservationOriginType.REQUESTER -> {
+            require(provider == "api" && reference == null) {
+                "requester observation must use the canonical API origin"
+            }
+            ObservationOrigin.requesterApi()
+        }
+
+        ObservationOriginType.CONNECTOR -> {
+            ObservationOrigin.connector(provider, requireNotNull(reference))
+        }
+    }

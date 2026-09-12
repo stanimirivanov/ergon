@@ -8,6 +8,11 @@ import org.ergon.cases.domain.FactId
 import org.ergon.cases.domain.ObservationId
 import org.ergon.cases.domain.ObservationOrigin
 import org.ergon.cases.domain.SourceObservation
+import org.ergon.contracts.domain.ResolutionContractIdentity
+import org.ergon.contracts.domain.ResolutionContractKey
+import org.ergon.contracts.domain.ResolutionContractRevision
+import org.ergon.controlplane.contracts.application.ContractRevisionNotFoundException
+import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
 import org.ergon.identity.domain.TenantId
 import java.time.Clock
 
@@ -16,7 +21,7 @@ import java.time.Clock
  *
  * Every command follows the same shape: load or create the aggregate,
  * mutate it, then persist its events and projection in one transaction via
- * [transactionRunner]. Connector commands check optimistic concurrency twice:
+ * [eventCommitter]. Existing-case commands check optimistic concurrency twice:
  * first against the loaded aggregate before beginning write work, and again
  * authoritatively inside [CaseEventStore.append] against a fresh read taken
  * under lock. Only the second check is race-safe; the first avoids entering a
@@ -24,9 +29,9 @@ import java.time.Clock
  */
 class CaseCommandService(
     private val eventStore: CaseEventStore,
-    private val projectionWriter: CaseProjectionWriter,
+    private val contractRevisions: ResolutionContractRevisionRepository,
     private val identities: IdentityGenerator,
-    private val transactionRunner: TransactionRunner,
+    private val eventCommitter: CaseEventCommitter,
     private val clock: Clock,
 ) {
     /**
@@ -57,7 +62,7 @@ class CaseCommandService(
                     ),
             )
 
-        persist(case, expectedVersion = 0)
+        eventCommitter.commit(case, expectedVersion = 0)
         return case.toWriteResult()
     }
 
@@ -76,14 +81,8 @@ class CaseCommandService(
         require(command.expectedVersion > 0) { "If-Match version must be positive" }
         val tenantId = TenantId(command.tenantId)
         val caseId = CaseId(command.caseId)
-        val history = eventStore.load(tenantId, caseId)
-        if (history.isEmpty()) {
-            throw CaseNotFoundException(command.tenantId, command.caseId)
-        }
-        val case = ErgonCase.rehydrate(caseId, tenantId, history)
-        if (case.streamVersion != command.expectedVersion) {
-            throw ConcurrentCaseModificationException(command.expectedVersion, case.streamVersion)
-        }
+        val case = loadCase(tenantId, caseId)
+        case.requireExpectedVersion(command.expectedVersion)
 
         case.record(
             SourceObservation.create(
@@ -93,7 +92,7 @@ class CaseCommandService(
                 observedAt = clock.instant(),
             ),
         )
-        persist(case, command.expectedVersion)
+        eventCommitter.commit(case, command.expectedVersion)
         return case.toWriteResult()
     }
 
@@ -112,14 +111,8 @@ class CaseCommandService(
         require(command.expectedVersion > 0) { "If-Match version must be positive" }
         val tenantId = TenantId(command.tenantId)
         val caseId = CaseId(command.caseId)
-        val history = eventStore.load(tenantId, caseId)
-        if (history.isEmpty()) {
-            throw CaseNotFoundException(command.tenantId, command.caseId)
-        }
-        val case = ErgonCase.rehydrate(caseId, tenantId, history)
-        if (case.streamVersion != command.expectedVersion) {
-            throw ConcurrentCaseModificationException(command.expectedVersion, case.streamVersion)
-        }
+        val case = loadCase(tenantId, caseId)
+        case.requireExpectedVersion(command.expectedVersion)
 
         case.bindAccountAccessState(
             factId = FactId(identities.next()),
@@ -127,11 +120,88 @@ class CaseCommandService(
             state = command.state,
             boundAt = clock.instant(),
         )
-        persist(case, command.expectedVersion)
+        eventCommitter.commit(case, command.expectedVersion)
         return case.toWriteResult()
     }
 
-    private fun persist(
+    /**
+     * Pins an existing tenant contract revision to a case.
+     *
+     * The published revision is looked up through the contract application
+     * port; the case never reads another capability's table. Published
+     * revisions cannot be deleted, so verifying the reference before the case
+     * write transaction cannot become stale.
+     *
+     * @return the committed case identity, status, and incremented stream version.
+     * @throws CaseNotFoundException when the tenant-scoped case is absent.
+     * @throws ContractRevisionNotFoundException when the exact revision is not
+     *   published for the same tenant.
+     * @throws ConcurrentCaseModificationException when another command has advanced the stream.
+     * @throws IllegalArgumentException when a contract is already pinned or a
+     *   precondition or contract identity is invalid.
+     */
+    fun pinResolutionContract(command: PinResolutionContractCommand): CaseWriteResult {
+        require(command.expectedVersion > 0) { "If-Match version must be positive" }
+        val tenantId = TenantId(command.tenantId)
+        val caseId = CaseId(command.caseId)
+        val case = loadCase(tenantId, caseId)
+        case.requireExpectedVersion(command.expectedVersion)
+        val key = ResolutionContractKey.of(command.contractKey)
+        val revision = ResolutionContractRevision.of(command.contractRevision)
+        val stored =
+            contractRevisions.find(tenantId, key, revision)
+                ?: throw ContractRevisionNotFoundException(key, revision)
+
+        case.pinResolutionContract(
+            ResolutionContractIdentity(stored.contract.key, stored.contract.revision),
+            clock.instant(),
+        )
+        eventCommitter.commit(case, command.expectedVersion)
+        return case.toWriteResult()
+    }
+
+    private fun loadCase(
+        tenantId: TenantId,
+        caseId: CaseId,
+    ): ErgonCase {
+        val history = eventStore.load(tenantId, caseId)
+        if (history.isEmpty()) {
+            throw CaseNotFoundException(tenantId.value, caseId.value)
+        }
+        return ErgonCase.rehydrate(caseId, tenantId, history)
+    }
+
+    private fun ErgonCase.requireExpectedVersion(expectedVersion: Long) {
+        if (streamVersion != expectedVersion) {
+            throw ConcurrentCaseModificationException(expectedVersion, streamVersion)
+        }
+    }
+
+    private fun ErgonCase.toWriteResult() =
+        CaseWriteResult(
+            caseId = id.value,
+            status = status.name,
+            streamVersion = streamVersion,
+        )
+}
+
+/** Commits pending case events and their synchronous projections atomically. */
+class CaseEventCommitter(
+    private val eventStore: CaseEventStore,
+    private val projectionWriter: CaseProjectionWriter,
+    private val identities: IdentityGenerator,
+    private val transactionRunner: TransactionRunner,
+) {
+    /**
+     * Persists all pending events after [expectedVersion], then clears them
+     * only after the required transaction has committed successfully.
+     *
+     * @throws ConcurrentCaseModificationException when durable stream state
+     *   no longer equals [expectedVersion].
+     * @throws IllegalArgumentException when [expectedVersion] is negative or
+     *   [case] has no pending events.
+     */
+    fun commit(
         case: ErgonCase,
         expectedVersion: Long,
     ) {
@@ -142,11 +212,4 @@ class CaseCommandService(
         }
         case.markChangesCommitted()
     }
-
-    private fun ErgonCase.toWriteResult() =
-        CaseWriteResult(
-            caseId = id.value,
-            status = status.name,
-            streamVersion = streamVersion,
-        )
 }

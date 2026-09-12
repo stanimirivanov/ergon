@@ -52,3 +52,17 @@ data class AccountAccessStateBound(
     val state: AccountAccessState,
     override val occurredAt: Instant,
 ) : CaseEvent
+
+/**
+ * Records the exact immutable contract revision chosen for this case.
+ *
+ * The event stores the identity rather than a mutable alias so later planning
+ * and execution can recover the same published meaning. [contractKey] is the
+ * canonical lowercase key and [contractRevision] is positive; replay validates
+ * both through their domain value types.
+ */
+data class ResolutionContractRevisionPinned(
+    val contractKey: String,
+    val contractRevision: Int,
+    override val occurredAt: Instant,
+) : CaseEvent

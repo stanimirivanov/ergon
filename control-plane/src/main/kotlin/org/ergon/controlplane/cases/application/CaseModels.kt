@@ -35,6 +35,19 @@ data class BindAccountAccessStateCommand(
     val state: AccountAccessState,
 )
 
+/**
+ * Pins one published resolution contract revision while the case remains at
+ * [expectedVersion]. [contractKey] must be canonical and [contractRevision]
+ * must be positive; the application validates both through domain value types.
+ */
+data class PinResolutionContractCommand(
+    val tenantId: UUID,
+    val caseId: UUID,
+    val expectedVersion: Long,
+    val contractKey: String,
+    val contractRevision: Int,
+)
+
 data class CaseWriteResult(
     val caseId: UUID,
     val status: String,
@@ -46,7 +59,23 @@ data class CaseTimeline(
     val goal: String,
     val status: String,
     val streamVersion: Long,
+    val resolutionContract: PinnedResolutionContract?,
     val entries: List<CaseTimelineEntry>,
+)
+
+/**
+ * Exact contract revision selected for a case, with event and persistence time.
+ *
+ * [pinnedAt] is the application decision time; [recordedAt] is when PostgreSQL
+ * made the pin durable. The stream version identifies its position in case
+ * history even though the pin is deliberately not a source timeline entry.
+ */
+data class PinnedResolutionContract(
+    val key: String,
+    val revision: Int,
+    val streamVersion: Long,
+    val pinnedAt: Instant,
+    val recordedAt: Instant,
 )
 
 /** Read-model entry preserving both source occurrence time and database recording time. */

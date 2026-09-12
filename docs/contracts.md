@@ -60,8 +60,17 @@ The `(tenant, key, revision)` identity is immutable. Reusing it returns HTTP
 revision through its own path. PostgreSQL stores normalized, schema-versioned
 JSON meaning rather than authoring YAML and rejects UPDATE or DELETE.
 
-Publication still does not establish that referenced facts or capabilities
-exist, promote the revision, pin it to a case, authorize it, or execute it.
+Pin a published revision with
+`POST /internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-contract`, a
+JSON body containing `key` and `revision`, and the quoted case stream version
+in `If-Match`. The pin is an immutable case event and appears as
+`resolutionContract` in the case timeline response; it is not source evidence
+and therefore does not add a timeline entry. A case can be pinned once, and a
+revision from another tenant is indistinguishable from an absent revision.
+
+Publishing or pinning still does not establish that referenced facts or
+capabilities exist, promote or automatically select a revision, authorize a
+step, or execute it.
 
 The schema identifier is a compatibility boundary. Published field meanings do
 not change in place; incompatible syntax or semantics require a new identifier

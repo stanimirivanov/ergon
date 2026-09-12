@@ -12,6 +12,7 @@ import org.ergon.controlplane.cases.application.CaseQueryService
 import org.ergon.controlplane.cases.application.CaseTimeline
 import org.ergon.controlplane.cases.application.CaseWriteResult
 import org.ergon.controlplane.cases.application.OpenCaseCommand
+import org.ergon.controlplane.cases.application.PinnedResolutionContract
 import org.ergon.controlplane.cases.application.RecordConnectorObservationCommand
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -114,7 +115,17 @@ data class CaseTimelineResponse(
     val goal: String,
     val status: String,
     val streamVersion: Long,
+    val resolutionContract: PinnedResolutionContractResponse?,
     val entries: List<CaseTimelineEntryResponse>,
+)
+
+/** Stable HTTP representation of the exact contract revision selected for a case. */
+data class PinnedResolutionContractResponse(
+    val key: String,
+    val revision: Int,
+    val streamVersion: Long,
+    val pinnedAt: Instant,
+    val recordedAt: Instant,
 )
 
 /** HTTP representation of one durable timeline entry. */
@@ -159,6 +170,7 @@ private fun CaseTimeline.toResponse() =
         goal = goal,
         status = status,
         streamVersion = streamVersion,
+        resolutionContract = resolutionContract?.toResponse(),
         entries =
             entries.map { entry ->
                 CaseTimelineEntryResponse(
@@ -177,4 +189,13 @@ private fun CaseTimeline.toResponse() =
                         ),
                 )
             },
+    )
+
+private fun PinnedResolutionContract.toResponse() =
+    PinnedResolutionContractResponse(
+        key = key,
+        revision = revision,
+        streamVersion = streamVersion,
+        pinnedAt = pinnedAt,
+        recordedAt = recordedAt,
     )

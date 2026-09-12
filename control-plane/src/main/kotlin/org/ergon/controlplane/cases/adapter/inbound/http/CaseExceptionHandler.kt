@@ -2,6 +2,7 @@ package org.ergon.controlplane.cases.adapter.inbound.http
 
 import org.ergon.controlplane.cases.application.CaseNotFoundException
 import org.ergon.controlplane.cases.application.ConcurrentCaseModificationException
+import org.ergon.controlplane.contracts.application.ContractRevisionNotFoundException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -18,6 +19,7 @@ import java.net.URI
             ConnectorObservationController::class,
             CaseAccountAccessFactController::class,
             AccountAccessStateBindingController::class,
+            CaseResolutionContractController::class,
         ],
 )
 class CaseExceptionHandler {
@@ -27,6 +29,15 @@ class CaseExceptionHandler {
             status = HttpStatus.NOT_FOUND,
             type = "urn:ergon:problem:case-not-found",
             title = "Case not found",
+            detail = exception.message.orEmpty(),
+        )
+
+    @ExceptionHandler(ContractRevisionNotFoundException::class)
+    fun contractNotFound(exception: ContractRevisionNotFoundException): ProblemDetail =
+        problem(
+            status = HttpStatus.NOT_FOUND,
+            type = "urn:ergon:problem:contract-revision-not-found",
+            title = "Contract revision not found",
             detail = exception.message.orEmpty(),
         )
 
