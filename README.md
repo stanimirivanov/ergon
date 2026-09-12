@@ -41,6 +41,7 @@ request -> case graph -> evidence bundle -> resolution contract
 - [Architecture](docs/architecture.md) — boundaries, runtime, trust model, and
   target topology.
 - [Delivery](docs/delivery.md) — first vertical slice and staged rewrite.
+- [Contracts](docs/contracts.md) — strict `v1alpha1` document shape and validation boundary.
 - [Contributing](CONTRIBUTING.md) — change size, Kotlin, SQL, testing, security,
   and review standards.
 - [Architecture decisions](docs/decisions/README.md) — ADR policy and the status
@@ -50,7 +51,7 @@ request -> case graph -> evidence bundle -> resolution contract
 
 The first Ergon implementation slice lives in `control-plane` and
 `domain-kernel`. It persists an append-only case stream, a source-observation
-timeline, and typed account-access facts in PostgreSQL:
+timeline, and typed account-access facts in PostgreSQL. Its current APIs are:
 
 - `POST /api/v1/tenants/{tenantId}/cases` opens a case from a goal and requester
   observation, returning `ETag: "1"`.
@@ -63,14 +64,16 @@ timeline, and typed account-access facts in PostgreSQL:
   binds `ACTIVE` or `LOCKED` to an existing connector observation.
 - `GET /api/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states`
   returns the typed facts with their source observation and binding metadata.
+- `POST /internal/v1/resolution-contracts/validate` validates a strict YAML
+  contract and returns its normalized meaning without storing or executing it.
 
 Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
 This slice deliberately has no authentication: tenant IDs in paths are a
 temporary development boundary and must not be exposed as an authorization
-mechanism. AI-assisted binding, broader fact types, contracts, policy, and
-execution remain later delivery steps. The predecessor services remain in the
-reactor while behavior is replaced incrementally.
+mechanism. Contract persistence and case pinning, AI-assisted binding, broader
+fact types, policy, and execution remain later delivery steps. The predecessor
+services remain in the reactor while behavior is replaced incrementally.
 
 ```powershell
 .\mvnw.cmd -B -ntp verify

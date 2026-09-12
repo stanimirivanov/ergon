@@ -1,0 +1,16 @@
+schema: ergon.dev/resolution-contract/v1alpha1
+key: restore-workspace-access
+revision: 1
+applicability:
+  fact: account.access.state
+  equals: LOCKED
+requiredEvidence:
+  - account.access.state
+steps:
+  - id: unlock-account
+    capability: identity.account.unlock
+    risk: HIGH
+    approval: REQUESTER
+outcomeProof:
+  fact: account.access.state
+  equals: ACTIVE
