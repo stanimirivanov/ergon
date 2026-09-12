@@ -243,7 +243,35 @@ class CaseApiIntegrationTest(
     }
 
     @Test
-    fun `publishes the case API contract`() {
+    fun `validates contract document without storing or authorizing it`() {
+        mockMvc
+            .perform(
+                post(CONTRACT_VALIDATION_PATH)
+                    .contentType("application/yaml")
+                    .content(VALID_CONTRACT),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.schema").value("ergon.dev/resolution-contract/v1alpha1"))
+            .andExpect(jsonPath("$.key").value("restore-workspace-access"))
+            .andExpect(jsonPath("$.revision").value(1))
+            .andExpect(jsonPath("$.applicability.fact").value("account.access.state"))
+            .andExpect(jsonPath("$.steps[0].capability").value("identity.account.unlock"))
+            .andExpect(jsonPath("$.steps[0].risk").value("HIGH"))
+            .andExpect(jsonPath("$.steps[0].approval").value("REQUESTER"))
+            .andExpect(jsonPath("$.outcomeProof.equals").value("ACTIVE"))
+
+        mockMvc
+            .perform(
+                post(CONTRACT_VALIDATION_PATH)
+                    .contentType("application/yaml")
+                    .content(VALID_CONTRACT.replace("approval: REQUESTER", "approval: NONE")),
+            ).andExpect(status().isUnprocessableContent)
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:invalid-resolution-contract"))
+            .andExpect(jsonPath("$.violations[0].path").value("$.steps[0]"))
+    }
+
+    @Test
+    fun `publishes the control plane API contract`() {
         mockMvc
             .perform(get("/v3/api-docs"))
             .andExpect(status().isOk)
@@ -257,6 +285,7 @@ class CaseApiIntegrationTest(
                 ),
             ).andExpect(content().string(containsString(ACCOUNT_ACCESS_FACTS_PATH)))
             .andExpect(content().string(containsString(INTERNAL_ACCOUNT_ACCESS_FACTS_PATH)))
+            .andExpect(content().string(containsString(CONTRACT_VALIDATION_PATH)))
     }
 
     @Test
@@ -487,11 +516,15 @@ class CaseApiIntegrationTest(
             "/api/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states"
         private const val INTERNAL_ACCOUNT_ACCESS_FACTS_PATH =
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states"
+        private const val CONTRACT_VALIDATION_PATH = "/internal/v1/resolution-contracts/validate"
         private const val PREVIOUS_SCHEMA_VERSION = "20260911210000"
         private const val UPGRADE_EVENT_ID = "55555555-5555-5555-5555-555555555555"
         private const val UPGRADE_TENANT_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
         private const val UPGRADE_CASE_ID = "66666666-6666-6666-6666-666666666666"
         private const val UPGRADE_OBSERVATION_ID = "77777777-7777-7777-7777-777777777777"
+        private val VALID_CONTRACT =
+            requireNotNull(CaseApiIntegrationTest::class.java.getResource("/contracts/restore-workspace-access.yaml"))
+                .readText()
 
         private fun accountAccessFact(observationId: UUID) = """{"observationId":"$observationId","state":"LOCKED"}"""
 

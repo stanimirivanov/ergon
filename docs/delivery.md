@@ -47,6 +47,10 @@ Define the smallest useful textual contract schema. Validate applicability,
 required evidence, steps, risk, approvals, and outcome proof. Pin a contract
 revision to a case. Do not build a visual editor.
 
+The first sub-slice defines strict YAML validation and normalized domain
+meaning for the access-restoration contract. Persistence, registry checks,
+revision pinning, selection, and execution remain separate PR-sized behavior.
+
 ### 3. Resolution runtime
 
 Execute deterministic steps with durable state, idempotency, retries, waits,
