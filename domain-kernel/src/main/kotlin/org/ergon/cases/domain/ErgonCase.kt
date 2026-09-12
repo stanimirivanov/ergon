@@ -1,5 +1,6 @@
 package org.ergon.cases.domain
 
+import org.ergon.identity.domain.TenantId
 import java.time.Instant
 
 /**

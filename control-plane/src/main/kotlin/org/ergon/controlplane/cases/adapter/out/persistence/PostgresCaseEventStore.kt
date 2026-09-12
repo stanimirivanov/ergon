@@ -2,12 +2,12 @@ package org.ergon.controlplane.cases.adapter.out.persistence
 
 import org.ergon.cases.domain.CaseEvent
 import org.ergon.cases.domain.CaseId
-import org.ergon.cases.domain.TenantId
 import org.ergon.controlplane.cases.application.CaseEventStore
 import org.ergon.controlplane.cases.application.ConcurrentCaseModificationException
 import org.ergon.controlplane.cases.application.NewCaseEvent
 import org.ergon.controlplane.cases.application.StoredCaseEvent
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.identity.domain.TenantId
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 import java.time.OffsetDateTime

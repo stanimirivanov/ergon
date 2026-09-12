@@ -3,18 +3,6 @@ package org.ergon.cases.domain
 import java.time.Instant
 import java.util.UUID
 
-/**
- * Identifies one tenant boundary.
- *
- * Every query and write in this bounded context must be scoped by [TenantId]—
- * there is no cross-tenant lookup path by design. Dropping this scope from a
- * query is a data leak, not a convenience.
- */
-@JvmInline
-value class TenantId(
-    val value: UUID,
-)
-
 /** Identifies a case independently of any channel or ticket. */
 @JvmInline
 value class CaseId(

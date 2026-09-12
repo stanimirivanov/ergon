@@ -4,6 +4,8 @@ import org.ergon.contracts.domain.FactCondition
 import org.ergon.contracts.domain.ResolutionContract
 import org.ergon.contracts.domain.ResolutionStep
 import org.ergon.controlplane.contracts.application.ContractDocumentViolation
+import org.ergon.controlplane.contracts.application.ContractRevisionAlreadyExistsException
+import org.ergon.controlplane.contracts.application.ContractRevisionNotFoundException
 import org.ergon.controlplane.contracts.application.InvalidResolutionContractDocumentException
 import org.ergon.controlplane.contracts.application.RESOLUTION_CONTRACT_DOCUMENT_SCHEMA
 import org.ergon.controlplane.contracts.application.ResolutionContractValidationService
@@ -57,9 +59,15 @@ data class ResolutionStepResponse(
     val approval: String,
 )
 
-/** Maps contract validation failures to a stable, non-executable client response. */
-@RestControllerAdvice(assignableTypes = [ResolutionContractValidationController::class])
-class ResolutionContractValidationExceptionHandler {
+/** Maps contract application failures to stable problem documents. */
+@RestControllerAdvice(
+    assignableTypes =
+        [
+            ResolutionContractValidationController::class,
+            ResolutionContractRevisionController::class,
+        ],
+)
+class ResolutionContractExceptionHandler {
     @ExceptionHandler(InvalidResolutionContractDocumentException::class)
     fun invalidDocument(exception: InvalidResolutionContractDocumentException): ResponseEntity<ProblemDetail> {
         val problem =
@@ -72,6 +80,44 @@ class ResolutionContractValidationExceptionHandler {
         problem.setProperty("violations", exception.violations.map(ContractDocumentViolation::toResponse))
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(problem)
     }
+
+    @ExceptionHandler(ContractRevisionAlreadyExistsException::class)
+    fun revisionExists(exception: ContractRevisionAlreadyExistsException): ProblemDetail =
+        problem(
+            status = HttpStatus.CONFLICT,
+            type = "urn:ergon:problem:contract-revision-already-exists",
+            title = "Contract revision already exists",
+            detail = exception.message.orEmpty(),
+        )
+
+    @ExceptionHandler(ContractRevisionNotFoundException::class)
+    fun revisionNotFound(exception: ContractRevisionNotFoundException): ProblemDetail =
+        problem(
+            status = HttpStatus.NOT_FOUND,
+            type = "urn:ergon:problem:contract-revision-not-found",
+            title = "Contract revision not found",
+            detail = exception.message.orEmpty(),
+        )
+
+    @ExceptionHandler(InvalidContractRevisionIdentityException::class)
+    fun invalidRevisionIdentity(exception: InvalidContractRevisionIdentityException): ProblemDetail =
+        problem(
+            status = HttpStatus.BAD_REQUEST,
+            type = "urn:ergon:problem:invalid-contract-revision-identity",
+            title = "Invalid contract revision identity",
+            detail = exception.message.orEmpty(),
+        )
+
+    private fun problem(
+        status: HttpStatus,
+        type: String,
+        title: String,
+        detail: String,
+    ): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(status, detail).apply {
+            this.type = URI.create(type)
+            this.title = title
+        }
 }
 
 data class ContractDocumentViolationResponse(
@@ -81,7 +127,7 @@ data class ContractDocumentViolationResponse(
 
 private fun ContractDocumentViolation.toResponse() = ContractDocumentViolationResponse(path, message)
 
-private fun ResolutionContract.toResponse() =
+internal fun ResolutionContract.toResponse() =
     ValidatedResolutionContractResponse(
         schema = RESOLUTION_CONTRACT_DOCUMENT_SCHEMA,
         key = key.value,

@@ -1,7 +1,7 @@
 package org.ergon.controlplane.cases.application
 
 import org.ergon.cases.domain.CaseId
-import org.ergon.cases.domain.TenantId
+import org.ergon.identity.domain.TenantId
 import java.util.UUID
 
 /** Resolves tenant-scoped case queries without exposing persistence details. */

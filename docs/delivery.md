@@ -47,9 +47,10 @@ Define the smallest useful textual contract schema. Validate applicability,
 required evidence, steps, risk, approvals, and outcome proof. Pin a contract
 revision to a case. Do not build a visual editor.
 
-The first sub-slice defines strict YAML validation and normalized domain
-meaning for the access-restoration contract. Persistence, registry checks,
-revision pinning, selection, and execution remain separate PR-sized behavior.
+The first sub-slices define strict YAML validation and persist immutable,
+tenant-scoped normalized revisions for the access-restoration contract.
+Registry checks, revision pinning, selection, and execution remain separate
+PR-sized behavior.
 
 ### 3. Resolution runtime
 

@@ -42,9 +42,26 @@ loaded with safe types, collection aliases disabled, duplicate keys rejected,
 and unknown or missing fields rejected. Failure returns HTTP 422 with problem
 type `urn:ergon:problem:invalid-resolution-contract` and a `violations` array.
 
-Success returns a normalized JSON representation. It does not store a revision,
-check that named facts or capabilities are registered, select the contract for
-a case, authorize a step, or execute anything.
+Success returns a normalized JSON representation. This validation operation
+does not store a revision, check that named facts or capabilities are
+registered, select the contract for a case, authorize a step, or execute
+anything.
+
+## Publishing revisions
+
+Publish a validated revision with
+`POST /internal/v1/tenants/{tenantId}/resolution-contracts`; the body uses the
+same YAML content types. The response is HTTP 201 with a `Location` for the
+exact revision and its database recording time. Read it through
+`GET /internal/v1/tenants/{tenantId}/resolution-contracts/{key}/revisions/{revision}`.
+
+The `(tenant, key, revision)` identity is immutable. Reusing it returns HTTP
+409 even when the new document differs, and another tenant cannot discover the
+revision through its own path. PostgreSQL stores normalized, schema-versioned
+JSON meaning rather than authoring YAML and rejects UPDATE or DELETE.
+
+Publication still does not establish that referenced facts or capabilities
+exist, promote the revision, pin it to a case, authorize it, or execute it.
 
 The schema identifier is a compatibility boundary. Published field meanings do
 not change in place; incompatible syntax or semantics require a new identifier

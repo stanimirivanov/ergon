@@ -66,14 +66,18 @@ timeline, and typed account-access facts in PostgreSQL. Its current APIs are:
   returns the typed facts with their source observation and binding metadata.
 - `POST /internal/v1/resolution-contracts/validate` validates a strict YAML
   contract and returns its normalized meaning without storing or executing it.
+- `POST /internal/v1/tenants/{tenantId}/resolution-contracts` publishes an
+  immutable normalized revision; its returned `Location` retrieves that exact
+  tenant-scoped revision.
 
 Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
 This slice deliberately has no authentication: tenant IDs in paths are a
 temporary development boundary and must not be exposed as an authorization
-mechanism. Contract persistence and case pinning, AI-assisted binding, broader
-fact types, policy, and execution remain later delivery steps. The predecessor
-services remain in the reactor while behavior is replaced incrementally.
+mechanism. Contract registry checks and case pinning, AI-assisted binding,
+broader fact types, policy, and execution remain later delivery steps. The
+predecessor services remain in the reactor while behavior is replaced
+incrementally.
 
 ```powershell
 .\mvnw.cmd -B -ntp verify
