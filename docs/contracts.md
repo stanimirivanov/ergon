@@ -82,6 +82,28 @@ published before the registry gate were introduced are not retroactively
 certified; a later runtime must resolve every reference and fail closed before
 execution.
 
+## Readiness
+
+Query
+`GET /internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-readiness` to
+evaluate the pinned revision against one authoritative case-event snapshot.
+The response identifies the exact case stream version and one of:
+
+- `WAITING_FOR_CONTRACT`: no revision is pinned;
+- `WAITING_FOR_EVIDENCE`: one or more required fact types have no value;
+- `NOT_APPLICABLE`: all evidence exists but applicability equality is false;
+- `READY`: all evidence exists and applicability equality is true.
+
+Missing evidence takes precedence over applicability. For the current slice,
+the latest bound `account.access.state` in stream order supplies that registered
+fact; equality is exact and case-sensitive. The response includes the expected
+and actual applicability values only after all required evidence exists.
+
+Readiness is a deterministic query, not durable execution state. `READY` does
+not check tenant connector availability, authorize the capability, create a
+run, or prove the outcome. A caller acting on it must use the returned case
+stream version as the snapshot boundary and revalidate all runtime gates.
+
 The schema identifier is a compatibility boundary. Published field meanings do
 not change in place; incompatible syntax or semantics require a new identifier
 and an ADR with coexistence and migration rules.

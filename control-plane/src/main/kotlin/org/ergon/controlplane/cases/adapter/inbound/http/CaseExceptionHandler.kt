@@ -20,6 +20,7 @@ import java.net.URI
             CaseAccountAccessFactController::class,
             AccountAccessStateBindingController::class,
             CaseResolutionContractController::class,
+            CaseResolutionReadinessController::class,
         ],
 )
 class CaseExceptionHandler {

@@ -112,6 +112,78 @@ class CaseResolutionContractApiIntegrationTest(
         assertThat(pins).isEqualTo(1)
     }
 
+    @Test
+    fun `readiness progresses from missing contract and evidence to ready`() {
+        val tenantId = UUID.randomUUID()
+        val caseId = openCase(tenantId)
+
+        expectReadiness(tenantId, caseId, "WAITING_FOR_CONTRACT", 1)
+
+        publishContract(tenantId)
+        pinContract(tenantId, caseId, "\"1\"")
+        mockMvc
+            .perform(get(CASE_RESOLUTION_READINESS_PATH, tenantId, caseId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("WAITING_FOR_EVIDENCE"))
+            .andExpect(jsonPath("$.caseStreamVersion").value(2))
+            .andExpect(jsonPath("$.contract.key").value("restore-workspace-access"))
+            .andExpect(jsonPath("$.contract.revision").value(1))
+            .andExpect(jsonPath("$.missingEvidence[0]").value("account.access.state"))
+            .andExpect(jsonPath("$.applicability").doesNotExist())
+
+        recordAndBindAccountState(tenantId, caseId, expectedVersion = 2, state = "LOCKED")
+        mockMvc
+            .perform(get(CASE_RESOLUTION_READINESS_PATH, tenantId, caseId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("READY"))
+            .andExpect(jsonPath("$.caseStreamVersion").value(4))
+            .andExpect(jsonPath("$.missingEvidence.length()").value(0))
+            .andExpect(jsonPath("$.applicability.fact").value("account.access.state"))
+            .andExpect(jsonPath("$.applicability.expectedValue").value("LOCKED"))
+            .andExpect(jsonPath("$.applicability.actualValue").value("LOCKED"))
+    }
+
+    @Test
+    fun `readiness uses latest evidence and preserves tenant isolation`() {
+        val ownerTenantId = UUID.randomUUID()
+        val otherTenantId = UUID.randomUUID()
+        val caseId = openCase(ownerTenantId)
+        publishContract(ownerTenantId)
+        pinContract(ownerTenantId, caseId, "\"1\"")
+        recordAndBindAccountState(ownerTenantId, caseId, expectedVersion = 2, state = "LOCKED")
+        recordAndBindAccountState(ownerTenantId, caseId, expectedVersion = 4, state = "ACTIVE")
+
+        mockMvc
+            .perform(get(CASE_RESOLUTION_READINESS_PATH, ownerTenantId, caseId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("NOT_APPLICABLE"))
+            .andExpect(jsonPath("$.caseStreamVersion").value(6))
+            .andExpect(jsonPath("$.applicability.expectedValue").value("LOCKED"))
+            .andExpect(jsonPath("$.applicability.actualValue").value("ACTIVE"))
+
+        mockMvc
+            .perform(get(CASE_RESOLUTION_READINESS_PATH, otherTenantId, caseId))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:case-not-found"))
+    }
+
+    private fun expectReadiness(
+        tenantId: UUID,
+        caseId: UUID,
+        readinessStatus: String,
+        caseStreamVersion: Long,
+    ) {
+        mockMvc
+            .perform(get(CASE_RESOLUTION_READINESS_PATH, tenantId, caseId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.caseId").value(caseId.toString()))
+            .andExpect(jsonPath("$.caseStreamVersion").value(caseStreamVersion))
+            .andExpect(jsonPath("$.status").value(readinessStatus))
+            .andExpect(jsonPath("$.contract").doesNotExist())
+            .andExpect(jsonPath("$.missingEvidence.length()").value(0))
+            .andExpect(jsonPath("$.applicability").doesNotExist())
+    }
+
     private fun expectNotFound(
         tenantId: UUID,
         caseId: UUID,
@@ -168,6 +240,46 @@ class CaseResolutionContractApiIntegrationTest(
             .andExpect(jsonPath("$.streamVersion").value(2))
     }
 
+    private fun recordAndBindAccountState(
+        tenantId: UUID,
+        caseId: UUID,
+        expectedVersion: Long,
+        state: String,
+    ) {
+        val observationVersion = expectedVersion + 1
+        mockMvc
+            .perform(
+                post(CONNECTOR_OBSERVATIONS_PATH, tenantId, caseId)
+                    .header("If-Match", "\"$expectedVersion\"")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(CONNECTOR_OBSERVATION),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.streamVersion").value(observationVersion))
+        val observationId =
+            jdbcClient
+                .sql(
+                    """
+                    SELECT observation_id
+                    FROM case_timeline_entries
+                    WHERE tenant_id = :tenantId
+                        AND case_id = :caseId
+                        AND stream_version = :streamVersion
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("caseId", caseId)
+                .param("streamVersion", observationVersion)
+                .query(UUID::class.java)
+                .single()
+        mockMvc
+            .perform(
+                post(ACCOUNT_ACCESS_FACTS_PATH, tenantId, caseId)
+                    .header("If-Match", "\"$observationVersion\"")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"observationId":"$observationId","state":"$state"}"""),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.streamVersion").value(observationVersion + 1))
+    }
+
     private fun assertContractPinPreservesEventTimes(
         tenantId: UUID,
         caseId: UUID,
@@ -209,8 +321,16 @@ class CaseResolutionContractApiIntegrationTest(
         private const val CASE_TIMELINE_PATH = "/api/v1/tenants/{tenantId}/cases/{caseId}/timeline"
         private const val CASE_RESOLUTION_CONTRACT_PATH =
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-contract"
+        private const val CASE_RESOLUTION_READINESS_PATH =
+            "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-readiness"
+        private const val CONNECTOR_OBSERVATIONS_PATH =
+            "/internal/v1/tenants/{tenantId}/cases/{caseId}/connector-observations"
+        private const val ACCOUNT_ACCESS_FACTS_PATH =
+            "/internal/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states"
         private const val CONTRACT_REVISIONS_PATH = "/internal/v1/tenants/{tenantId}/resolution-contracts"
         private const val CONTRACT_PIN = """{"key":"restore-workspace-access","revision":1}"""
+        private const val CONNECTOR_OBSERVATION =
+            """{"connector":"identity-stub","reference":"accounts/customer-42","content":"account state observed"}"""
         private val VALID_CONTRACT =
             requireNotNull(
                 CaseResolutionContractApiIntegrationTest::class.java
