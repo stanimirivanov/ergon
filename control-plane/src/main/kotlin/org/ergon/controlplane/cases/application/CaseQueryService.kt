@@ -7,6 +7,7 @@ import java.util.UUID
 /** Resolves tenant-scoped case queries without exposing persistence details. */
 class CaseQueryService(
     private val repository: CaseTimelineRepository,
+    private val accountAccessFacts: CaseAccountAccessFactRepository,
 ) {
     /**
      * Returns the complete case timeline.
@@ -18,5 +19,17 @@ class CaseQueryService(
         caseId: UUID,
     ): CaseTimeline =
         repository.find(TenantId(tenantId), CaseId(caseId))
+            ?: throw CaseNotFoundException(tenantId, caseId)
+
+    /**
+     * Returns account-access facts in the order they were bound.
+     *
+     * @throws CaseNotFoundException when the case is absent from the tenant boundary.
+     */
+    fun accountAccessFacts(
+        tenantId: UUID,
+        caseId: UUID,
+    ): CaseAccountAccessFacts =
+        accountAccessFacts.find(TenantId(tenantId), CaseId(caseId))
             ?: throw CaseNotFoundException(tenantId, caseId)
 }

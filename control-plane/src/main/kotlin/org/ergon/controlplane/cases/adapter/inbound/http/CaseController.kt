@@ -141,7 +141,7 @@ class InvalidVersionPreconditionException(
     value: String,
 ) : RuntimeException("If-Match must contain a quoted positive stream version; received $value")
 
-private fun parseVersion(ifMatch: String): Long {
+internal fun parseVersion(ifMatch: String): Long {
     val match =
         Regex("^\"([0-9]+)\"$").matchEntire(ifMatch.trim())
             ?: throw InvalidVersionPreconditionException(ifMatch)
@@ -149,9 +149,9 @@ private fun parseVersion(ifMatch: String): Long {
         ?: throw InvalidVersionPreconditionException(ifMatch)
 }
 
-private fun CaseWriteResult.etag(): String = "\"$streamVersion\""
+internal fun CaseWriteResult.etag(): String = "\"$streamVersion\""
 
-private fun CaseWriteResult.toResponse() = CaseWriteResponse(caseId, status, streamVersion)
+internal fun CaseWriteResult.toResponse() = CaseWriteResponse(caseId, status, streamVersion)
 
 private fun CaseTimeline.toResponse() =
     CaseTimelineResponse(

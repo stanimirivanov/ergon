@@ -1,8 +1,10 @@
 package org.ergon.controlplane.cases.application
 
+import org.ergon.cases.domain.AccountAccessState
 import org.ergon.cases.domain.CaseGoal
 import org.ergon.cases.domain.CaseId
 import org.ergon.cases.domain.ErgonCase
+import org.ergon.cases.domain.FactId
 import org.ergon.cases.domain.ObservationId
 import org.ergon.cases.domain.ObservationOrigin
 import org.ergon.cases.domain.SourceObservation
@@ -90,6 +92,40 @@ class CaseCommandService(
                 content = command.content,
                 observedAt = clock.instant(),
             ),
+        )
+        persist(case, command.expectedVersion)
+        return case.toWriteResult()
+    }
+
+    /**
+     * Binds an account-access state to evidence already recorded in the case.
+     *
+     * @return the committed case identity, status, and incremented stream
+     *   version.
+     * @throws CaseNotFoundException when the tenant-scoped case is absent.
+     * @throws ConcurrentCaseModificationException when another command has
+     *   advanced the stream.
+     * @throws IllegalArgumentException when the observation is absent, is not
+     *   connector-authored, was already bound, or the precondition is invalid.
+     */
+    fun bindAccountAccessState(command: BindAccountAccessStateCommand): CaseWriteResult {
+        require(command.expectedVersion > 0) { "If-Match version must be positive" }
+        val tenantId = TenantId(command.tenantId)
+        val caseId = CaseId(command.caseId)
+        val history = eventStore.load(tenantId, caseId)
+        if (history.isEmpty()) {
+            throw CaseNotFoundException(command.tenantId, command.caseId)
+        }
+        val case = ErgonCase.rehydrate(caseId, tenantId, history)
+        if (case.streamVersion != command.expectedVersion) {
+            throw ConcurrentCaseModificationException(command.expectedVersion, case.streamVersion)
+        }
+
+        case.bindAccountAccessState(
+            factId = FactId(identities.next()),
+            observationId = ObservationId(command.observationId),
+            state = command.state,
+            boundAt = clock.instant(),
         )
         persist(case, command.expectedVersion)
         return case.toWriteResult()
