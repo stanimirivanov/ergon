@@ -1,9 +1,15 @@
 package org.ergon.cases.domain
 
 /**
- * Owns the ordered case event stream and enforces case-level write invariants.
+ * The case aggregate: owns the ordered event stream for one case and
+ * enforces write-time invariants against it.
  *
- * Persistence is supplied by the application layer; this aggregate has no infrastructure concerns.
+ * Externally visible instances are valid: the only ways to obtain one are
+ * [open] and [rehydrate], and every applied event advances [streamVersion] by
+ * exactly one, so it always equals the count of events applied so far. This
+ * class has no persistence concerns of its own: the caller loads history into
+ * it and is responsible for durably saving [pendingEvents] after any call that
+ * records new ones.
  */
 class ErgonCase private constructor(
     val id: CaseId,
@@ -20,7 +26,13 @@ class ErgonCase private constructor(
 
     private val changes = mutableListOf<CaseEvent>()
 
-    /** Records one validated source observation as the next uncommitted event. */
+    /**
+     * Records a new observation against this case.
+     *
+     * Appends an [ObservationRecorded] event to [pendingEvents] and advances
+     * [streamVersion] by one. Does not change [status]—only opening a case
+     * does that.
+     */
     fun record(observation: SourceObservation) {
         record(
             ObservationRecorded(
@@ -34,10 +46,20 @@ class ErgonCase private constructor(
         )
     }
 
-    /** Returns events created since construction or the last [markChangesCommitted] call. */
+    /**
+     * @return a snapshot of events applied since construction or the last
+     *   [markChangesCommitted], in recording order. Nothing clears this list
+     *   automatically.
+     */
     fun pendingEvents(): List<CaseEvent> = changes.toList()
 
-    /** Clears pending events after their transaction has committed; aggregate state is preserved. */
+    /**
+     * Clears [pendingEvents] while preserving aggregate state.
+     *
+     * Call only after the transaction that persisted every pending event has
+     * committed; clearing earlier would make a failed write unrecoverable from
+     * this aggregate instance.
+     */
     fun markChangesCommitted() = changes.clear()
 
     private fun record(event: CaseEvent) {
@@ -61,9 +83,13 @@ class ErgonCase private constructor(
 
     companion object {
         /**
-         * Opens a case from a requester observation at stream version one.
+         * Opens a new case at stream version one from a requester's initial
+         * observation.
          *
-         * @throws IllegalArgumentException when [initialObservation] is not requester-originated.
+         * @return an open aggregate with one pending [CaseOpened] event.
+         * @throws IllegalArgumentException if [initialObservation]'s origin
+         *   isn't [ObservationOriginType.REQUESTER]—a case cannot be opened
+         *   from a connector observation.
          */
         fun open(
             id: CaseId,
@@ -90,9 +116,18 @@ class ErgonCase private constructor(
         }
 
         /**
-         * Restores an aggregate from a complete, ordered history without creating new events.
+         * Reconstructs a case by replaying its complete history in order.
          *
-         * @throws IllegalArgumentException when history is empty or does not start with [CaseOpened].
+         * This is the only way to load an existing case for a command—there
+         * is no snapshot path yet, so [history] is replayed from the start
+         * every time. The caller must supply the complete stream in
+         * oldest-first order; events do not carry versions with which to verify
+         * ordering or completeness here.
+         *
+         * @return an aggregate whose stream version is `history.size` and that
+         *   has no pending events.
+         * @throws IllegalArgumentException if [history] is empty or doesn't
+         *   begin with [CaseOpened].
          */
         fun rehydrate(
             id: CaseId,

@@ -168,9 +168,14 @@ Format intentionally before committing:
 
 ### Documentation
 
-- Document public APIs with purpose, invariants, errors, and examples where an
-  example clarifies correct use. Explain reasons and constraints in comments;
-  avoid narrating syntax.
+- Document public APIs with purpose, invariants, parameter and return
+  constraints, and errors.
+- Add an example only when correct use is not obvious from the signature alone.
+  Prefer `@sample` links to real, compiled sample code over free-form blocks
+  that can drift out of sync.
+- Explain reasons and constraints; never narrate syntax. Skip members where the
+  name and type already say everything there is to say: an uninformative
+  comment is a maintenance liability, not documentation.
 - KDoc public extension points, domain invariants, non-obvious units,
   authorization expectations, side effects, concurrency guarantees, and
   failure semantics. Document `@throws` only for failures the caller can
@@ -180,9 +185,8 @@ Format intentionally before committing:
   workarounds, security boundaries, and deliberate performance trade-offs.
 - Link Kotlin declarations with `[Name]`. Prefer prose over repetitive `@param`
   and `@return` tags; use tags when a lengthy explanation reads better that way.
-- Put examples in executable tests when practical. Keep KDoc examples short,
-  deterministic, and aligned with the supported API; do not duplicate entire
-  tutorials in source comments.
+- Keep compiled KDoc samples short, deterministic, and aligned with the
+  supported API; do not duplicate tutorials in source comments.
 - Comments do not excuse unclear names or oversized functions. Delete stale and
   commented-out code. Update or remove a comment in the same change that makes
   it inaccurate.
