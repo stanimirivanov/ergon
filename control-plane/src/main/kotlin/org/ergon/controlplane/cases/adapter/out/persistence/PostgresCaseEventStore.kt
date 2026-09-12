@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
+/** PostgreSQL event-store adapter with serialized, optimistic case-stream appends. */
 @Repository
 class PostgresCaseEventStore(
     private val jdbcClient: JdbcClient,
@@ -24,10 +25,10 @@ class PostgresCaseEventStore(
         jdbcClient
             .sql(
                 """
-                select event_type, schema_version, payload::text
-                from case_events
-                where tenant_id = :tenantId and case_id = :caseId
-                order by stream_version
+                SELECT event_type, schema_version, payload::TEXT
+                FROM case_events
+                WHERE tenant_id = :tenantId AND case_id = :caseId
+                ORDER BY stream_version
                 """.trimIndent(),
             ).param("tenantId", tenantId.value)
             .param("caseId", caseId.value)
@@ -59,14 +60,14 @@ class PostgresCaseEventStore(
                 jdbcClient
                     .sql(
                         """
-                        insert into case_events (
+                        INSERT INTO case_events (
                             event_id, tenant_id, case_id, stream_version,
                             event_type, schema_version, payload, occurred_at
-                        ) values (
+                        ) VALUES (
                             :eventId, :tenantId, :caseId, :streamVersion,
-                            :eventType, :schemaVersion, cast(:payload as jsonb), :occurredAt
+                            :eventType, :schemaVersion, CAST(:payload AS JSONB), :occurredAt
                         )
-                        returning recorded_at
+                        RETURNING recorded_at
                         """.trimIndent(),
                     ).param("eventId", newEvent.eventId)
                     .param("tenantId", tenantId.value)
@@ -87,8 +88,9 @@ class PostgresCaseEventStore(
         tenantId: TenantId,
         caseId: CaseId,
     ) {
+        // The fixed-width UUID pair has an unambiguous text form; the 64-bit hash scopes one stream lock.
         jdbcClient
-            .sql("select pg_advisory_xact_lock(hashtextextended(:streamKey, 0))")
+            .sql("SELECT pg_advisory_xact_lock(hashtextextended(:streamKey, 0))")
             .param("streamKey", "${tenantId.value}:${caseId.value}")
             .query { _, _ -> Unit }
             .single()
@@ -101,9 +103,9 @@ class PostgresCaseEventStore(
         jdbcClient
             .sql(
                 """
-                select coalesce(max(stream_version), 0)
-                from case_events
-                where tenant_id = :tenantId and case_id = :caseId
+                SELECT coalesce(max(stream_version), 0)
+                FROM case_events
+                WHERE tenant_id = :tenantId AND case_id = :caseId
                 """.trimIndent(),
             ).param("tenantId", tenantId.value)
             .param("caseId", caseId.value)

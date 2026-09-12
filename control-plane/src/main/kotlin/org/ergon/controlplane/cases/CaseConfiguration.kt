@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration
 import java.time.Clock
 import java.util.UUID
 
+/** Explicitly wires the framework-free case application services to their adapters. */
 @Configuration(proxyBeanMethods = false)
 class CaseConfiguration {
     @Bean

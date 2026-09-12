@@ -101,6 +101,31 @@ historical records; supersede them with a new ADR instead of rewriting them.
 - Group members by reading flow and behavior, not alphabetically or by
   visibility.
 
+### Naming
+
+- Name domain types for business meaning: `CaseGoal`, `SourceObservation`, and
+  `ResolutionContract`, not storage or transport representations. Commands use
+  imperative intent; events use completed, past-tense facts.
+- Use `UpperCamelCase` for types, `lowerCamelCase` for functions and properties,
+  and `UPPER_SNAKE_CASE` only for constants. Package names are lowercase,
+  concise, and describe capabilities rather than technical layers alone.
+- Name ports for the capability they provide, without an implementation detail:
+  `CaseTimelineRepository`, not `PostgresRepository`. Name concrete adapters
+  with a material technology or protocol when that dependency affects
+  configuration, failure behavior, queries, or operations, such as
+  `PostgresCaseTimelineRepository` or `HttpIdentityConnector`.
+- Do not add `Impl`, `Default`, `Base`, `Common`, or `Abstract` merely to satisfy
+  an interface. Use a role that distinguishes the implementation. Avoid
+  `Manager`, `Helper`, `Util`, and `Processor` when a precise capability name is
+  available.
+- Preserve established domain vocabulary across Kotlin, HTTP, events, and SQL.
+  Do not use synonyms for the same concept or reuse one term for different
+  concepts. Spell out unfamiliar abbreviations; capitalize common initialisms
+  as words in identifiers (`HttpClient`, `UuidGenerator`).
+- Test names state the condition and observable result. Migration, constraint,
+  index, and trigger names identify their object and purpose; use `pk_`, `uq_`,
+  `fk_`, `ck_`, `ix_`, and `trg_` prefixes consistently.
+
 Format intentionally before committing:
 
 ```powershell
@@ -131,6 +156,10 @@ Format intentionally before committing:
   external boundary cannot provide null safety, normalize it in its adapter.
 - Domain violations are explicit values or typed exceptions with stable
   meaning. Do not expose framework or vendor exceptions across a port.
+- Model an expected outcome with a sealed result type when callers must branch
+  on it. Use nullable results for simple absence. Add a functional result
+  library such as Arrow only when several use cases need its composition and
+  interoperability benefits; do not introduce it to wrap one lookup.
 - Inject clocks, ID generators, randomness, and provider clients. Tests must not
   depend on wall-clock timing, random identifiers, locale, or machine timezone.
 - Use coroutines only when suspension is real and useful. Preserve structured
@@ -139,14 +168,24 @@ Format intentionally before committing:
 
 ### Documentation
 
-- KDoc public APIs, extension points, domain invariants, non-obvious units,
-  authorization expectations, side effects, and failure semantics.
-- Explain why a constraint exists; do not restate a signature or narrate obvious
-  code.
+- Document public APIs with purpose, invariants, errors, and examples where an
+  example clarifies correct use. Explain reasons and constraints in comments;
+  avoid narrating syntax.
+- KDoc public extension points, domain invariants, non-obvious units,
+  authorization expectations, side effects, concurrency guarantees, and
+  failure semantics. Document `@throws` only for failures the caller can
+  meaningfully handle.
+- Prefer self-explanatory code for mechanics. Add implementation comments for
+  non-obvious protocol rules, transaction or isolation choices, compatibility
+  workarounds, security boundaries, and deliberate performance trade-offs.
 - Link Kotlin declarations with `[Name]`. Prefer prose over repetitive `@param`
   and `@return` tags; use tags when a lengthy explanation reads better that way.
+- Put examples in executable tests when practical. Keep KDoc examples short,
+  deterministic, and aligned with the supported API; do not duplicate entire
+  tutorials in source comments.
 - Comments do not excuse unclear names or oversized functions. Delete stale and
-  commented-out code.
+  commented-out code. Update or remove a comment in the same change that makes
+  it inaccurate.
 - User-visible APIs, events, configuration, migrations, and operational behavior
   require documentation in the same pull request.
 
@@ -191,8 +230,12 @@ Format intentionally before committing:
 
 - PostgreSQL and Flyway own the production schema. Disable ORM schema creation
   and mutation outside disposable tests.
-- Use unquoted `lower_snake_case`. Use plural table names, singular column names,
-  and descriptive, stable constraint and index names.
+- Write SQL keywords and built-in data types in uppercase and identifiers in
+  unquoted `lower_snake_case`. Keep one major clause per line and indent
+  continued column lists, constraints, predicates, and references consistently.
+  Use blank lines to separate conceptual blocks, not every clause.
+- Use plural table names, singular column names, and descriptive, stable
+  constraint and index names.
 - Every table has an explicit primary key. Use application-generated UUIDs for
   externally referenced domain identities and `generated ... as identity` for
   internal surrogate sequences; do not introduce `serial`.
@@ -220,6 +263,9 @@ Format intentionally before committing:
   as columns. JSON is not a substitute for schema design.
 - Event and audit rows are append-only. Corrections append facts or create new
   revisions; they do not rewrite history.
+- When a `CHECK` constraint mirrors a Kotlin enum or sealed set, adding a domain
+  value requires a paired migration and a persistence test. Document this
+  compatibility coupling near the constraint when it is not obvious.
 - Store secrets nowhere in application tables unless the encrypted-secret
   design has an accepted ADR. Minimize personal data and define retention and
   deletion behavior for every new sensitive field.
@@ -234,6 +280,14 @@ Format intentionally before committing:
   reached a persistent shared environment. Add a new migration and roll forward.
 - Keep one coherent schema or data transition per migration. Migrations and the
   application changes that depend on them belong to the same delivery plan.
+- Start a non-trivial migration with a compact comment describing its data
+  model, authoritative versus derived tables, mutation rules, and required
+  write ordering. Comment decisions that are not apparent from the DDL, such as
+  intentionally redundant uniqueness required by a tenant-safe foreign key.
+- Add `COMMENT ON TABLE` and selective `COMMENT ON COLUMN` statements for
+  durable domain meaning, null semantics, authoritative/derived status, and
+  timestamps whose business meaning is not obvious. Do not translate every
+  identifier into prose.
 - Prefer SQL migrations. Use a code migration only when SQL cannot express the
   transformation safely; make its checksum and replay behavior explicit.
 - Make transaction behavior explicit. A non-transactional operation such as

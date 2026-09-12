@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 import java.time.ZoneOffset
 
+/** Maintains current-case and timeline projections inside the event append transaction. */
 @Repository
 class PostgresCaseProjectionWriter(
     private val jdbcClient: JdbcClient,
@@ -34,9 +35,9 @@ class PostgresCaseProjectionWriter(
         jdbcClient
             .sql(
                 """
-                insert into cases (
+                INSERT INTO cases (
                     tenant_id, case_id, goal, status, stream_version, opened_at, updated_at
-                ) values (
+                ) VALUES (
                     :tenantId, :caseId, :goal, :status, :streamVersion, :openedAt, :updatedAt
                 )
                 """.trimIndent(),
@@ -59,9 +60,11 @@ class PostgresCaseProjectionWriter(
             jdbcClient
                 .sql(
                     """
-                    update cases
-                    set status = :status, stream_version = :streamVersion, updated_at = :updatedAt
-                    where tenant_id = :tenantId and case_id = :caseId and stream_version = :expectedVersion
+                    UPDATE cases
+                    SET status = :status, stream_version = :streamVersion, updated_at = :updatedAt
+                    WHERE tenant_id = :tenantId
+                        AND case_id = :caseId
+                        AND stream_version = :expectedVersion
                     """.trimIndent(),
                 ).param("status", case.status.name)
                 .param("streamVersion", case.streamVersion)
@@ -81,11 +84,11 @@ class PostgresCaseProjectionWriter(
         jdbcClient
             .sql(
                 """
-                insert into case_timeline_entries (
+                INSERT INTO case_timeline_entries (
                     tenant_id, case_id, stream_version, event_id, entry_type, summary,
                     observation_id, observation_origin_type, observation_provider,
                     observation_reference, observation_content, occurred_at, recorded_at
-                ) values (
+                ) VALUES (
                     :tenantId, :caseId, :streamVersion, :eventId, :entryType, :summary,
                     :observationId, :originType, :provider,
                     :reference, :content, :occurredAt, :recordedAt

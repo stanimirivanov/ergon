@@ -6,6 +6,7 @@ import org.ergon.cases.domain.ObservationRecorded
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
 
+/** Versioned JSON codec at the boundary between domain events and their durable payloads. */
 @Component
 class CaseEventJsonCodec(
     private val objectMapper: ObjectMapper,
@@ -30,6 +31,7 @@ class CaseEventJsonCodec(
     }
 }
 
+/** Storage representation selected by event type and schema version before persistence. */
 data class EncodedCaseEvent(
     val eventType: String,
     val schemaVersion: Int,

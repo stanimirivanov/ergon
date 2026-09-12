@@ -7,12 +7,20 @@ import org.ergon.cases.domain.TenantId
 import java.time.Instant
 import java.util.UUID
 
+/** Durable, tenant-scoped storage for ordered [CaseEvent] streams. */
 interface CaseEventStore {
+    /** Returns the complete stream in version order, or an empty list when the tenant-scoped case does not exist. */
     fun load(
         tenantId: TenantId,
         caseId: CaseId,
     ): List<CaseEvent>
 
+    /**
+     * Atomically appends non-empty [events] after verifying [expectedVersion].
+     *
+     * @throws ConcurrentCaseModificationException when the durable stream has advanced.
+     * @throws IllegalArgumentException when [events] is empty.
+     */
     fun append(
         tenantId: TenantId,
         caseId: CaseId,
@@ -21,11 +29,13 @@ interface CaseEventStore {
     ): List<StoredCaseEvent>
 }
 
+/** Event plus its application-generated durable identity. */
 data class NewCaseEvent(
     val eventId: UUID,
     val event: CaseEvent,
 )
 
+/** Persisted event metadata returned by [CaseEventStore.append]. */
 data class StoredCaseEvent(
     val eventId: UUID,
     val streamVersion: Long,
@@ -33,6 +43,7 @@ data class StoredCaseEvent(
     val recordedAt: Instant,
 )
 
+/** Synchronously advances case read models from events already appended in the same transaction. */
 interface CaseProjectionWriter {
     fun project(
         case: ErgonCase,
@@ -40,17 +51,21 @@ interface CaseProjectionWriter {
     )
 }
 
+/** Query port for a tenant-scoped case timeline. */
 interface CaseTimelineRepository {
+    /** Returns `null` when [caseId] does not belong to [tenantId] or does not exist. */
     fun find(
         tenantId: TenantId,
         caseId: CaseId,
     ): CaseTimeline?
 }
 
+/** Supplies unpredictable identities without coupling use cases to a UUID implementation. */
 fun interface IdentityGenerator {
     fun next(): UUID
 }
 
+/** Executes a short local database unit of work and returns only after commit. */
 interface TransactionRunner {
     fun <T : Any> required(block: () -> T): T
 }

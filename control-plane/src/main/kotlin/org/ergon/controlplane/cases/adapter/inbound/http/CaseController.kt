@@ -22,8 +22,10 @@ import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
+import java.time.Instant
 import java.util.UUID
 
+/** Public HTTP adapter for opening cases and reading their source-observation timelines. */
 @RestController
 @RequestMapping("/api/v1/tenants/{tenantId}/cases")
 class CaseController(
@@ -53,9 +55,10 @@ class CaseController(
     fun timeline(
         @PathVariable tenantId: UUID,
         @PathVariable caseId: UUID,
-    ): CaseTimeline = queryService.timeline(tenantId, caseId)
+    ): CaseTimelineResponse = queryService.timeline(tenantId, caseId).toResponse()
 }
 
+/** Internal connector callback adapter; callers must supply the current quoted stream ETag. */
 @RestController
 @RequestMapping("/internal/v1/tenants/{tenantId}/cases/{caseId}/connector-observations")
 class ConnectorObservationController(
@@ -83,11 +86,13 @@ class ConnectorObservationController(
     }
 }
 
+/** HTTP request for opening a case from a requester-authored goal and observation. */
 data class OpenCaseRequest(
     @field:NotBlank @field:Size(max = CaseGoal.MAX_LENGTH) val goal: String,
     @field:NotBlank @field:Size(max = SourceObservation.MAX_CONTENT_LENGTH) val initialObservation: String,
 )
 
+/** HTTP request containing an attributable observation from one connector. */
 data class ConnectorObservationRequest(
     @field:Pattern(regexp = ObservationOrigin.PROVIDER_PATTERN)
     @field:Size(max = ObservationOrigin.MAX_PROVIDER_LENGTH)
@@ -96,12 +101,42 @@ data class ConnectorObservationRequest(
     @field:NotBlank @field:Size(max = SourceObservation.MAX_CONTENT_LENGTH) val content: String,
 )
 
+/** HTTP command response carrying the new stream version used as the next ETag. */
 data class CaseWriteResponse(
     val caseId: UUID,
     val status: String,
     val streamVersion: Long,
 )
 
+/** Stable HTTP representation of a case and its ordered source-observation history. */
+data class CaseTimelineResponse(
+    val caseId: UUID,
+    val goal: String,
+    val status: String,
+    val streamVersion: Long,
+    val entries: List<CaseTimelineEntryResponse>,
+)
+
+/** HTTP representation of one durable timeline entry. */
+data class CaseTimelineEntryResponse(
+    val streamVersion: Long,
+    val eventType: String,
+    val summary: String,
+    val occurredAt: Instant,
+    val recordedAt: Instant,
+    val observation: TimelineObservationResponse,
+)
+
+/** HTTP representation of an observation and its source attribution. */
+data class TimelineObservationResponse(
+    val id: UUID,
+    val originType: String,
+    val provider: String,
+    val reference: String?,
+    val content: String,
+)
+
+/** Signals an `If-Match` value that is not a quoted positive stream version. */
 class InvalidVersionPreconditionException(
     value: String,
 ) : RuntimeException("If-Match must contain a quoted positive stream version; received $value")
@@ -117,3 +152,29 @@ private fun parseVersion(ifMatch: String): Long {
 private fun CaseWriteResult.etag(): String = "\"$streamVersion\""
 
 private fun CaseWriteResult.toResponse() = CaseWriteResponse(caseId, status, streamVersion)
+
+private fun CaseTimeline.toResponse() =
+    CaseTimelineResponse(
+        caseId = caseId,
+        goal = goal,
+        status = status,
+        streamVersion = streamVersion,
+        entries =
+            entries.map { entry ->
+                CaseTimelineEntryResponse(
+                    streamVersion = entry.streamVersion,
+                    eventType = entry.eventType,
+                    summary = entry.summary,
+                    occurredAt = entry.occurredAt,
+                    recordedAt = entry.recordedAt,
+                    observation =
+                        TimelineObservationResponse(
+                            id = entry.observation.id,
+                            originType = entry.observation.originType,
+                            provider = entry.observation.provider,
+                            reference = entry.observation.reference,
+                            content = entry.observation.content,
+                        ),
+                )
+            },
+    )

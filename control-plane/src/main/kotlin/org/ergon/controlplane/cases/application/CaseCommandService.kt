@@ -9,6 +9,7 @@ import org.ergon.cases.domain.SourceObservation
 import org.ergon.cases.domain.TenantId
 import java.time.Clock
 
+/** Coordinates case commands, keeping event append and projection updates atomic. */
 class CaseCommandService(
     private val eventStore: CaseEventStore,
     private val projectionWriter: CaseProjectionWriter,
@@ -16,6 +17,7 @@ class CaseCommandService(
     private val transactionRunner: TransactionRunner,
     private val clock: Clock,
 ) {
+    /** Opens and persists a case at stream version one. */
     fun open(command: OpenCaseCommand): CaseWriteResult {
         val tenantId = TenantId(command.tenantId)
         val caseId = CaseId(identities.next())
@@ -37,6 +39,13 @@ class CaseCommandService(
         return case.toWriteResult()
     }
 
+    /**
+     * Records connector evidence against the caller's expected version.
+     *
+     * @throws CaseNotFoundException when the tenant-scoped case is absent.
+     * @throws ConcurrentCaseModificationException when another command has advanced the stream.
+     * @throws IllegalArgumentException when observation or precondition values violate domain invariants.
+     */
     fun recordConnectorObservation(command: RecordConnectorObservationCommand): CaseWriteResult {
         require(command.expectedVersion > 0) { "If-Match version must be positive" }
         val tenantId = TenantId(command.tenantId)
