@@ -4,6 +4,7 @@ import org.ergon.cases.domain.AccountAccessStateBound
 import org.ergon.cases.domain.CaseEvent
 import org.ergon.cases.domain.CaseOpened
 import org.ergon.cases.domain.ObservationRecorded
+import org.ergon.cases.domain.ResolutionContractRevisionPinned
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
 
@@ -25,6 +26,10 @@ class CaseEventJsonCodec(
             is ObservationRecorded -> {
                 EncodedCaseEvent("ObservationRecorded", 1, objectMapper.writeValueAsString(event))
             }
+
+            is ResolutionContractRevisionPinned -> {
+                EncodedCaseEvent("ResolutionContractRevisionPinned", 1, objectMapper.writeValueAsString(event))
+            }
         }
 
     fun decode(
@@ -34,10 +39,25 @@ class CaseEventJsonCodec(
     ): CaseEvent {
         require(schemaVersion == 1) { "unsupported $eventType schema version $schemaVersion" }
         return when (eventType) {
-            "AccountAccessStateBound" -> objectMapper.readValue(payload, AccountAccessStateBound::class.java)
-            "CaseOpened" -> objectMapper.readValue(payload, CaseOpened::class.java)
-            "ObservationRecorded" -> objectMapper.readValue(payload, ObservationRecorded::class.java)
-            else -> error("unsupported case event type $eventType")
+            "AccountAccessStateBound" -> {
+                objectMapper.readValue(payload, AccountAccessStateBound::class.java)
+            }
+
+            "CaseOpened" -> {
+                objectMapper.readValue(payload, CaseOpened::class.java)
+            }
+
+            "ObservationRecorded" -> {
+                objectMapper.readValue(payload, ObservationRecorded::class.java)
+            }
+
+            "ResolutionContractRevisionPinned" -> {
+                objectMapper.readValue(payload, ResolutionContractRevisionPinned::class.java)
+            }
+
+            else -> {
+                error("unsupported case event type $eventType")
+            }
         }
     }
 }

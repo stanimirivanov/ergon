@@ -51,7 +51,8 @@ request -> case graph -> evidence bundle -> resolution contract
 
 The first Ergon implementation slice lives in `control-plane` and
 `domain-kernel`. It persists an append-only case stream, a source-observation
-timeline, and typed account-access facts in PostgreSQL. Its current APIs are:
+timeline, typed account-access facts, immutable contract revisions, and case
+contract pins in PostgreSQL. Its current APIs are:
 
 - `POST /api/v1/tenants/{tenantId}/cases` opens a case from a goal and requester
   observation, returning `ETag: "1"`.
@@ -59,7 +60,8 @@ timeline, and typed account-access facts in PostgreSQL. Its current APIs are:
   appends an attributable connector observation and requires a quoted
   `If-Match` stream version.
 - `GET /api/v1/tenants/{tenantId}/cases/{caseId}/timeline` returns observations
-  in stream order with both occurrence and persistence times.
+  in stream order with both occurrence and persistence times, plus the pinned
+  contract revision when one has been selected.
 - `POST /internal/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states`
   binds `ACTIVE` or `LOCKED` to an existing connector observation.
 - `GET /api/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states`
@@ -69,12 +71,14 @@ timeline, and typed account-access facts in PostgreSQL. Its current APIs are:
 - `POST /internal/v1/tenants/{tenantId}/resolution-contracts` publishes an
   immutable normalized revision; its returned `Location` retrieves that exact
   tenant-scoped revision.
+- `POST /internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-contract`
+  pins one published tenant contract revision using the case `If-Match` token.
 
 Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
 This slice deliberately has no authentication: tenant IDs in paths are a
 temporary development boundary and must not be exposed as an authorization
-mechanism. Contract registry checks and case pinning, AI-assisted binding,
+mechanism. Contract registry checks, automatic selection, AI-assisted binding,
 broader fact types, policy, and execution remain later delivery steps. The
 predecessor services remain in the reactor while behavior is replaced
 incrementally.

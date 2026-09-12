@@ -6,6 +6,7 @@ import org.ergon.cases.domain.CaseOpened
 import org.ergon.cases.domain.ErgonCase
 import org.ergon.cases.domain.ObservationOriginType
 import org.ergon.cases.domain.ObservationRecorded
+import org.ergon.cases.domain.ResolutionContractRevisionPinned
 import org.ergon.controlplane.cases.application.CaseProjectionWriter
 import org.ergon.controlplane.cases.application.StoredCaseEvent
 import org.springframework.jdbc.core.simple.JdbcClient
@@ -27,11 +28,14 @@ class PostgresCaseProjectionWriter(
 
             is AccountAccessStateBound,
             is ObservationRecorded,
+            is ResolutionContractRevisionPinned,
             -> updateCase(case, events.first().streamVersion - 1, events.last())
         }
         events.forEach { stored ->
             when (val event = stored.event) {
                 is AccountAccessStateBound -> insertAccountAccessFact(case, stored, event)
+
+                is ResolutionContractRevisionPinned -> insertResolutionContractPin(case, stored, event)
 
                 is CaseOpened,
                 is ObservationRecorded,
@@ -151,11 +155,39 @@ class PostgresCaseProjectionWriter(
             .update()
     }
 
+    private fun insertResolutionContractPin(
+        case: ErgonCase,
+        stored: StoredCaseEvent,
+        event: ResolutionContractRevisionPinned,
+    ) {
+        jdbcClient
+            .sql(
+                """
+                INSERT INTO case_resolution_contract_pins (
+                    tenant_id, case_id, contract_key, contract_revision,
+                    stream_version, event_id, pinned_at, recorded_at
+                ) VALUES (
+                    :tenantId, :caseId, :contractKey, :contractRevision,
+                    :streamVersion, :eventId, :pinnedAt, :recordedAt
+                )
+                """.trimIndent(),
+            ).param("tenantId", case.tenantId.value)
+            .param("caseId", case.id.value)
+            .param("contractKey", event.contractKey)
+            .param("contractRevision", event.contractRevision)
+            .param("streamVersion", stored.streamVersion)
+            .param("eventId", stored.eventId)
+            .param("pinnedAt", event.occurredAt.atOffset(ZoneOffset.UTC))
+            .param("recordedAt", stored.recordedAt.atOffset(ZoneOffset.UTC))
+            .update()
+    }
+
     private fun CaseEvent.eventType(): String =
         when (this) {
             is AccountAccessStateBound -> error("account-access facts use their dedicated projection")
             is CaseOpened -> "CASE_OPENED"
             is ObservationRecorded -> "OBSERVATION_RECORDED"
+            is ResolutionContractRevisionPinned -> error("contract pins use their dedicated projection")
         }
 
     private fun CaseEvent.summary(): String =
@@ -163,6 +195,7 @@ class PostgresCaseProjectionWriter(
             is AccountAccessStateBound -> error("account-access facts use their dedicated projection")
             is CaseOpened -> "Case opened from requester observation"
             is ObservationRecorded -> "Connector observation recorded"
+            is ResolutionContractRevisionPinned -> error("contract pins use their dedicated projection")
         }
 
     private fun CaseEvent.observation(): ObservationColumns =
@@ -189,6 +222,10 @@ class PostgresCaseProjectionWriter(
                     observationReference,
                     observationContent,
                 )
+            }
+
+            is ResolutionContractRevisionPinned -> {
+                error("contract pins use their dedicated projection")
             }
         }
 }

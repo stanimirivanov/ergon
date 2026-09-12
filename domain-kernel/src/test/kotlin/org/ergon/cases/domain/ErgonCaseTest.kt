@@ -2,6 +2,9 @@ package org.ergon.cases.domain
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
+import org.ergon.contracts.domain.ResolutionContractIdentity
+import org.ergon.contracts.domain.ResolutionContractKey
+import org.ergon.contracts.domain.ResolutionContractRevision
 import org.ergon.identity.domain.TenantId
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -112,6 +115,31 @@ class ErgonCaseTest {
                 AccountAccessState.ACTIVE,
                 OCCURRED_AT,
             )
+        }
+    }
+
+    @Test
+    fun `pins one exact resolution contract revision`() {
+        val case = caseWithConnectorObservation(ObservationId(UUID.randomUUID()))
+        val contract =
+            ResolutionContractIdentity(
+                ResolutionContractKey.of("restore-workspace-access"),
+                ResolutionContractRevision.of(1),
+            )
+
+        case.pinResolutionContract(contract, OCCURRED_AT.plusSeconds(2))
+
+        assertThat(case.pinnedResolutionContract).isEqualTo(contract)
+        assertThat(case.pendingEvents().single())
+            .isEqualTo(
+                ResolutionContractRevisionPinned(
+                    contractKey = "restore-workspace-access",
+                    contractRevision = 1,
+                    occurredAt = OCCURRED_AT.plusSeconds(2),
+                ),
+            )
+        assertThatIllegalArgumentException().isThrownBy {
+            case.pinResolutionContract(contract, OCCURRED_AT.plusSeconds(3))
         }
     }
 

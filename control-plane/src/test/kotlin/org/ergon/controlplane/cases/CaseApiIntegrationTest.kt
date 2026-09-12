@@ -397,6 +397,7 @@ class CaseApiIntegrationTest(
                 ),
             ).andExpect(content().string(containsString(ACCOUNT_ACCESS_FACTS_PATH)))
             .andExpect(content().string(containsString(INTERNAL_ACCOUNT_ACCESS_FACTS_PATH)))
+            .andExpect(content().string(containsString(CASE_RESOLUTION_CONTRACT_PATH)))
             .andExpect(content().string(containsString(CONTRACT_VALIDATION_PATH)))
             .andExpect(jsonPath("$.paths['$CONTRACT_REVISIONS_PATH'].post").exists())
             .andExpect(jsonPath("$.paths['$CONTRACT_REVISION_PATH'].get").exists())
@@ -503,6 +504,10 @@ class CaseApiIntegrationTest(
                 statement.executeQuery("SELECT to_regclass('resolution_contract_revisions')").use { result ->
                     assertThat(result.next()).isTrue()
                     assertThat(result.getString(1)).isEqualTo("resolution_contract_revisions")
+                }
+                statement.executeQuery("SELECT to_regclass('case_resolution_contract_pins')").use { result ->
+                    assertThat(result.next()).isTrue()
+                    assertThat(result.getString(1)).isEqualTo("case_resolution_contract_pins")
                 }
             }
         }
@@ -650,10 +655,12 @@ class CaseApiIntegrationTest(
             "/api/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states"
         private const val INTERNAL_ACCOUNT_ACCESS_FACTS_PATH =
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states"
+        private const val CASE_RESOLUTION_CONTRACT_PATH =
+            "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-contract"
         private const val CONTRACT_VALIDATION_PATH = "/internal/v1/resolution-contracts/validate"
         private const val CONTRACT_REVISIONS_PATH = "/internal/v1/tenants/{tenantId}/resolution-contracts"
         private const val CONTRACT_REVISION_PATH = "$CONTRACT_REVISIONS_PATH/{key}/revisions/{revision}"
-        private const val PREVIOUS_SCHEMA_VERSION = "20260912122500"
+        private const val PREVIOUS_SCHEMA_VERSION = "20260912164000"
         private const val UPGRADE_EVENT_ID = "55555555-5555-5555-5555-555555555555"
         private const val UPGRADE_TENANT_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
         private const val UPGRADE_CASE_ID = "66666666-6666-6666-6666-666666666666"

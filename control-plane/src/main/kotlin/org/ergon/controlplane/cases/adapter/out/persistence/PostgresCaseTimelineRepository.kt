@@ -4,6 +4,7 @@ import org.ergon.cases.domain.CaseId
 import org.ergon.controlplane.cases.application.CaseTimeline
 import org.ergon.controlplane.cases.application.CaseTimelineEntry
 import org.ergon.controlplane.cases.application.CaseTimelineRepository
+import org.ergon.controlplane.cases.application.PinnedResolutionContract
 import org.ergon.controlplane.cases.application.TimelineObservation
 import org.ergon.identity.domain.TenantId
 import org.springframework.jdbc.core.DataClassRowMapper
@@ -40,11 +41,19 @@ class PostgresCaseTimelineRepository(
                         e.observation_reference,
                         e.observation_content,
                         e.occurred_at,
-                        e.recorded_at
+                        e.recorded_at,
+                        p.contract_key,
+                        p.contract_revision,
+                        p.stream_version AS pin_stream_version,
+                        p.pinned_at,
+                        p.recorded_at AS pin_recorded_at
                     FROM cases c
                     INNER JOIN case_timeline_entries e
                         ON e.tenant_id = c.tenant_id
                         AND e.case_id = c.case_id
+                    LEFT JOIN case_resolution_contract_pins p
+                        ON p.tenant_id = c.tenant_id
+                        AND p.case_id = c.case_id
                     WHERE c.tenant_id = :tenantId
                         AND c.case_id = :caseId
                     ORDER BY e.stream_version
@@ -60,6 +69,7 @@ class PostgresCaseTimelineRepository(
             goal = first.goal,
             status = first.status,
             streamVersion = first.caseStreamVersion,
+            resolutionContract = first.toResolutionContractPin(),
             entries = rows.map(CaseTimelineRow::toEntry),
         )
     }
@@ -80,6 +90,11 @@ private data class CaseTimelineRow(
     val observationContent: String,
     val occurredAt: OffsetDateTime,
     val recordedAt: OffsetDateTime,
+    val contractKey: String?,
+    val contractRevision: Int?,
+    val pinStreamVersion: Long?,
+    val pinnedAt: OffsetDateTime?,
+    val pinRecordedAt: OffsetDateTime?,
 ) {
     fun toEntry() =
         CaseTimelineEntry(
@@ -97,4 +112,15 @@ private data class CaseTimelineRow(
                     content = observationContent,
                 ),
         )
+
+    fun toResolutionContractPin(): PinnedResolutionContract? =
+        contractKey?.let { key ->
+            PinnedResolutionContract(
+                key = key,
+                revision = requireNotNull(contractRevision),
+                streamVersion = requireNotNull(pinStreamVersion),
+                pinnedAt = requireNotNull(pinnedAt).toInstant(),
+                recordedAt = requireNotNull(pinRecordedAt).toInstant(),
+            )
+        }
 }

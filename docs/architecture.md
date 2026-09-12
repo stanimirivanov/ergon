@@ -150,7 +150,7 @@ Compatible additions use explicit defaults; breaking changes require a new
 version, migration strategy, and ADR.
 
 Representative events include `CaseOpened`, `EvidenceObserved`, `FactDisputed`,
-`ContractSelected`, `RunStarted`, `StepProposed`, `ActionAuthorized`,
+`ResolutionContractRevisionPinned`, `RunStarted`, `StepProposed`, `ActionAuthorized`,
 `ActionExecuted`, `ApprovalRequested`, `HumanIntervened`, `OutcomeObserved`,
 `ResolutionVerified`, `CaseEscalated`, `ImprovementProposed`, and
 `RevisionPromoted`.
