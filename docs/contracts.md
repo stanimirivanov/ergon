@@ -60,6 +60,14 @@ The `(tenant, key, revision)` identity is immutable. Reusing it returns HTTP
 revision through its own path. PostgreSQL stores normalized, schema-versioned
 JSON meaning rather than authoring YAML and rejects UPDATE or DELETE.
 
+Publication also requires every fact and capability name to be present in the
+system reference registry. The first registry recognizes
+`account.access.state` and `identity.account.unlock`. Unknown occurrences are
+returned together as HTTP 422 with problem type
+`urn:ergon:problem:unregistered-contract-references` and their document paths.
+Registration establishes stable system-wide meaning only; it does not prove
+that a tenant has an evidence source, installed connector, or authority.
+
 Pin a published revision with
 `POST /internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-contract`, a
 JSON body containing `key` and `revision`, and the quoted case stream version
@@ -68,9 +76,11 @@ in `If-Match`. The pin is an immutable case event and appears as
 and therefore does not add a timeline entry. A case can be pinned once, and a
 revision from another tenant is indistinguishable from an absent revision.
 
-Publishing or pinning still does not establish that referenced facts or
-capabilities exist, promote or automatically select a revision, authorize a
-step, or execute it.
+Publishing or pinning still does not establish tenant availability, promote or
+automatically select a revision, authorize a step, or execute it. Revisions
+published before the registry gate were introduced are not retroactively
+certified; a later runtime must resolve every reference and fail closed before
+execution.
 
 The schema identifier is a compatibility boundary. Published field meanings do
 not change in place; incompatible syntax or semantics require a new identifier

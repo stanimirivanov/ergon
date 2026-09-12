@@ -54,18 +54,26 @@ class ContractRevisionNotFoundException(
 /** Validates, publishes, and retrieves immutable tenant contract revisions. */
 class ResolutionContractRevisionService(
     private val decoder: ResolutionContractDocumentDecoder,
+    private val referenceValidator: ResolutionContractReferenceValidator,
     private val repository: ResolutionContractRevisionRepository,
 ) {
     /**
-     * Validates [document] before atomically publishing its normalized meaning.
+     * Validates [document] and all semantic references before atomically
+     * publishing its normalized meaning.
      *
      * @throws InvalidResolutionContractDocumentException when the document is invalid.
+     * @throws UnregisteredContractReferencesException when a fact
+     *   type or capability is not registered.
      * @throws ContractRevisionAlreadyExistsException when the revision already exists.
      */
     fun publish(
         tenantId: TenantId,
         document: String,
-    ): StoredResolutionContractRevision = repository.publish(tenantId, decoder.decode(document))
+    ): StoredResolutionContractRevision {
+        val contract = decoder.decode(document)
+        referenceValidator.validate(contract)
+        return repository.publish(tenantId, contract)
+    }
 
     /**
      * Returns the exact immutable revision owned by [tenantId].

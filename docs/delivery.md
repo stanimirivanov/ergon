@@ -49,8 +49,9 @@ revision to a case. Do not build a visual editor.
 
 The first sub-slices define strict YAML validation, persist immutable,
 tenant-scoped normalized revisions, and let a case pin one exact published
-revision. Registry checks, automatic selection, replanning, and execution
-remain separate PR-sized behavior.
+revision. Publication now checks fact and capability names against the built-in
+system vocabulary. Automatic selection, tenant availability, replanning, and
+execution remain separate PR-sized behavior.
 
 ### 3. Resolution runtime
 
