@@ -167,6 +167,38 @@ class CaseResolutionContractApiIntegrationTest(
             .andExpect(jsonPath("$.type").value("urn:ergon:problem:case-not-found"))
     }
 
+    @Test
+    fun `plan exposes versioned policy requirements only when evidence is ready`() {
+        val tenantId = UUID.randomUUID()
+        val caseId = openCase(tenantId)
+
+        mockMvc
+            .perform(get(CASE_RESOLUTION_PLAN_PATH, tenantId, caseId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.readiness.status").value("WAITING_FOR_CONTRACT"))
+            .andExpect(jsonPath("$.readiness.caseStreamVersion").value(1))
+            .andExpect(jsonPath("$.policyRevision").value("ergon.dev/policy/access-restoration/v1"))
+            .andExpect(jsonPath("$.nextStep").doesNotExist())
+
+        publishContract(tenantId)
+        pinContract(tenantId, caseId, "\"1\"")
+        recordAndBindAccountState(tenantId, caseId, expectedVersion = 2, state = "LOCKED")
+
+        mockMvc
+            .perform(get(CASE_RESOLUTION_PLAN_PATH, tenantId, caseId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.readiness.status").value("READY"))
+            .andExpect(jsonPath("$.readiness.caseStreamVersion").value(4))
+            .andExpect(jsonPath("$.nextStep.id").value("unlock-account"))
+            .andExpect(jsonPath("$.nextStep.capability").value("identity.account.unlock"))
+            .andExpect(jsonPath("$.nextStep.declaredRisk").value("HIGH"))
+            .andExpect(jsonPath("$.nextStep.declaredApproval").value("REQUESTER"))
+            .andExpect(jsonPath("$.nextStep.decision").value("HUMAN_APPROVAL_REQUIRED"))
+            .andExpect(jsonPath("$.nextStep.effectiveRisk").value("HIGH"))
+            .andExpect(jsonPath("$.nextStep.requiredApproval").value("REQUESTER"))
+            .andExpect(jsonPath("$.nextStep.denialReason").doesNotExist())
+    }
+
     private fun expectReadiness(
         tenantId: UUID,
         caseId: UUID,
@@ -323,6 +355,8 @@ class CaseResolutionContractApiIntegrationTest(
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-contract"
         private const val CASE_RESOLUTION_READINESS_PATH =
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-readiness"
+        private const val CASE_RESOLUTION_PLAN_PATH =
+            "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-plan"
         private const val CONNECTOR_OBSERVATIONS_PATH =
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/connector-observations"
         private const val ACCOUNT_ACCESS_FACTS_PATH =

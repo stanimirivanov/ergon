@@ -64,11 +64,19 @@ typed evidence and whether its applicability equality holds at one case stream
 version. Durable runs, policy snapshots, approvals, capability invocation,
 receipts, retries, and outcome verification remain separate behavior.
 
+The next sub-slice applies the immutable access-restoration policy to the first
+step of a ready contract. It reports effective risk and human-approval
+requirements but grants no authority and performs no action.
+
 ### 4. Policy and human authority
 
 Add capability scopes, denial reasons, approval requests, expiry, and resolver
 intervention. Prove that model output, retrieved text, and channel callers cannot
 grant authority.
+
+The initial policy evaluator is deny-by-default, versioned, and can only
+strengthen contract declarations. Actor authentication, scopes, approval
+records, expiry, and authorization remain later PR-sized behavior.
 
 ### 5. Adaptive canvas and resolver console
 

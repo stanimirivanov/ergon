@@ -5,7 +5,7 @@ import org.ergon.cases.domain.CaseId
 import org.ergon.cases.domain.ErgonCase
 import org.ergon.contracts.domain.ContractFactType
 import org.ergon.contracts.domain.ContractFactValue
-import org.ergon.contracts.domain.ResolutionContractIdentity
+import org.ergon.contracts.domain.ResolutionContract
 import org.ergon.controlplane.cases.application.CaseEventStore
 import org.ergon.controlplane.cases.application.CaseNotFoundException
 import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
@@ -30,7 +30,7 @@ sealed interface CaseReadiness {
     data class Evaluated(
         override val caseId: UUID,
         override val caseStreamVersion: Long,
-        val contract: ResolutionContractIdentity,
+        val contract: ResolutionContract,
         val readiness: ResolutionReadiness,
     ) : CaseReadiness
 }
@@ -71,7 +71,7 @@ class ResolutionReadinessService(
         return CaseReadiness.Evaluated(
             caseId = caseId,
             caseStreamVersion = case.streamVersion,
-            contract = contractIdentity,
+            contract = contract,
             readiness = ResolutionReadinessEvaluator.evaluate(contract, history.toEvidence()),
         )
     }
