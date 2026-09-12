@@ -59,6 +59,11 @@ Execute deterministic steps with durable state, idempotency, retries, waits,
 receipts, and verification. Complete the access-restoration happy path and
 failure path with fake tools.
 
+The first sub-slice evaluates whether the exact pinned revision has all required
+typed evidence and whether its applicability equality holds at one case stream
+version. Durable runs, policy snapshots, approvals, capability invocation,
+receipts, retries, and outcome verification remain separate behavior.
+
 ### 4. Policy and human authority
 
 Add capability scopes, denial reasons, approval requests, expiry, and resolver
