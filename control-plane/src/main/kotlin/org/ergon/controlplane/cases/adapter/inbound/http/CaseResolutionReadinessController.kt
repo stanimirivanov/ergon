@@ -1,7 +1,7 @@
 package org.ergon.controlplane.cases.adapter.inbound.http
 
 import org.ergon.contracts.domain.FactCondition
-import org.ergon.contracts.domain.ResolutionContractIdentity
+import org.ergon.contracts.domain.ResolutionContract
 import org.ergon.controlplane.resolution.application.CaseReadiness
 import org.ergon.controlplane.resolution.application.ResolutionReadinessService
 import org.ergon.resolution.domain.ResolutionReadiness
@@ -61,7 +61,7 @@ data class ResolutionApplicabilityResponse(
     val actualValue: String,
 )
 
-private fun CaseReadiness.toResponse(): CaseResolutionReadinessResponse =
+internal fun CaseReadiness.toResponse(): CaseResolutionReadinessResponse =
     when (this) {
         is CaseReadiness.WaitingForContract -> {
             CaseResolutionReadinessResponse(
@@ -116,7 +116,7 @@ private fun CaseReadiness.Evaluated.response(
     applicability = applicability,
 )
 
-private fun ResolutionContractIdentity.toResponse() = ResolutionContractIdentityResponse(key.value, revision.value)
+private fun ResolutionContract.toResponse() = ResolutionContractIdentityResponse(key.value, revision.value)
 
 private fun FactCondition.toResponse(actualValue: String): ResolutionApplicabilityResponse =
     ResolutionApplicabilityResponse(fact.value, expectedValue.value, actualValue)
