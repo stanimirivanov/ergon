@@ -3,14 +3,16 @@ package org.ergon.controlplane.cases.application
 import java.time.Instant
 import java.util.UUID
 
-/** Intent to create a tenant-scoped case from one requester observation. */
 data class OpenCaseCommand(
     val tenantId: UUID,
     val goal: String,
     val initialObservation: String,
 )
 
-/** Intent to append connector evidence when the case still has [expectedVersion]. */
+/**
+ * Appends connector evidence only if [expectedVersion] is the current positive
+ * stream version.
+ */
 data class RecordConnectorObservationCommand(
     val tenantId: UUID,
     val caseId: UUID,
@@ -20,14 +22,12 @@ data class RecordConnectorObservationCommand(
     val content: String,
 )
 
-/** Identity and concurrency metadata returned after a committed case command. */
 data class CaseWriteResult(
     val caseId: UUID,
     val status: String,
     val streamVersion: Long,
 )
 
-/** Application query model for a case and its complete ordered timeline. */
 data class CaseTimeline(
     val caseId: UUID,
     val goal: String,
@@ -36,7 +36,7 @@ data class CaseTimeline(
     val entries: List<CaseTimelineEntry>,
 )
 
-/** One case event rendered for chronological inspection. */
+/** Read-model entry preserving both source occurrence time and database recording time. */
 data class CaseTimelineEntry(
     val streamVersion: Long,
     val eventType: String,
@@ -55,13 +55,21 @@ data class TimelineObservation(
     val content: String,
 )
 
-/** Signals tenant-scoped absence without revealing whether another tenant owns the identity. */
+/**
+ * Signals tenant-scoped absence without revealing whether the identity exists
+ * under a different tenant.
+ */
 class CaseNotFoundException(
     tenantId: UUID,
     caseId: UUID,
 ) : RuntimeException("Case $caseId was not found for tenant $tenantId")
 
-/** Signals that a caller based its command on an obsolete case stream version. */
+/**
+ * Signals that a command's optimistic-concurrency precondition is stale.
+ * [expectedVersion] is the caller's token and [actualVersion] is the durable
+ * stream version observed while checking it, allowing the caller to reload
+ * before deciding whether to retry.
+ */
 class ConcurrentCaseModificationException(
     val expectedVersion: Long,
     val actualVersion: Long,

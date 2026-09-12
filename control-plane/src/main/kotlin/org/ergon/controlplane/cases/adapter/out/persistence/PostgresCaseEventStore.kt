@@ -7,12 +7,25 @@ import org.ergon.controlplane.cases.application.CaseEventStore
 import org.ergon.controlplane.cases.application.ConcurrentCaseModificationException
 import org.ergon.controlplane.cases.application.NewCaseEvent
 import org.ergon.controlplane.cases.application.StoredCaseEvent
+import org.ergon.controlplane.cases.application.TransactionRunner
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
-/** PostgreSQL event-store adapter with serialized, optimistic case-stream appends. */
+/**
+ * Postgres-backed [CaseEventStore].
+ *
+ * [append] takes a transaction-scoped advisory lock on the tenant/case pair
+ * before checking the expected-version contract, so concurrent appends to
+ * the same stream serialize instead of racing. Callers must invoke it inside
+ * [TransactionRunner.required]; the adapter does not start a transaction
+ * itself. The
+ * `uq_case_events_stream_version` unique constraint is the backstop if that
+ * lock is ever bypassed — in that case a caller sees a raw
+ * `DataIntegrityViolationException` instead of
+ * [ConcurrentCaseModificationException].
+ */
 @Repository
 class PostgresCaseEventStore(
     private val jdbcClient: JdbcClient,
@@ -46,6 +59,7 @@ class PostgresCaseEventStore(
         expectedVersion: Long,
         events: List<NewCaseEvent>,
     ): List<StoredCaseEvent> {
+        require(expectedVersion >= 0) { "expected version must not be negative" }
         require(events.isNotEmpty()) { "at least one event is required" }
         lockStream(tenantId, caseId)
         val actualVersion = currentVersion(tenantId, caseId)
@@ -88,7 +102,8 @@ class PostgresCaseEventStore(
         tenantId: TenantId,
         caseId: CaseId,
     ) {
-        // The fixed-width UUID pair has an unambiguous text form; the 64-bit hash scopes one stream lock.
+        // This lock is released at transaction end. Outside a transaction it would be released immediately.
+        // The fixed-width UUID pair is unambiguous; its 64-bit hash scopes one stream lock.
         jdbcClient
             .sql("SELECT pg_advisory_xact_lock(hashtextextended(:streamKey, 0))")
             .param("streamKey", "${tenantId.value}:${caseId.value}")

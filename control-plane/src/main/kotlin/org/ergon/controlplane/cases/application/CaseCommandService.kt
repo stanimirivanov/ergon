@@ -9,7 +9,17 @@ import org.ergon.cases.domain.SourceObservation
 import org.ergon.cases.domain.TenantId
 import java.time.Clock
 
-/** Coordinates case commands, keeping event append and projection updates atomic. */
+/**
+ * Handles case write commands.
+ *
+ * Every command follows the same shape: load or create the aggregate,
+ * mutate it, then persist its events and projection in one transaction via
+ * [transactionRunner]. Connector commands check optimistic concurrency twice:
+ * first against the loaded aggregate before beginning write work, and again
+ * authoritatively inside [CaseEventStore.append] against a fresh read taken
+ * under lock. Only the second check is race-safe; the first avoids entering a
+ * write transaction for an already stale command.
+ */
 class CaseCommandService(
     private val eventStore: CaseEventStore,
     private val projectionWriter: CaseProjectionWriter,
@@ -17,7 +27,17 @@ class CaseCommandService(
     private val transactionRunner: TransactionRunner,
     private val clock: Clock,
 ) {
-    /** Opens and persists a case at stream version one. */
+    /**
+     * Opens a new case from a requester's initial observation.
+     *
+     * A successful write returns at stream version one; there is no
+     * expected-version precondition because the case identity is newly
+     * generated.
+     *
+     * @return the committed case identity, open status, and stream version one.
+     * @throws IllegalArgumentException if the goal or initial observation
+     *   violates its domain constraints.
+     */
     fun open(command: OpenCaseCommand): CaseWriteResult {
         val tenantId = TenantId(command.tenantId)
         val caseId = CaseId(identities.next())
@@ -42,9 +62,13 @@ class CaseCommandService(
     /**
      * Records connector evidence against the caller's expected version.
      *
+     * @return the committed case identity, status, and incremented stream
+     *   version.
      * @throws CaseNotFoundException when the tenant-scoped case is absent.
-     * @throws ConcurrentCaseModificationException when another command has advanced the stream.
-     * @throws IllegalArgumentException when observation or precondition values violate domain invariants.
+     * @throws ConcurrentCaseModificationException when another command has
+     *  advanced the stream.
+     * @throws IllegalArgumentException when observation or precondition values
+     *  violate domain invariants.
      */
     fun recordConnectorObservation(command: RecordConnectorObservationCommand): CaseWriteResult {
         require(command.expectedVersion > 0) { "If-Match version must be positive" }
