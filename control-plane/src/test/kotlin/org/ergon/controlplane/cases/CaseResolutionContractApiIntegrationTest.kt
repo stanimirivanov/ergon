@@ -199,6 +199,113 @@ class CaseResolutionContractApiIntegrationTest(
             .andExpect(jsonPath("$.nextStep.denialReason").doesNotExist())
     }
 
+    @Test
+    fun `starts and retrieves an immutable run from an exact ready case version`() {
+        val tenantId = UUID.randomUUID()
+        val otherTenantId = UUID.randomUUID()
+        val caseId = openCase(tenantId)
+        publishContract(tenantId)
+        pinContract(tenantId, caseId, "\"1\"")
+        recordAndBindAccountState(tenantId, caseId, expectedVersion = 2, state = "LOCKED")
+
+        expectCrossTenantRunStartNotFound(otherTenantId, caseId)
+
+        val response =
+            mockMvc
+                .perform(
+                    post(CASE_RESOLUTION_RUNS_PATH, tenantId, caseId)
+                        .header("If-Match", "\"4\""),
+                ).andExpect(status().isCreated)
+                .andExpect(header().exists("Location"))
+                .andExpect(jsonPath("$.caseId").value(caseId.toString()))
+                .andExpect(jsonPath("$.caseStreamVersion").value(4))
+                .andExpect(jsonPath("$.contractKey").value("restore-workspace-access"))
+                .andExpect(jsonPath("$.contractRevision").value(1))
+                .andExpect(jsonPath("$.policyRevision").value("ergon.dev/policy/access-restoration/v1"))
+                .andExpect(jsonPath("$.stepId").value("unlock-account"))
+                .andExpect(jsonPath("$.capability").value("identity.account.unlock"))
+                .andExpect(jsonPath("$.effectiveRisk").value("HIGH"))
+                .andExpect(jsonPath("$.requiredApproval").value("REQUESTER"))
+                .andExpect(jsonPath("$.initialState").value("WAITING_FOR_APPROVAL"))
+                .andExpect(jsonPath("$.recordedAt").exists())
+                .andReturn()
+        val location = requireNotNull(response.response.getHeader("Location"))
+        val runId = UUID.fromString(location.substringAfterLast('/'))
+
+        mockMvc
+            .perform(get(RESOLUTION_RUN_PATH, tenantId, runId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.runId").value(runId.toString()))
+            .andExpect(jsonPath("$.caseStreamVersion").value(4))
+            .andExpect(jsonPath("$.initialState").value("WAITING_FOR_APPROVAL"))
+
+        mockMvc
+            .perform(get(RESOLUTION_RUN_PATH, otherTenantId, runId))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-not-found"))
+
+        mockMvc
+            .perform(
+                post(CASE_RESOLUTION_RUNS_PATH, tenantId, caseId)
+                    .header("If-Match", "\"4\""),
+            ).andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-already-exists"))
+
+        assertThatThrownBy {
+            jdbcClient
+                .sql(
+                    """
+                    UPDATE resolution_runs
+                    SET initial_state = initial_state
+                    WHERE tenant_id = :tenantId AND run_id = :runId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("runId", runId)
+                .update()
+        }.isInstanceOf(DataAccessException::class.java)
+    }
+
+    @Test
+    fun `rejects run start when the case is not ready or the evidence version is stale`() {
+        val tenantId = UUID.randomUUID()
+        val caseId = openCase(tenantId)
+
+        mockMvc
+            .perform(
+                post(CASE_RESOLUTION_RUNS_PATH, tenantId, caseId)
+                    .header("If-Match", "\"1\""),
+            ).andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-not-ready"))
+            .andExpect(jsonPath("$.readiness").value("WAITING_FOR_CONTRACT"))
+
+        publishContract(tenantId)
+        pinContract(tenantId, caseId, "\"1\"")
+        recordAndBindAccountState(tenantId, caseId, expectedVersion = 2, state = "LOCKED")
+
+        mockMvc
+            .perform(
+                post(CASE_RESOLUTION_RUNS_PATH, tenantId, caseId)
+                    .header("If-Match", "\"3\""),
+            ).andExpect(status().isPreconditionFailed)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:stale-case-version"))
+            .andExpect(jsonPath("$.expectedVersion").value(3))
+            .andExpect(jsonPath("$.actualVersion").value(4))
+
+        val runCount =
+            jdbcClient
+                .sql(
+                    """
+                    SELECT count(*)
+                    FROM resolution_runs
+                    WHERE tenant_id = :tenantId AND case_id = :caseId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("caseId", caseId)
+                .query(Long::class.java)
+                .single()
+        assertThat(runCount).isZero()
+    }
+
     private fun expectReadiness(
         tenantId: UUID,
         caseId: UUID,
@@ -214,6 +321,18 @@ class CaseResolutionContractApiIntegrationTest(
             .andExpect(jsonPath("$.contract").doesNotExist())
             .andExpect(jsonPath("$.missingEvidence.length()").value(0))
             .andExpect(jsonPath("$.applicability").doesNotExist())
+    }
+
+    private fun expectCrossTenantRunStartNotFound(
+        tenantId: UUID,
+        caseId: UUID,
+    ) {
+        mockMvc
+            .perform(
+                post(CASE_RESOLUTION_RUNS_PATH, tenantId, caseId)
+                    .header("If-Match", "\"4\""),
+            ).andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:case-not-found"))
     }
 
     private fun expectNotFound(
@@ -357,6 +476,10 @@ class CaseResolutionContractApiIntegrationTest(
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-readiness"
         private const val CASE_RESOLUTION_PLAN_PATH =
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-plan"
+        private const val CASE_RESOLUTION_RUNS_PATH =
+            "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-runs"
+        private const val RESOLUTION_RUN_PATH =
+            "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}"
         private const val CONNECTOR_OBSERVATIONS_PATH =
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/connector-observations"
         private const val ACCOUNT_ACCESS_FACTS_PATH =
