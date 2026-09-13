@@ -23,5 +23,7 @@ approval prerequisite; it would not establish actor scope, tenant capability
 availability, or permission to execute. `DENIED` supplies a stable reason and
 must not be overridden by model output or retrieved content.
 
-The endpoint is read-only. It does not persist a policy snapshot, create a run,
-authenticate an actor, record an approval, or invoke a capability.
+The endpoint is read-only. Starting a run through the separate resolution-run
+command persists this decision with its exact evidence boundary, but still does
+not authenticate an actor, record an approval, authorize, or invoke a
+capability.

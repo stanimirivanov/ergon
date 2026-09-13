@@ -64,9 +64,12 @@ typed evidence and whether its applicability equality holds at one case stream
 version. Durable runs, policy snapshots, approvals, capability invocation,
 receipts, retries, and outcome verification remain separate behavior.
 
-The next sub-slice applies the immutable access-restoration policy to the first
-step of a ready contract. It reports effective risk and human-approval
-requirements but grants no authority and performs no action.
+The policy sub-slice applies the immutable access-restoration policy to the first
+step of a ready contract. The run-start sub-slice then persists the exact case,
+contract, policy, step, risk, and approval snapshot under an optimistic case-
+version precondition. It begins in `WAITING_FOR_APPROVAL` but grants no authority
+and performs no action. Append-only run transitions, approval records,
+capability invocation, receipts, retries, and proof remain separate behavior.
 
 ### 4. Policy and human authority
 
@@ -76,7 +79,9 @@ grant authority.
 
 The initial policy evaluator is deny-by-default, versioned, and can only
 strengthen contract declarations. Actor authentication, scopes, approval
-records, expiry, and authorization remain later PR-sized behavior.
+records, expiry, and authorization remain later PR-sized behavior. The next
+sub-slice should model an expiring approval request for the waiting run; actor
+authentication and an approval grant remain separate.
 
 ### 5. Adaptive canvas and resolver console
 

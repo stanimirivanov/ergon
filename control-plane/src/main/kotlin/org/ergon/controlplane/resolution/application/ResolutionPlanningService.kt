@@ -24,18 +24,29 @@ data class CaseResolutionPlan(
     val nextStep: PlannedResolutionStep?,
 )
 
+/** Supplies a deterministic plan for one tenant-scoped case snapshot. */
+fun interface ResolutionPlanner {
+    /**
+     * @return current readiness and policy requirements without persisting or authorizing a run.
+     */
+    fun plan(
+        tenantId: UUID,
+        caseId: UUID,
+    ): CaseResolutionPlan
+}
+
 /** Applies one immutable policy revision to the next step of a ready contract. */
 class ResolutionPlanningService(
     private val readinessService: ResolutionReadinessService,
     private val policy: ResolutionPolicy,
-) {
+) : ResolutionPlanner {
     /**
      * Evaluates readiness and, when ready, policy requirements for the first contract step.
      *
      * This query does not grant an approval, establish actor authority, persist
      * a run, or invoke the capability.
      */
-    fun plan(
+    override fun plan(
         tenantId: UUID,
         caseId: UUID,
     ): CaseResolutionPlan {

@@ -43,6 +43,7 @@ request -> case graph -> evidence bundle -> resolution contract
 - [Delivery](docs/delivery.md) — first vertical slice and staged rewrite.
 - [Contracts](docs/contracts.md) — strict `v1alpha1` document shape and validation boundary.
 - [Policy](docs/policy.md) — versioned step requirements and authority boundary.
+- [Runs](docs/runs.md) — immutable start snapshots and concurrency boundary.
 - [Contributing](CONTRIBUTING.md) — change size, Kotlin, SQL, testing, security,
   and review standards.
 - [Architecture decisions](docs/decisions/README.md) — ADR policy and the status
@@ -78,13 +79,16 @@ contract pins in PostgreSQL. Its current APIs are:
   evaluates the pinned revision against the latest typed case evidence.
 - `GET /internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-plan`
   adds versioned policy requirements for the first step of a ready contract.
+- `POST /internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-runs`
+  starts one immutable run from an exact ready case version; the returned
+  location retrieves its pinned start snapshot.
 
 Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
 This slice deliberately has no authentication: tenant IDs in paths are a
 temporary development boundary and must not be exposed as an authorization
 mechanism. Tenant capability availability, automatic selection, AI-assisted
-binding, broader fact types, durable runs, approval grants, and execution remain
+binding, broader fact types, approval grants, authorization, and execution remain
 later delivery steps. The predecessor services remain in the reactor while
 behavior is replaced incrementally.
 
