@@ -2,6 +2,7 @@ package org.ergon.controlplane.identity
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.hamcrest.Matchers.startsWith
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -13,6 +14,7 @@ import org.springframework.context.annotation.Primary
 import org.springframework.dao.DataAccessException
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.simple.JdbcClient
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
@@ -31,7 +33,12 @@ import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
-@SpringBootTest
+@SpringBootTest(
+    properties = [
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://identity.example.test",
+        "ergon.security.human-jwt.identity-provider=workforce-sso",
+    ],
+)
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
 @Import(FixedHumanAuthorityClockConfiguration::class)
@@ -39,6 +46,65 @@ class HumanAuthorityApiIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val jdbcClient: JdbcClient,
 ) {
+    @Test
+    fun `resolves a verified token subject to the current tenant actor`() {
+        val tenantId = UUID.randomUUID()
+        val actorId = registerActor(tenantId)
+
+        mockMvc
+            .perform(
+                get(CURRENT_ACTOR_PATH, tenantId)
+                    .with(
+                        jwt().jwt {
+                            it.issuer(TRUSTED_ISSUER)
+                            it.subject("employee-42")
+                        },
+                    ),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.actorId").value(actorId.toString()))
+            .andExpect(jsonPath("$.identityProvider").value("workforce-sso"))
+            .andExpect(jsonPath("$.subject").value("employee-42"))
+    }
+
+    @Test
+    fun `requires bearer authentication for current actor resolution`() {
+        mockMvc
+            .perform(get(CURRENT_ACTOR_PATH, UUID.randomUUID()))
+            .andExpect(status().isUnauthorized)
+            .andExpect(header().string("WWW-Authenticate", startsWith("Bearer")))
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:human-authentication-required"))
+    }
+
+    @Test
+    fun `rejects untrusted and tenant-foreign authenticated identities`() {
+        val tenantId = UUID.randomUUID()
+        registerActor(tenantId)
+
+        mockMvc
+            .perform(
+                get(CURRENT_ACTOR_PATH, tenantId)
+                    .with(
+                        jwt().jwt {
+                            it.issuer("https://untrusted.example.test")
+                            it.subject("employee-42")
+                        },
+                    ),
+            ).andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:untrusted-human-identity-issuer"))
+
+        mockMvc
+            .perform(
+                get(CURRENT_ACTOR_PATH, UUID.randomUUID())
+                    .with(
+                        jwt().jwt {
+                            it.issuer(TRUSTED_ISSUER)
+                            it.subject("employee-42")
+                        },
+                    ),
+            ).andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:human-actor-not-registered"))
+    }
+
     @Test
     fun `registers and retrieves an immutable tenant-scoped human identity`() {
         val tenantId = UUID.randomUUID()
@@ -278,6 +344,8 @@ class HumanAuthorityApiIntegrationTest(
         private const val ACTOR_PATH = "$ACTORS_PATH/{actorId}"
         private const val ACTOR_EVIDENCE_PATH = "$ACTOR_PATH/approval-authority-evidence"
         private const val EVIDENCE_PATH = "$ACTORS_PATH/approval-authority-evidence/{evidenceId}"
+        private const val CURRENT_ACTOR_PATH = "/api/v1/tenants/{tenantId}/human-actor"
+        private const val TRUSTED_ISSUER = "https://identity.example.test"
         private const val ACTOR_REQUEST =
             """{"identityProvider":"workforce-sso","subject":"employee-42"}"""
         private const val OPEN_CASE_REQUEST =
