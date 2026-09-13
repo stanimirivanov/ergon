@@ -79,9 +79,11 @@ grant authority.
 
 The initial policy evaluator is deny-by-default, versioned, and can only
 strengthen contract declarations. Actor authentication, scopes, approval
-records, expiry, and authorization remain later PR-sized behavior. The next
-sub-slice should model an expiring approval request for the waiting run; actor
-authentication and an approval grant remain separate.
+records, expiry, and authorization remain later PR-sized behavior. The approval-
+request sub-slice now appends immutable 15-minute requests, derives expiry from
+time, and permits replacement only after expiry. The next sub-slice should
+establish actor identity and requester/resolver role evidence before accepting
+an approval grant.
 
 ### 5. Adaptive canvas and resolver console
 

@@ -306,6 +306,68 @@ class CaseResolutionContractApiIntegrationTest(
         assertThat(runCount).isZero()
     }
 
+    @Test
+    fun `creates and retrieves one active immutable approval request within its tenant`() {
+        val tenantId = UUID.randomUUID()
+        val otherTenantId = UUID.randomUUID()
+        val runId = prepareResolutionRun(tenantId)
+
+        mockMvc
+            .perform(post(APPROVAL_REQUESTS_PATH, otherTenantId, runId))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-not-found"))
+
+        val requestId = createApprovalRequest(tenantId, runId)
+
+        mockMvc
+            .perform(get(APPROVAL_REQUEST_PATH, tenantId, requestId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.approvalRequestId").value(requestId.toString()))
+            .andExpect(jsonPath("$.status").value("PENDING"))
+
+        mockMvc
+            .perform(get(APPROVAL_REQUEST_PATH, otherTenantId, requestId))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:approval-request-not-found"))
+
+        mockMvc
+            .perform(post(APPROVAL_REQUESTS_PATH, tenantId, runId))
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:active-approval-request-exists"))
+            .andExpect(jsonPath("$.approvalRequestId").value(requestId.toString()))
+            .andExpect(jsonPath("$.expiresAt").exists())
+
+        assertApprovalRequestLifetimeAndImmutability(tenantId, requestId)
+    }
+
+    @Test
+    fun `retains an expired request and creates a replacement`() {
+        val tenantId = UUID.randomUUID()
+        val runId = prepareResolutionRun(tenantId)
+        val expiredRequestId = insertExpiredApprovalRequest(tenantId, runId)
+
+        mockMvc
+            .perform(get(APPROVAL_REQUEST_PATH, tenantId, expiredRequestId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("EXPIRED"))
+
+        createApprovalRequest(tenantId, runId)
+
+        val count =
+            jdbcClient
+                .sql(
+                    """
+                    SELECT count(*)
+                    FROM resolution_approval_requests
+                    WHERE tenant_id = :tenantId AND run_id = :runId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("runId", runId)
+                .query(Long::class.java)
+                .single()
+        assertThat(count).isEqualTo(2)
+    }
+
     private fun expectReadiness(
         tenantId: UUID,
         caseId: UUID,
@@ -321,6 +383,97 @@ class CaseResolutionContractApiIntegrationTest(
             .andExpect(jsonPath("$.contract").doesNotExist())
             .andExpect(jsonPath("$.missingEvidence.length()").value(0))
             .andExpect(jsonPath("$.applicability").doesNotExist())
+    }
+
+    private fun prepareResolutionRun(tenantId: UUID): UUID {
+        val caseId = openCase(tenantId)
+        publishContract(tenantId)
+        pinContract(tenantId, caseId, "\"1\"")
+        recordAndBindAccountState(tenantId, caseId, expectedVersion = 2, state = "LOCKED")
+        val response =
+            mockMvc
+                .perform(
+                    post(CASE_RESOLUTION_RUNS_PATH, tenantId, caseId)
+                        .header("If-Match", "\"4\""),
+                ).andExpect(status().isCreated)
+                .andReturn()
+        return UUID.fromString(requireNotNull(response.response.getHeader("Location")).substringAfterLast('/'))
+    }
+
+    private fun createApprovalRequest(
+        tenantId: UUID,
+        runId: UUID,
+    ): UUID {
+        val response =
+            mockMvc
+                .perform(post(APPROVAL_REQUESTS_PATH, tenantId, runId))
+                .andExpect(status().isCreated)
+                .andExpect(header().exists("Location"))
+                .andExpect(jsonPath("$.runId").value(runId.toString()))
+                .andExpect(jsonPath("$.stepId").value("unlock-account"))
+                .andExpect(jsonPath("$.requiredAuthority").value("REQUESTER"))
+                .andExpect(jsonPath("$.requestedAt").exists())
+                .andExpect(jsonPath("$.expiresAt").exists())
+                .andExpect(jsonPath("$.recordedAt").exists())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andReturn()
+        return UUID.fromString(requireNotNull(response.response.getHeader("Location")).substringAfterLast('/'))
+    }
+
+    private fun insertExpiredApprovalRequest(
+        tenantId: UUID,
+        runId: UUID,
+    ): UUID {
+        val requestId = UUID.randomUUID()
+        jdbcClient
+            .sql(
+                """
+                INSERT INTO resolution_approval_requests (
+                    tenant_id, approval_request_id, run_id, step_id,
+                    required_authority, requested_at, expires_at
+                ) VALUES (
+                    :tenantId, :requestId, :runId, 'unlock-account',
+                    'REQUESTER', clock_timestamp() - INTERVAL '30 minutes',
+                    clock_timestamp() - INTERVAL '15 minutes'
+                )
+                """.trimIndent(),
+            ).param("tenantId", tenantId)
+            .param("requestId", requestId)
+            .param("runId", runId)
+            .update()
+        return requestId
+    }
+
+    private fun assertApprovalRequestLifetimeAndImmutability(
+        tenantId: UUID,
+        requestId: UUID,
+    ) {
+        val lifetimeSeconds =
+            jdbcClient
+                .sql(
+                    """
+                    SELECT EXTRACT(EPOCH FROM expires_at - requested_at)::BIGINT
+                    FROM resolution_approval_requests
+                    WHERE tenant_id = :tenantId AND approval_request_id = :requestId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("requestId", requestId)
+                .query(Long::class.java)
+                .single()
+        assertThat(lifetimeSeconds).isEqualTo(900)
+
+        assertThatThrownBy {
+            jdbcClient
+                .sql(
+                    """
+                    UPDATE resolution_approval_requests
+                    SET expires_at = expires_at
+                    WHERE tenant_id = :tenantId AND approval_request_id = :requestId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("requestId", requestId)
+                .update()
+        }.isInstanceOf(DataAccessException::class.java)
     }
 
     private fun expectCrossTenantRunStartNotFound(
@@ -480,6 +633,10 @@ class CaseResolutionContractApiIntegrationTest(
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-runs"
         private const val RESOLUTION_RUN_PATH =
             "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}"
+        private const val APPROVAL_REQUESTS_PATH =
+            "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/approval-requests"
+        private const val APPROVAL_REQUEST_PATH =
+            "/internal/v1/tenants/{tenantId}/approval-requests/{requestId}"
         private const val CONNECTOR_OBSERVATIONS_PATH =
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/connector-observations"
         private const val ACCOUNT_ACCESS_FACTS_PATH =
