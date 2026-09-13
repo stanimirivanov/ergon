@@ -7,6 +7,16 @@ spring:
     password: ${ERGON_DATABASE_PASSWORD}
   flyway:
     table: ergon_flyway_schema_history
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${ERGON_HUMAN_JWT_ISSUER_URI:}
+
+ergon:
+  security:
+    human-jwt:
+      identity-provider: ${ERGON_HUMAN_IDENTITY_PROVIDER:}
 
 server:
   port: 8090

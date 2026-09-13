@@ -2,6 +2,7 @@ package org.ergon.controlplane.identity
 
 import org.ergon.controlplane.cases.application.CaseTimelineRepository
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.identity.application.HumanActorAuthenticationService
 import org.ergon.controlplane.identity.application.HumanAuthorityIdentityGenerator
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.identity.application.HumanAuthorityService
@@ -24,4 +25,7 @@ class IdentityConfiguration {
         transactionRunner: TransactionRunner,
         clock: Clock,
     ) = HumanAuthorityService(repository, cases, identities, transactionRunner, clock)
+
+    @Bean
+    fun humanActorAuthenticator(repository: HumanAuthorityRepository) = HumanActorAuthenticationService(repository)
 }

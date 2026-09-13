@@ -46,6 +46,7 @@ request -> case graph -> evidence bundle -> resolution contract
 - [Runs](docs/runs.md) — immutable start snapshots and concurrency boundary.
 - [Approvals](docs/approvals.md) — bounded requests without actor authority.
 - [Human authority](docs/human-authority.md) — scoped, expiring evidence without approval.
+- [Authentication](docs/authentication.md) — verified JWT identity to tenant actor resolution.
 - [Contributing](CONTRIBUTING.md) — change size, Kotlin, SQL, testing, security,
   and review standards.
 - [Architecture decisions](docs/decisions/README.md) — ADR policy and the status

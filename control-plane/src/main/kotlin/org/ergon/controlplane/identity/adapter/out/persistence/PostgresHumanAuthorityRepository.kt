@@ -36,8 +36,8 @@ class PostgresHumanAuthorityRepository(
         registeredAt: Instant,
     ): StoredHumanActor {
         lockExternalIdentity(tenantId, actor.identityProvider, actor.subject)
-        findIdByExternalIdentity(tenantId, actor.identityProvider, actor.subject)?.let { existingId ->
-            throw HumanActorIdentityAlreadyExistsException(existingId)
+        find(tenantId, actor.identityProvider, actor.subject)?.let { existing ->
+            throw HumanActorIdentityAlreadyExistsException(existing.actor.id.value)
         }
         val recordedAt =
             jdbcClient
@@ -79,30 +79,24 @@ class PostgresHumanAuthorityRepository(
                 """.trimIndent(),
             ).param("tenantId", tenantId.value)
             .param("actorId", actorId.value)
-            .query { resultSet, _ ->
-                val actor =
-                    HumanActor.create(
-                        id = HumanActorId(resultSet.getObject("actor_id", UUID::class.java)),
-                        identityProvider = resultSet.getString("identity_provider"),
-                        subject = resultSet.getString("identity_subject"),
-                    )
-                StoredHumanActor(
-                    actor = actor,
-                    registeredAt = resultSet.getObject("registered_at", OffsetDateTime::class.java).toInstant(),
-                    recordedAt = resultSet.getObject("recorded_at", OffsetDateTime::class.java).toInstant(),
-                )
-            }.optional()
+            .query { resultSet, _ -> resultSet.toStoredHumanActor() }
+            .optional()
             .orElse(null)
 
-    private fun findIdByExternalIdentity(
+    override fun find(
         tenantId: TenantId,
         identityProvider: String,
-        identitySubject: String,
-    ): UUID? =
+        subject: String,
+    ): StoredHumanActor? =
         jdbcClient
             .sql(
                 """
-                SELECT actor_id
+                SELECT
+                    actor_id,
+                    identity_provider,
+                    identity_subject,
+                    registered_at,
+                    recorded_at
                 FROM human_actors
                 WHERE tenant_id = :tenantId
                     AND identity_provider = :identityProvider
@@ -110,8 +104,8 @@ class PostgresHumanAuthorityRepository(
                 """.trimIndent(),
             ).param("tenantId", tenantId.value)
             .param("identityProvider", identityProvider)
-            .param("identitySubject", identitySubject)
-            .query(UUID::class.java)
+            .param("identitySubject", subject)
+            .query { resultSet, _ -> resultSet.toStoredHumanActor() }
             .optional()
             .orElse(null)
 
@@ -205,4 +199,18 @@ class PostgresHumanAuthorityRepository(
                 )
             }.optional()
             .orElse(null)
+
+    private fun java.sql.ResultSet.toStoredHumanActor(): StoredHumanActor {
+        val actor =
+            HumanActor.create(
+                id = HumanActorId(getObject("actor_id", UUID::class.java)),
+                identityProvider = getString("identity_provider"),
+                subject = getString("identity_subject"),
+            )
+        return StoredHumanActor(
+            actor = actor,
+            registeredAt = getObject("registered_at", OffsetDateTime::class.java).toInstant(),
+            recordedAt = getObject("recorded_at", OffsetDateTime::class.java).toInstant(),
+        )
+    }
 }

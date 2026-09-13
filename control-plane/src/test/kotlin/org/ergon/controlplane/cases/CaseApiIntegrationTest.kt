@@ -430,6 +430,8 @@ class CaseApiIntegrationTest(
             .andExpect(jsonPath("$.paths['$HUMAN_ACTOR_PATH'].get").exists())
             .andExpect(jsonPath("$.paths['$ACTOR_AUTHORITY_EVIDENCE_PATH'].post").exists())
             .andExpect(jsonPath("$.paths['$AUTHORITY_EVIDENCE_PATH'].get").exists())
+            .andExpect(jsonPath("$.paths['$CURRENT_HUMAN_ACTOR_PATH'].get").exists())
+            .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.type").value("http"))
             .andExpect(content().string(containsString(CONTRACT_VALIDATION_PATH)))
             .andExpect(jsonPath("$.paths['$CONTRACT_REVISIONS_PATH'].post").exists())
             .andExpect(jsonPath("$.paths['$CONTRACT_REVISION_PATH'].get").exists())
@@ -707,6 +709,7 @@ class CaseApiIntegrationTest(
             "$HUMAN_ACTOR_PATH/approval-authority-evidence"
         private const val AUTHORITY_EVIDENCE_PATH =
             "$HUMAN_ACTORS_PATH/approval-authority-evidence/{evidenceId}"
+        private const val CURRENT_HUMAN_ACTOR_PATH = "/api/v1/tenants/{tenantId}/human-actor"
         private const val CONTRACT_VALIDATION_PATH = "/internal/v1/resolution-contracts/validate"
         private const val CONTRACT_REVISIONS_PATH = "/internal/v1/tenants/{tenantId}/resolution-contracts"
         private const val CONTRACT_REVISION_PATH = "$CONTRACT_REVISIONS_PATH/{key}/revisions/{revision}"

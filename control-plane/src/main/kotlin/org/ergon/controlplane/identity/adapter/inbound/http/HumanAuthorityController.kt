@@ -120,7 +120,7 @@ data class ApprovalAuthorityEvidenceResponse(
     val status: String,
 )
 
-private fun StoredHumanActor.toResponse() =
+internal fun StoredHumanActor.toResponse() =
     HumanActorResponse(
         actorId = actor.id.value,
         identityProvider = actor.identityProvider,

@@ -54,6 +54,20 @@ interface HumanAuthorityRepository {
         actorId: HumanActorId,
     ): StoredHumanActor?
 
+    /**
+     * Finds the actor bound to a verified external identity within [tenantId].
+     *
+     * [identityProvider] and [subject] must originate from a trusted authentication
+     * adapter; this lookup does not verify credentials or token claims.
+     *
+     * @return the tenant-scoped actor, or `null` when the identity is not registered.
+     */
+    fun find(
+        tenantId: TenantId,
+        identityProvider: String,
+        subject: String,
+    ): StoredHumanActor?
+
     /** Stores [evidence] without granting approval or changing a resolution run. */
     fun create(
         tenantId: TenantId,
@@ -88,6 +102,12 @@ fun interface HumanAuthorityIdentityGenerator {
 class HumanActorNotFoundException(
     actorId: UUID,
 ) : RuntimeException("human actor $actorId was not found")
+
+/** Signals that an authenticated external identity has no actor in the requested tenant. */
+class AuthenticatedHumanActorNotRegisteredException :
+    RuntimeException(
+        "authenticated identity is not registered in this tenant",
+    )
 
 /** Identifies the actor already bound to one tenant/provider/subject tuple. */
 class HumanActorIdentityAlreadyExistsException(
@@ -207,6 +227,29 @@ class HumanAuthorityService(
                 ?: throw ApprovalAuthorityEvidenceNotFoundException(evidenceId)
         return stored.toView(clock.instant())
     }
+}
+
+/** Resolves verified external identities to tenant-scoped Ergon actors. */
+class HumanActorAuthenticationService(
+    private val repository: HumanAuthorityRepository,
+) {
+    /**
+     * Resolves a caller after an inbound adapter has verified its credential and issuer.
+     *
+     * The provider and subject must be copied from verified claims rather than supplied
+     * by the caller. Absence deliberately does not reveal whether the identity is known
+     * in another tenant.
+     *
+     * @throws AuthenticatedHumanActorNotRegisteredException when the identity is not
+     *   registered in [tenantId].
+     */
+    fun resolve(
+        tenantId: UUID,
+        identityProvider: String,
+        subject: String,
+    ): StoredHumanActor =
+        repository.find(TenantId(tenantId), identityProvider, subject)
+            ?: throw AuthenticatedHumanActorNotRegisteredException()
 }
 
 private fun StoredApprovalAuthorityEvidence.toView(now: Instant) =
