@@ -45,6 +45,7 @@ request -> case graph -> evidence bundle -> resolution contract
 - [Policy](docs/policy.md) — versioned step requirements and authority boundary.
 - [Runs](docs/runs.md) — immutable start snapshots and concurrency boundary.
 - [Approvals](docs/approvals.md) — bounded requests without actor authority.
+- [Human authority](docs/human-authority.md) — scoped, expiring evidence without approval.
 - [Contributing](CONTRIBUTING.md) — change size, Kotlin, SQL, testing, security,
   and review standards.
 - [Architecture decisions](docs/decisions/README.md) — ADR policy and the status

@@ -25,3 +25,6 @@ The current built-in lifetime is 15 minutes and the domain/database maximum is
 24 hours. Callers cannot choose or extend the lifetime. Actor identity,
 authentication, role evidence, approval or rejection decisions, revocation,
 run-state transitions, and capability authorization remain separate behavior.
+Human identities and role evidence are described in
+[human-authority.md](human-authority.md); they are deliberately not interpreted
+as approval here.
