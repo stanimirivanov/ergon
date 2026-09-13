@@ -78,12 +78,13 @@ intervention. Prove that model output, retrieved text, and channel callers canno
 grant authority.
 
 The initial policy evaluator is deny-by-default, versioned, and can only
-strengthen contract declarations. Actor authentication, scopes, approval
-records, expiry, and authorization remain later PR-sized behavior. The approval-
-request sub-slice now appends immutable 15-minute requests, derives expiry from
-time, and permits replacement only after expiry. The next sub-slice should
-establish actor identity and requester/resolver role evidence before accepting
-an approval grant.
+strengthen contract declarations. The approval-request sub-slice appends
+immutable 15-minute requests, derives expiry from time, and permits replacement
+only after expiry. Human identity bindings and authority attestations now make
+requester authority case-scoped and resolver authority tenant-scoped. The next
+sub-slice should authenticate an actor and accept an immutable approval decision
+only when the request and matching evidence are both current; grants,
+authorization, and execution remain later behavior.
 
 ### 5. Adaptive canvas and resolver console
 
