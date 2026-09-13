@@ -34,3 +34,6 @@ capability checks. Neither state permits tool invocation.
 The start row is not current execution state. Approval, authorization,
 capability invocation, receipts, retries, verification, and terminal state will
 be represented by later append-only run events and projections.
+
+For `WAITING_FOR_APPROVAL`, the separate [approval request](approvals.md) API
+can append a bounded human-authority request without granting that authority.

@@ -6,17 +6,25 @@ import org.ergon.contracts.domain.StepRisk
 import org.ergon.controlplane.cases.application.CaseEventStore
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
+import org.ergon.controlplane.resolution.application.ApprovalRequestIdentityGenerator
+import org.ergon.controlplane.resolution.application.ApprovalRequestRepository
+import org.ergon.controlplane.resolution.application.ApprovalRequestService
 import org.ergon.controlplane.resolution.application.ResolutionPlanningService
 import org.ergon.controlplane.resolution.application.ResolutionReadinessService
 import org.ergon.controlplane.resolution.application.ResolutionRunIdentityGenerator
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunService
+import org.ergon.resolution.domain.ApprovalRequestId
 import org.ergon.resolution.domain.CapabilityPolicyRule
 import org.ergon.resolution.domain.ResolutionPolicy
 import org.ergon.resolution.domain.ResolutionPolicyRevision
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import java.time.Clock
+import java.time.Duration
 import java.util.UUID
+
+private val builtInApprovalRequestLifetime: Duration = Duration.parse("PT15M")
 
 /** Wires deterministic resolution planning to authoritative case and contract ports. */
 @Configuration(proxyBeanMethods = false)
@@ -61,4 +69,23 @@ class ResolutionConfiguration {
         identities: ResolutionRunIdentityGenerator,
         transactionRunner: TransactionRunner,
     ) = ResolutionRunService(planningService, repository, identities, transactionRunner)
+
+    @Bean
+    fun approvalRequestIdentityGenerator() = ApprovalRequestIdentityGenerator { ApprovalRequestId(UUID.randomUUID()) }
+
+    @Bean
+    fun approvalRequestService(
+        runs: ResolutionRunRepository,
+        requests: ApprovalRequestRepository,
+        identities: ApprovalRequestIdentityGenerator,
+        transactionRunner: TransactionRunner,
+        clock: Clock,
+    ) = ApprovalRequestService(
+        runs = runs,
+        requests = requests,
+        identities = identities,
+        transactionRunner = transactionRunner,
+        clock = clock,
+        lifetime = builtInApprovalRequestLifetime,
+    )
 }

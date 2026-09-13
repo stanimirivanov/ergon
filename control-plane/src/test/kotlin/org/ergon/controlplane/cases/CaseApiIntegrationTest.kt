@@ -424,6 +424,8 @@ class CaseApiIntegrationTest(
             .andExpect(content().string(containsString(CASE_RESOLUTION_PLAN_PATH)))
             .andExpect(jsonPath("$.paths['$CASE_RESOLUTION_RUNS_PATH'].post").exists())
             .andExpect(jsonPath("$.paths['$RESOLUTION_RUN_PATH'].get").exists())
+            .andExpect(jsonPath("$.paths['$APPROVAL_REQUESTS_PATH'].post").exists())
+            .andExpect(jsonPath("$.paths['$APPROVAL_REQUEST_PATH'].get").exists())
             .andExpect(content().string(containsString(CONTRACT_VALIDATION_PATH)))
             .andExpect(jsonPath("$.paths['$CONTRACT_REVISIONS_PATH'].post").exists())
             .andExpect(jsonPath("$.paths['$CONTRACT_REVISION_PATH'].get").exists())
@@ -691,6 +693,10 @@ class CaseApiIntegrationTest(
             "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-runs"
         private const val RESOLUTION_RUN_PATH =
             "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}"
+        private const val APPROVAL_REQUESTS_PATH =
+            "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/approval-requests"
+        private const val APPROVAL_REQUEST_PATH =
+            "/internal/v1/tenants/{tenantId}/approval-requests/{requestId}"
         private const val CONTRACT_VALIDATION_PATH = "/internal/v1/resolution-contracts/validate"
         private const val CONTRACT_REVISIONS_PATH = "/internal/v1/tenants/{tenantId}/resolution-contracts"
         private const val CONTRACT_REVISION_PATH = "$CONTRACT_REVISIONS_PATH/{key}/revisions/{revision}"
