@@ -2,8 +2,8 @@
 
 > **TL;DR:** A run in `WAITING_FOR_APPROVAL` can create one active, 15-minute
 > request. An authenticated actor with matching current authority evidence can
-> answer it once. The immutable decision records audit evidence; it neither
-> authorizes execution nor advances the run.
+> answer it once. The immutable decision records audit evidence; a separate
+> bounded grant may derive from approval but still does not execute anything.
 
 ## Request and inspect
 
@@ -41,8 +41,8 @@ latest `attestedAt` and then evidence ID determine the selected audit source.
 
 Only one decision can answer a request. Retries return the existing decision ID
 as `409 Conflict`; records cannot be updated or deleted. Both outcomes require
-matching authority. An `APPROVED` decision is a human prerequisite, not a
-capability grant, authorization, run transition, or execution instruction.
-Those remain later behavior. Human identity and evidence semantics are in
-[human-authority.md](human-authority.md), and bearer identity resolution is in
-[authentication.md](authentication.md).
+matching authority. An `APPROVED` decision is a human prerequisite, not
+authorization by itself. A separate grant can be derived only while the request
+remains current; see [authorization-grants.md](authorization-grants.md). Human
+identity and evidence semantics are in [human-authority.md](human-authority.md),
+and bearer identity resolution is in [authentication.md](authentication.md).

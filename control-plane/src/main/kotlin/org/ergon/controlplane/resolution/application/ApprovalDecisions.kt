@@ -34,6 +34,19 @@ interface ApprovalDecisionRepository {
     ): ApprovalDecisionId?
 
     /**
+     * Retrieves and locks [decisionId] while a derived authorization is created.
+     *
+     * The lock must be retained through grant insertion so concurrent derivations
+     * cannot both pass an application-level existence check.
+     *
+     * @return the tenant-scoped decision, or `null` when it is absent.
+     */
+    fun lockForAuthorization(
+        tenantId: TenantId,
+        decisionId: ApprovalDecisionId,
+    ): StoredApprovalDecision?
+
+    /**
      * Persists [decision] once for its approval request.
      *
      * The caller must hold the request lock through this operation.

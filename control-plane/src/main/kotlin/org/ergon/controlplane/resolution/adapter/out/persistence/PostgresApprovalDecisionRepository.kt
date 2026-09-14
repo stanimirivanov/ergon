@@ -1,12 +1,20 @@
 package org.ergon.controlplane.resolution.adapter.out.persistence
 
+import org.ergon.cases.domain.CaseId
 import org.ergon.controlplane.resolution.application.ApprovalDecisionAlreadyExistsException
 import org.ergon.controlplane.resolution.application.ApprovalDecisionRepository
 import org.ergon.controlplane.resolution.application.StoredApprovalDecision
+import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
+import org.ergon.resolution.domain.ApprovalAuthority
+import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
 import org.ergon.resolution.domain.ApprovalDecision
 import org.ergon.resolution.domain.ApprovalDecisionId
+import org.ergon.resolution.domain.ApprovalDecisionOutcome
+import org.ergon.resolution.domain.ApprovalDecisionSnapshot
 import org.ergon.resolution.domain.ApprovalRequestId
+import org.ergon.resolution.domain.ResolutionRunId
+import org.springframework.jdbc.core.DataClassRowMapper
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 import java.time.OffsetDateTime
@@ -36,6 +44,35 @@ class PostgresApprovalDecisionRepository(
             .optional()
             .getOrNull()
             ?.let(::ApprovalDecisionId)
+
+    override fun lockForAuthorization(
+        tenantId: TenantId,
+        decisionId: ApprovalDecisionId,
+    ): StoredApprovalDecision? =
+        jdbcClient
+            .sql(
+                """
+                SELECT
+                    approval_decision_id,
+                    approval_request_id,
+                    run_id,
+                    case_id,
+                    actor_id,
+                    evidence_id,
+                    authority,
+                    outcome,
+                    decided_at,
+                    recorded_at
+                FROM resolution_approval_decisions
+                WHERE tenant_id = :tenantId AND approval_decision_id = :decisionId
+                FOR UPDATE
+                """.trimIndent(),
+            ).param("tenantId", tenantId.value)
+            .param("decisionId", decisionId.value)
+            .query(DataClassRowMapper(ApprovalDecisionRow::class.java))
+            .optional()
+            .getOrNull()
+            ?.toStoredDecision()
 
     override fun create(
         tenantId: TenantId,
@@ -74,3 +111,40 @@ class PostgresApprovalDecisionRepository(
         return StoredApprovalDecision(decision, recordedAt.toInstant())
     }
 }
+
+private fun ApprovalDecisionRow.toStoredDecision(): StoredApprovalDecision =
+    try {
+        StoredApprovalDecision(
+            decision =
+                ApprovalDecision.rehydrate(
+                    ApprovalDecisionSnapshot(
+                        id = ApprovalDecisionId(approvalDecisionId),
+                        requestId = ApprovalRequestId(approvalRequestId),
+                        runId = ResolutionRunId(runId),
+                        actorId = HumanActorId(actorId),
+                        authorityEvidenceId = ApprovalAuthorityEvidenceId(evidenceId),
+                        authority = ApprovalAuthority.valueOf(authority),
+                        caseId = CaseId(caseId),
+                        outcome = ApprovalDecisionOutcome.valueOf(outcome),
+                        decidedAt = decidedAt.toInstant(),
+                    ),
+                ),
+            recordedAt = recordedAt.toInstant(),
+        )
+    } catch (exception: IllegalArgumentException) {
+        // Invalid persisted values indicate schema drift or corruption, never client input.
+        throw IllegalStateException("stored approval decision is invalid", exception)
+    }
+
+private data class ApprovalDecisionRow(
+    val approvalDecisionId: UUID,
+    val approvalRequestId: UUID,
+    val runId: UUID,
+    val caseId: UUID,
+    val actorId: UUID,
+    val evidenceId: UUID,
+    val authority: String,
+    val outcome: String,
+    val decidedAt: OffsetDateTime,
+    val recordedAt: OffsetDateTime,
+)

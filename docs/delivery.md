@@ -85,8 +85,10 @@ requester authority case-scoped and resolver authority tenant-scoped. Signed,
 issuer-validated JWT identity can now resolve the current actor inside one
 tenant. Authenticated actors can now record one immutable approval or rejection
 only while both the request and correctly scoped authority evidence are current.
-The next sub-slice should derive a narrow authorization grant from an approved
-decision without treating the decision itself as permission to execute.
+A current approved decision can now derive one immutable grant for the exact
+run case, policy revision, step, and capability until the request expires. The
+next sub-slice should consume that grant exactly once while proving tenant
+capability availability, without yet coupling consumption to connector I/O.
 
 ### 5. Adaptive canvas and resolver console
 
