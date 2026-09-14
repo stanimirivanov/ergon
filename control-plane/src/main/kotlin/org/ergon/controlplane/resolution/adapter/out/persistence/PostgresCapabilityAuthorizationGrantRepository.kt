@@ -1,12 +1,20 @@
 package org.ergon.controlplane.resolution.adapter.out.persistence
 
+import org.ergon.cases.domain.CaseId
+import org.ergon.contracts.domain.CapabilityName
+import org.ergon.contracts.domain.ResolutionStepId
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGrantAlreadyExistsException
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGrantRepository
 import org.ergon.controlplane.resolution.application.StoredCapabilityAuthorizationGrant
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalDecisionId
+import org.ergon.resolution.domain.ApprovalRequestId
 import org.ergon.resolution.domain.CapabilityAuthorizationGrant
 import org.ergon.resolution.domain.CapabilityAuthorizationGrantId
+import org.ergon.resolution.domain.CapabilityAuthorizationGrantSnapshot
+import org.ergon.resolution.domain.ResolutionPolicyRevision
+import org.ergon.resolution.domain.ResolutionRunId
+import org.springframework.jdbc.core.DataClassRowMapper
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 import java.time.OffsetDateTime
@@ -36,6 +44,36 @@ class PostgresCapabilityAuthorizationGrantRepository(
             .optional()
             .getOrNull()
             ?.let(::CapabilityAuthorizationGrantId)
+
+    override fun lockForConsumption(
+        tenantId: TenantId,
+        grantId: CapabilityAuthorizationGrantId,
+    ): StoredCapabilityAuthorizationGrant? =
+        jdbcClient
+            .sql(
+                """
+                SELECT
+                    authorization_grant_id,
+                    approval_decision_id,
+                    approval_request_id,
+                    run_id,
+                    case_id,
+                    policy_revision,
+                    step_id,
+                    capability,
+                    authorized_at,
+                    expires_at,
+                    recorded_at
+                FROM capability_authorization_grants
+                WHERE tenant_id = :tenantId AND authorization_grant_id = :grantId
+                FOR UPDATE
+                """.trimIndent(),
+            ).param("tenantId", tenantId.value)
+            .param("grantId", grantId.value)
+            .query(DataClassRowMapper(CapabilityAuthorizationGrantRow::class.java))
+            .optional()
+            .getOrNull()
+            ?.toStoredGrant()
 
     override fun create(
         tenantId: TenantId,
@@ -77,3 +115,42 @@ class PostgresCapabilityAuthorizationGrantRepository(
         return StoredCapabilityAuthorizationGrant(grant, recordedAt.toInstant())
     }
 }
+
+private fun CapabilityAuthorizationGrantRow.toStoredGrant(): StoredCapabilityAuthorizationGrant =
+    try {
+        StoredCapabilityAuthorizationGrant(
+            grant =
+                CapabilityAuthorizationGrant.rehydrate(
+                    CapabilityAuthorizationGrantSnapshot(
+                        id = CapabilityAuthorizationGrantId(authorizationGrantId),
+                        approvalDecisionId = ApprovalDecisionId(approvalDecisionId),
+                        approvalRequestId = ApprovalRequestId(approvalRequestId),
+                        runId = ResolutionRunId(runId),
+                        caseId = CaseId(caseId),
+                        policyRevision = ResolutionPolicyRevision.of(policyRevision),
+                        stepId = ResolutionStepId.of(stepId),
+                        capability = CapabilityName.of(capability),
+                        authorizedAt = authorizedAt.toInstant(),
+                        expiresAt = expiresAt.toInstant(),
+                    ),
+                ),
+            recordedAt = recordedAt.toInstant(),
+        )
+    } catch (exception: IllegalArgumentException) {
+        // Invalid persisted values indicate schema drift or corruption, never client input.
+        throw IllegalStateException("stored capability authorization grant is invalid", exception)
+    }
+
+private data class CapabilityAuthorizationGrantRow(
+    val authorizationGrantId: UUID,
+    val approvalDecisionId: UUID,
+    val approvalRequestId: UUID,
+    val runId: UUID,
+    val caseId: UUID,
+    val policyRevision: String,
+    val stepId: String,
+    val capability: String,
+    val authorizedAt: OffsetDateTime,
+    val expiresAt: OffsetDateTime,
+    val recordedAt: OffsetDateTime,
+)

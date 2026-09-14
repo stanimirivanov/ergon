@@ -65,7 +65,8 @@ class ApprovalDecisionApiIntegrationTest(
             .andExpect(jsonPath("$.decidedAt").exists())
             .andExpect(jsonPath("$.recordedAt").exists())
         val decisionId = decisionIdForRequest(tenantId, requestId)
-        createAndAssertAuthorizationGrant(tenantId, decisionId, requestId, runId, caseId)
+        val grantId = createAndAssertAuthorizationGrant(tenantId, decisionId, requestId, runId, caseId)
+        consumeAndAssertAuthorizationGrant(tenantId, grantId, runId, caseId)
 
         mockMvc
             .perform(decide(tenantId, requestId, "employee-42", "REJECTED"))
@@ -157,7 +158,7 @@ class ApprovalDecisionApiIntegrationTest(
         requestId: UUID,
         runId: UUID,
         caseId: UUID,
-    ) {
+    ): UUID {
         mockMvc
             .perform(post(AUTHORIZATION_GRANTS_PATH, tenantId, decisionId))
             .andExpect(status().isCreated)
@@ -189,6 +190,62 @@ class ApprovalDecisionApiIntegrationTest(
                     """.trimIndent(),
                 ).param("tenantId", tenantId)
                 .param("grantId", grantId)
+                .update()
+        }.isInstanceOf(DataAccessException::class.java)
+        return grantId
+    }
+
+    private fun consumeAndAssertAuthorizationGrant(
+        tenantId: UUID,
+        grantId: UUID,
+        runId: UUID,
+        caseId: UUID,
+    ) {
+        mockMvc
+            .perform(post(AUTHORIZATION_CONSUMPTIONS_PATH, UUID.randomUUID(), grantId))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:capability-authorization-grant-not-found"))
+
+        val otherTenantId = UUID.randomUUID()
+        insertCapabilityRoute(otherTenantId)
+        mockMvc
+            .perform(post(AUTHORIZATION_CONSUMPTIONS_PATH, tenantId, grantId))
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:tenant-capability-unavailable"))
+            .andExpect(jsonPath("$.capability").value("identity.account.unlock"))
+
+        insertCapabilityRoute(tenantId)
+        assertCapabilityRouteImmutable(tenantId)
+        mockMvc
+            .perform(post(AUTHORIZATION_CONSUMPTIONS_PATH, tenantId, grantId))
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.authorizationGrantId").value(grantId.toString()))
+            .andExpect(jsonPath("$.runId").value(runId.toString()))
+            .andExpect(jsonPath("$.caseId").value(caseId.toString()))
+            .andExpect(jsonPath("$.policyRevision").value("ergon.dev/policy/access-restoration/v1"))
+            .andExpect(jsonPath("$.stepId").value("unlock-account"))
+            .andExpect(jsonPath("$.capability").value("identity.account.unlock"))
+            .andExpect(jsonPath("$.connector").value("identity-stub"))
+            .andExpect(jsonPath("$.consumedAt").exists())
+            .andExpect(jsonPath("$.recordedAt").exists())
+        val consumptionId = authorizationConsumptionIdForGrant(tenantId, grantId)
+
+        mockMvc
+            .perform(post(AUTHORIZATION_CONSUMPTIONS_PATH, tenantId, grantId))
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:capability-authorization-already-consumed"))
+            .andExpect(jsonPath("$.authorizationConsumptionId").value(consumptionId.toString()))
+
+        assertThatThrownBy {
+            jdbcClient
+                .sql(
+                    """
+                    UPDATE capability_authorization_consumptions
+                    SET connector = connector
+                    WHERE tenant_id = :tenantId AND authorization_consumption_id = :consumptionId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("consumptionId", consumptionId)
                 .update()
         }.isInstanceOf(DataAccessException::class.java)
     }
@@ -342,6 +399,47 @@ class ApprovalDecisionApiIntegrationTest(
             .query(UUID::class.java)
             .single()
 
+    private fun authorizationConsumptionIdForGrant(
+        tenantId: UUID,
+        grantId: UUID,
+    ): UUID =
+        jdbcClient
+            .sql(
+                """
+                SELECT authorization_consumption_id
+                FROM capability_authorization_consumptions
+                WHERE tenant_id = :tenantId AND authorization_grant_id = :grantId
+                """.trimIndent(),
+            ).param("tenantId", tenantId)
+            .param("grantId", grantId)
+            .query(UUID::class.java)
+            .single()
+
+    private fun insertCapabilityRoute(tenantId: UUID) {
+        jdbcClient
+            .sql(
+                """
+                INSERT INTO tenant_capability_routes (tenant_id, capability, connector)
+                VALUES (:tenantId, 'identity.account.unlock', 'identity-stub')
+                """.trimIndent(),
+            ).param("tenantId", tenantId)
+            .update()
+    }
+
+    private fun assertCapabilityRouteImmutable(tenantId: UUID) {
+        assertThatThrownBy {
+            jdbcClient
+                .sql(
+                    """
+                    UPDATE tenant_capability_routes
+                    SET connector = connector
+                    WHERE tenant_id = :tenantId AND capability = 'identity.account.unlock'
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .update()
+        }.isInstanceOf(DataAccessException::class.java)
+    }
+
     private fun requestExpiresAt(
         tenantId: UUID,
         requestId: UUID,
@@ -477,6 +575,8 @@ class ApprovalDecisionApiIntegrationTest(
             "/api/v1/tenants/{tenantId}/approval-requests/{requestId}/decision"
         private const val AUTHORIZATION_GRANTS_PATH =
             "/internal/v1/tenants/{tenantId}/approval-decisions/{decisionId}/authorization-grants"
+        private const val AUTHORIZATION_CONSUMPTIONS_PATH =
+            "/internal/v1/tenants/{tenantId}/capability-authorization-grants/{grantId}/consumptions"
         private const val HUMAN_ACTORS_PATH = "/internal/v1/tenants/{tenantId}/human-actors"
         private const val AUTHORITY_EVIDENCE_PATH =
             "$HUMAN_ACTORS_PATH/{actorId}/approval-authority-evidence"

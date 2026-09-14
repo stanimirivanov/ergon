@@ -27,6 +27,16 @@ interface CapabilityAuthorizationGrantRepository {
     ): CapabilityAuthorizationGrantId?
 
     /**
+     * Retrieves and locks [grantId] through an attempted consumption.
+     *
+     * @return the tenant-scoped grant, or `null` when it is absent.
+     */
+    fun lockForConsumption(
+        tenantId: TenantId,
+        grantId: CapabilityAuthorizationGrantId,
+    ): StoredCapabilityAuthorizationGrant?
+
+    /**
      * Persists [grant] once for its approval decision.
      *
      * The caller must hold the source decision lock through this operation.

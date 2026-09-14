@@ -20,6 +20,20 @@ data class CapabilityAuthorizationGrantBasis(
     val decision: ApprovalDecision,
 )
 
+/** Complete immutable values needed to rehydrate a previously validated grant. */
+data class CapabilityAuthorizationGrantSnapshot(
+    val id: CapabilityAuthorizationGrantId,
+    val approvalDecisionId: ApprovalDecisionId,
+    val approvalRequestId: ApprovalRequestId,
+    val runId: ResolutionRunId,
+    val caseId: CaseId,
+    val policyRevision: ResolutionPolicyRevision,
+    val stepId: ResolutionStepId,
+    val capability: CapabilityName,
+    val authorizedAt: Instant,
+    val expiresAt: Instant,
+)
+
 /**
  * Narrow authorization to attempt one invocation of one pinned run step.
  *
@@ -100,6 +114,26 @@ data class CapabilityAuthorizationGrant private constructor(
                 expiresAt = request.expiresAt,
             )
         }
+
+        /**
+         * Rehydrates a grant whose provenance was validated when recorded and
+         * remains protected by durable constraints.
+         *
+         * @throws IllegalArgumentException when the stored validity interval is empty.
+         */
+        fun rehydrate(snapshot: CapabilityAuthorizationGrantSnapshot): CapabilityAuthorizationGrant =
+            CapabilityAuthorizationGrant(
+                id = snapshot.id,
+                approvalDecisionId = snapshot.approvalDecisionId,
+                approvalRequestId = snapshot.approvalRequestId,
+                runId = snapshot.runId,
+                caseId = snapshot.caseId,
+                policyRevision = snapshot.policyRevision,
+                stepId = snapshot.stepId,
+                capability = snapshot.capability,
+                authorizedAt = snapshot.authorizedAt,
+                expiresAt = snapshot.expiresAt,
+            )
     }
 }
 
