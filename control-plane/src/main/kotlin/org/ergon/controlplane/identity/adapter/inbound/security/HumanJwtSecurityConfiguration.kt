@@ -58,7 +58,7 @@ data class HumanJwtTrust(
     fun identityProviderFor(tokenIssuer: URI): String? = identityProvider?.takeIf { issuer == tokenIssuer }
 }
 
-/** Configures stateless bearer authentication for the current-human-actor boundary. */
+/** Configures stateless bearer authentication for HTTP operations performed by human actors. */
 @SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
 @Configuration(proxyBeanMethods = false)
 class HumanJwtSecurityConfiguration {
@@ -96,6 +96,7 @@ class HumanJwtSecurityConfiguration {
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.GET, CURRENT_HUMAN_ACTOR_PATH).authenticated()
+                it.requestMatchers(HttpMethod.POST, APPROVAL_DECISION_PATH).authenticated()
                 it.anyRequest().permitAll()
             }.oauth2ResourceServer { resourceServer ->
                 resourceServer.authenticationEntryPoint(authenticationEntryPoint)
@@ -105,6 +106,7 @@ class HumanJwtSecurityConfiguration {
     }
 
     private companion object {
+        const val APPROVAL_DECISION_PATH = "/api/v1/tenants/*/approval-requests/*/decision"
         const val CURRENT_HUMAN_ACTOR_PATH = "/api/v1/tenants/*/human-actor"
     }
 }

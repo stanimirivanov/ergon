@@ -426,6 +426,7 @@ class CaseApiIntegrationTest(
             .andExpect(jsonPath("$.paths['$RESOLUTION_RUN_PATH'].get").exists())
             .andExpect(jsonPath("$.paths['$APPROVAL_REQUESTS_PATH'].post").exists())
             .andExpect(jsonPath("$.paths['$APPROVAL_REQUEST_PATH'].get").exists())
+            .andExpect(jsonPath("$.paths['$APPROVAL_DECISION_PATH'].post").exists())
             .andExpect(jsonPath("$.paths['$HUMAN_ACTORS_PATH'].post").exists())
             .andExpect(jsonPath("$.paths['$HUMAN_ACTOR_PATH'].get").exists())
             .andExpect(jsonPath("$.paths['$ACTOR_AUTHORITY_EVIDENCE_PATH'].post").exists())
@@ -703,6 +704,8 @@ class CaseApiIntegrationTest(
             "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/approval-requests"
         private const val APPROVAL_REQUEST_PATH =
             "/internal/v1/tenants/{tenantId}/approval-requests/{requestId}"
+        private const val APPROVAL_DECISION_PATH =
+            "/api/v1/tenants/{tenantId}/approval-requests/{requestId}/decision"
         private const val HUMAN_ACTORS_PATH = "/internal/v1/tenants/{tenantId}/human-actors"
         private const val HUMAN_ACTOR_PATH = "$HUMAN_ACTORS_PATH/{actorId}"
         private const val ACTOR_AUTHORITY_EVIDENCE_PATH =

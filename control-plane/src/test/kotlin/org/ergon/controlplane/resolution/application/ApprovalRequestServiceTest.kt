@@ -93,6 +93,11 @@ private object NeverCalledApprovalRequestRepository : ApprovalRequestRepository 
         tenantId: TenantId,
         requestId: ApprovalRequestId,
     ): StoredApprovalRequest? = error("approval request lookup is not used")
+
+    override fun lockForDecision(
+        tenantId: TenantId,
+        requestId: ApprovalRequestId,
+    ): StoredApprovalRequest? = error("approval request locking is not used")
 }
 
 private object ApprovalImmediateTransactionRunner : TransactionRunner {

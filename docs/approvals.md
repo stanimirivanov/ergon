@@ -1,8 +1,9 @@
 # Approval requests
 
 > **TL;DR:** A run in `WAITING_FOR_APPROVAL` can create one active, 15-minute
-> request for its pinned `REQUESTER` or `RESOLVER` authority. The request is not
-> an approval, contains no actor, and never authorizes execution.
+> request. An authenticated actor with matching current authority evidence can
+> answer it once. The immutable decision records audit evidence; it neither
+> authorizes execution nor advances the run.
 
 ## Request and inspect
 
@@ -22,9 +23,26 @@ expires, another request may be appended while the old request remains
 retrievable. Concurrent creation is serialized on the immutable run row.
 
 The current built-in lifetime is 15 minutes and the domain/database maximum is
-24 hours. Callers cannot choose or extend the lifetime. Actor identity,
-authentication, role evidence, approval or rejection decisions, revocation,
-run-state transitions, and capability authorization remain separate behavior.
-Human identities and role evidence are described in
-[human-authority.md](human-authority.md); they are deliberately not interpreted
-as approval here.
+24 hours. Callers cannot choose or extend the lifetime.
+
+## Decide once
+
+Submit `APPROVED` or `REJECTED` to
+`POST /api/v1/tenants/{tenantId}/approval-requests/{requestId}/decision` with a
+bearer JWT. Ergon derives the actor only from the verified issuer and subject;
+the body cannot select an actor, evidence record, case, run, or decision time.
+
+The request row is locked while Ergon verifies that it is still current, finds
+the immutable run and case, and selects current authority evidence for the
+actor. `REQUESTER` evidence must match the run's case; `RESOLVER` evidence must
+be tenant-wide. Validity uses the same application-clock instant for the
+request, evidence, and recorded decision. If several attestations match, the
+latest `attestedAt` and then evidence ID determine the selected audit source.
+
+Only one decision can answer a request. Retries return the existing decision ID
+as `409 Conflict`; records cannot be updated or deleted. Both outcomes require
+matching authority. An `APPROVED` decision is a human prerequisite, not a
+capability grant, authorization, run transition, or execution instruction.
+Those remain later behavior. Human identity and evidence semantics are in
+[human-authority.md](human-authority.md), and bearer identity resolution is in
+[authentication.md](authentication.md).

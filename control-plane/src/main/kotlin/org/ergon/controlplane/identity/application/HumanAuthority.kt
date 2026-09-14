@@ -79,6 +79,23 @@ interface HumanAuthorityRepository {
         tenantId: TenantId,
         evidenceId: ApprovalAuthorityEvidenceId,
     ): StoredApprovalAuthorityEvidence?
+
+    /**
+     * Selects current evidence that gives [actorId] the requested authority and scope.
+     *
+     * [caseId] is required for requester authority and absent for resolver authority.
+     * Implementations must use [at] as the exclusive expiry boundary and select
+     * deterministically when more than one attestation is current.
+     *
+     * @return matching evidence, or `null` when no current attestation exists.
+     */
+    fun findCurrent(
+        tenantId: TenantId,
+        actorId: HumanActorId,
+        authority: ApprovalAuthority,
+        caseId: CaseId?,
+        at: Instant,
+    ): StoredApprovalAuthorityEvidence?
 }
 
 /** Values required to record one externally sourced approval-authority attestation. */
