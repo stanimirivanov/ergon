@@ -46,6 +46,7 @@ request -> case graph -> evidence bundle -> resolution contract
 - [Runs](docs/runs.md) — immutable start snapshots and concurrency boundary.
 - [Approvals](docs/approvals.md) — bounded requests and authenticated, immutable decisions.
 - [Authorization grants](docs/authorization-grants.md) — narrow, bounded authority derived from approval.
+- [Capability invocations](docs/capability-invocations.md) — idempotent connector execution and durable receipts.
 - [Human authority](docs/human-authority.md) — scoped, expiring evidence without approval.
 - [Authentication](docs/authentication.md) — verified JWT identity to tenant actor resolution.
 - [Contributing](CONTRIBUTING.md) — change size, Kotlin, SQL, testing, security,
@@ -98,14 +99,17 @@ contract pins in PostgreSQL. Its current APIs are:
 - `POST /internal/v1/tenants/{tenantId}/capability-authorization-grants/{grantId}/consumptions`
   spends one current grant through the tenant's configured connector route and
   records a durable reservation without performing the external action.
+- `POST /internal/v1/tenants/{tenantId}/capability-authorization-consumptions/{consumptionId}/invocations`
+  invokes the deterministic identity connector with a stable idempotency key
+  and stores or replays its immutable terminal receipt.
 
 Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
 Only current-actor lookup and approval decisions require bearer authentication;
 the remaining endpoints retain a temporary development boundary and must not be
 exposed as though tenant IDs were authorization. Capability-route provisioning,
-automatic selection, AI-assisted binding, broader fact types, connector
-execution, and receipts remain later delivery steps. The predecessor
+automatic selection, AI-assisted binding, broader fact types, real connector
+credentials, run transitions, and outcome proof remain later delivery steps. The predecessor
 services remain in the reactor while behavior is replaced incrementally.
 
 ```powershell

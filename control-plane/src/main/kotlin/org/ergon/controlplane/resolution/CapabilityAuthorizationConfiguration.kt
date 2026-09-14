@@ -11,6 +11,9 @@ import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGran
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGrantRecords
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGrantRepository
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGrantService
+import org.ergon.controlplane.resolution.application.CapabilityConnectorGateway
+import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
+import org.ergon.controlplane.resolution.application.CapabilityInvocationService
 import org.ergon.controlplane.resolution.application.CapabilityRouteRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionId
@@ -65,4 +68,13 @@ class CapabilityAuthorizationConfiguration {
         transactionRunner: TransactionRunner,
         clock: Clock,
     ) = CapabilityAuthorizationConsumptionService(records, identities, transactionRunner, clock)
+
+    @Bean
+    fun capabilityInvocationService(
+        consumptions: CapabilityAuthorizationConsumptionRepository,
+        receipts: CapabilityInvocationReceiptRepository,
+        connector: CapabilityConnectorGateway,
+        transactionRunner: TransactionRunner,
+        clock: Clock,
+    ) = CapabilityInvocationService(consumptions, receipts, connector, transactionRunner, clock)
 }

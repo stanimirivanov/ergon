@@ -33,6 +33,7 @@ designed.
 
 The consumption copies and foreign-key binds the grant scope, validity window,
 and selected connector. It is an irrevocable reservation from which later work
-can resume after failure—not proof that the connector ran or succeeded.
-Connector credentials, invocation, idempotency, receipts, and run transitions
-remain deliberately outside this slice.
+can resume after failure—not proof that the connector ran or succeeded. The
+separate [capability invocation](capability-invocations.md) boundary uses that
+reservation as its stable idempotency and scope source. Real connector
+credentials, run transitions, and outcome verification remain later work.

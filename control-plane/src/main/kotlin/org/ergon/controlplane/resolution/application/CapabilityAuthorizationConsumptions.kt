@@ -35,6 +35,12 @@ data class StoredCapabilityAuthorizationConsumption(
 
 /** Durable tenant-scoped history of single-use authorization consumption. */
 interface CapabilityAuthorizationConsumptionRepository {
+    /** @return the exact tenant-scoped consumption, or `null` when it does not exist. */
+    fun find(
+        tenantId: TenantId,
+        consumptionId: CapabilityAuthorizationConsumptionId,
+    ): StoredCapabilityAuthorizationConsumption?
+
     /** @return the consumption already recorded for [grantId], or `null` when it remains unspent. */
     fun findIdByGrant(
         tenantId: TenantId,

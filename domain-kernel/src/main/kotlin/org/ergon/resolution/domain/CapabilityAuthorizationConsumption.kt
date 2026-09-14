@@ -12,6 +12,21 @@ value class CapabilityAuthorizationConsumptionId(
     val value: UUID,
 )
 
+/** Complete immutable values needed to rehydrate a validated authorization consumption. */
+data class CapabilityAuthorizationConsumptionSnapshot(
+    val id: CapabilityAuthorizationConsumptionId,
+    val authorizationGrantId: CapabilityAuthorizationGrantId,
+    val runId: ResolutionRunId,
+    val caseId: CaseId,
+    val policyRevision: ResolutionPolicyRevision,
+    val stepId: ResolutionStepId,
+    val capability: CapabilityName,
+    val connector: ConnectorName,
+    val grantAuthorizedAt: Instant,
+    val grantExpiresAt: Instant,
+    val consumedAt: Instant,
+)
+
 /**
  * Stable connector route configured to provide [capability] inside one tenant boundary.
  *
@@ -114,6 +129,37 @@ data class CapabilityAuthorizationConsumption private constructor(
                 grantAuthorizedAt = grant.authorizedAt,
                 grantExpiresAt = grant.expiresAt,
                 consumedAt = consumedAt,
+            )
+        }
+
+        /**
+         * Reconstructs a consumption read from constrained durable storage.
+         *
+         * The snapshot is revalidated through the same temporal invariants as
+         * a newly created consumption so corrupt persisted values fail loudly.
+         *
+         * @throws IllegalArgumentException when the copied grant interval does
+         *   not contain [CapabilityAuthorizationConsumptionSnapshot.consumedAt].
+         */
+        fun rehydrate(snapshot: CapabilityAuthorizationConsumptionSnapshot): CapabilityAuthorizationConsumption {
+            require(!snapshot.consumedAt.isBefore(snapshot.grantAuthorizedAt)) {
+                "authorization consumption predates its grant"
+            }
+            require(snapshot.consumedAt.isBefore(snapshot.grantExpiresAt)) {
+                "authorization grant is expired at consumption"
+            }
+            return CapabilityAuthorizationConsumption(
+                id = snapshot.id,
+                authorizationGrantId = snapshot.authorizationGrantId,
+                runId = snapshot.runId,
+                caseId = snapshot.caseId,
+                policyRevision = snapshot.policyRevision,
+                stepId = snapshot.stepId,
+                capability = snapshot.capability,
+                connector = snapshot.connector,
+                grantAuthorizedAt = snapshot.grantAuthorizedAt,
+                grantExpiresAt = snapshot.grantExpiresAt,
+                consumedAt = snapshot.consumedAt,
             )
         }
     }
