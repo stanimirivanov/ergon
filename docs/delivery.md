@@ -87,10 +87,13 @@ tenant. Authenticated actors can now record one immutable approval or rejection
 only while both the request and correctly scoped authority evidence are current.
 A current approved decision can now derive one immutable grant for the exact
 run case, policy revision, step, and capability until the request expires. The
-That grant can now be consumed once only through a connector route configured
+grant can now be consumed once only through a connector route configured
 for the same tenant and capability. The consumption is a durable reservation,
-not an execution receipt. The next sub-slice should invoke the fake identity
-connector from that reservation with an idempotency key and durable receipt.
+not an execution receipt. That reservation can now invoke the deterministic
+identity connector outside the database transaction and persist or replay its
+terminal receipt using the consumption identity as the provider idempotency
+key. The next sub-slice should append durable run state for that result without
+yet treating connector success as verified resolution.
 
 ### 5. Adaptive canvas and resolver console
 

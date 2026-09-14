@@ -1,6 +1,8 @@
 package org.ergon.controlplane.resolution.adapter.out.persistence
 
+import org.ergon.cases.domain.CaseId
 import org.ergon.contracts.domain.CapabilityName
+import org.ergon.contracts.domain.ResolutionStepId
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationAlreadyConsumedException
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationConsumptionRepository
 import org.ergon.controlplane.resolution.application.CapabilityRouteRepository
@@ -9,9 +11,12 @@ import org.ergon.controlplane.resolution.application.StoredCapabilityRoute
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.CapabilityAuthorizationConsumption
 import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionId
+import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionSnapshot
 import org.ergon.resolution.domain.CapabilityAuthorizationGrantId
 import org.ergon.resolution.domain.CapabilityRoute
 import org.ergon.resolution.domain.ConnectorName
+import org.ergon.resolution.domain.ResolutionPolicyRevision
+import org.ergon.resolution.domain.ResolutionRunId
 import org.springframework.jdbc.core.DataClassRowMapper
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
@@ -26,6 +31,27 @@ class PostgresCapabilityAuthorizationConsumptionRepository(
     private val jdbcClient: JdbcClient,
 ) : CapabilityRouteRepository,
     CapabilityAuthorizationConsumptionRepository {
+    override fun find(
+        tenantId: TenantId,
+        consumptionId: CapabilityAuthorizationConsumptionId,
+    ): StoredCapabilityAuthorizationConsumption? =
+        jdbcClient
+            .sql(
+                """
+                SELECT
+                    authorization_consumption_id, authorization_grant_id, run_id, case_id,
+                    policy_revision, step_id, capability, connector,
+                    grant_authorized_at, grant_expires_at, consumed_at, recorded_at
+                FROM capability_authorization_consumptions
+                WHERE tenant_id = :tenantId AND authorization_consumption_id = :consumptionId
+                """.trimIndent(),
+            ).param("tenantId", tenantId.value)
+            .param("consumptionId", consumptionId.value)
+            .query(DataClassRowMapper(CapabilityAuthorizationConsumptionRow::class.java))
+            .optional()
+            .getOrNull()
+            ?.toStoredConsumption()
+
     override fun find(
         tenantId: TenantId,
         capability: CapabilityName,
@@ -119,4 +145,44 @@ private data class CapabilityRouteRow(
     val capability: String,
     val connector: String,
     val registeredAt: OffsetDateTime,
+)
+
+private fun CapabilityAuthorizationConsumptionRow.toStoredConsumption(): StoredCapabilityAuthorizationConsumption =
+    try {
+        StoredCapabilityAuthorizationConsumption(
+            consumption =
+                CapabilityAuthorizationConsumption.rehydrate(
+                    CapabilityAuthorizationConsumptionSnapshot(
+                        id = CapabilityAuthorizationConsumptionId(authorizationConsumptionId),
+                        authorizationGrantId = CapabilityAuthorizationGrantId(authorizationGrantId),
+                        runId = ResolutionRunId(runId),
+                        caseId = CaseId(caseId),
+                        policyRevision = ResolutionPolicyRevision.of(policyRevision),
+                        stepId = ResolutionStepId.of(stepId),
+                        capability = CapabilityName.of(capability),
+                        connector = ConnectorName.of(connector),
+                        grantAuthorizedAt = grantAuthorizedAt.toInstant(),
+                        grantExpiresAt = grantExpiresAt.toInstant(),
+                        consumedAt = consumedAt.toInstant(),
+                    ),
+                ),
+            recordedAt = recordedAt.toInstant(),
+        )
+    } catch (exception: IllegalArgumentException) {
+        throw IllegalStateException("stored capability authorization consumption is invalid", exception)
+    }
+
+private data class CapabilityAuthorizationConsumptionRow(
+    val authorizationConsumptionId: UUID,
+    val authorizationGrantId: UUID,
+    val runId: UUID,
+    val caseId: UUID,
+    val policyRevision: String,
+    val stepId: String,
+    val capability: String,
+    val connector: String,
+    val grantAuthorizedAt: OffsetDateTime,
+    val grantExpiresAt: OffsetDateTime,
+    val consumedAt: OffsetDateTime,
+    val recordedAt: OffsetDateTime,
 )

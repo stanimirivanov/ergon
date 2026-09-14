@@ -1,5 +1,6 @@
 package org.ergon.controlplane.resolution
 
+import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -66,7 +67,8 @@ class ApprovalDecisionApiIntegrationTest(
             .andExpect(jsonPath("$.recordedAt").exists())
         val decisionId = decisionIdForRequest(tenantId, requestId)
         val grantId = createAndAssertAuthorizationGrant(tenantId, decisionId, requestId, runId, caseId)
-        consumeAndAssertAuthorizationGrant(tenantId, grantId, runId, caseId)
+        val consumptionId = consumeAndAssertAuthorizationGrant(tenantId, grantId, runId, caseId)
+        invokeAndAssertConsumption(tenantId, consumptionId, grantId, runId, caseId)
 
         mockMvc
             .perform(decide(tenantId, requestId, "employee-42", "REJECTED"))
@@ -152,6 +154,45 @@ class ApprovalDecisionApiIntegrationTest(
             .andExpect(jsonPath("$.type").value("urn:ergon:problem:approval-decision-not-found"))
     }
 
+    @Test
+    fun `invocation fails closed when the configured connector is not installed`() {
+        val tenantId = UUID.randomUUID()
+        val runId = prepareResolutionRun(tenantId)
+        val caseId = caseIdForRun(tenantId, runId)
+        val requestId = createApprovalRequest(tenantId, runId)
+        val actorId = registerActor(tenantId, "employee-unavailable-connector")
+        attestRequesterAuthority(tenantId, actorId, caseId)
+        mockMvc
+            .perform(decide(tenantId, requestId, "employee-unavailable-connector", "APPROVED"))
+            .andExpect(status().isCreated)
+        val decisionId = decisionIdForRequest(tenantId, requestId)
+        val grantId = authorizationGrantIdFromCreatedGrant(tenantId, decisionId)
+        insertCapabilityRoute(tenantId, connector = "uninstalled-identity")
+        mockMvc
+            .perform(post(AUTHORIZATION_CONSUMPTIONS_PATH, tenantId, grantId))
+            .andExpect(status().isCreated)
+        val consumptionId = authorizationConsumptionIdForGrant(tenantId, grantId)
+
+        mockMvc
+            .perform(post(CAPABILITY_INVOCATIONS_PATH, tenantId, consumptionId))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:capability-connector-unavailable"))
+            .andExpect(jsonPath("$.connector").value("uninstalled-identity"))
+        val receiptCount =
+            jdbcClient
+                .sql(
+                    """
+                    SELECT count(*)
+                    FROM capability_invocation_receipts
+                    WHERE tenant_id = :tenantId AND authorization_consumption_id = :consumptionId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("consumptionId", consumptionId)
+                .query(Long::class.java)
+                .single()
+        assertThat(receiptCount).isZero()
+    }
+
     private fun createAndAssertAuthorizationGrant(
         tenantId: UUID,
         decisionId: UUID,
@@ -200,7 +241,7 @@ class ApprovalDecisionApiIntegrationTest(
         grantId: UUID,
         runId: UUID,
         caseId: UUID,
-    ) {
+    ): UUID {
         mockMvc
             .perform(post(AUTHORIZATION_CONSUMPTIONS_PATH, UUID.randomUUID(), grantId))
             .andExpect(status().isNotFound)
@@ -242,6 +283,61 @@ class ApprovalDecisionApiIntegrationTest(
                     """
                     UPDATE capability_authorization_consumptions
                     SET connector = connector
+                    WHERE tenant_id = :tenantId AND authorization_consumption_id = :consumptionId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("consumptionId", consumptionId)
+                .update()
+        }.isInstanceOf(DataAccessException::class.java)
+        return consumptionId
+    }
+
+    private fun invokeAndAssertConsumption(
+        tenantId: UUID,
+        consumptionId: UUID,
+        grantId: UUID,
+        runId: UUID,
+        caseId: UUID,
+    ) {
+        mockMvc
+            .perform(post(CAPABILITY_INVOCATIONS_PATH, UUID.randomUUID(), consumptionId))
+            .andExpect(status().isNotFound)
+            .andExpect(
+                jsonPath("$.type")
+                    .value("urn:ergon:problem:capability-authorization-consumption-not-found"),
+            )
+
+        val providerReference = "identity-stub/operations/$consumptionId"
+        mockMvc
+            .perform(post(CAPABILITY_INVOCATIONS_PATH, tenantId, consumptionId))
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.authorizationConsumptionId").value(consumptionId.toString()))
+            .andExpect(jsonPath("$.authorizationGrantId").value(grantId.toString()))
+            .andExpect(jsonPath("$.runId").value(runId.toString()))
+            .andExpect(jsonPath("$.caseId").value(caseId.toString()))
+            .andExpect(jsonPath("$.policyRevision").value("ergon.dev/policy/access-restoration/v1"))
+            .andExpect(jsonPath("$.stepId").value("unlock-account"))
+            .andExpect(jsonPath("$.capability").value("identity.account.unlock"))
+            .andExpect(jsonPath("$.connector").value("identity-stub"))
+            .andExpect(jsonPath("$.idempotencyKey").value(consumptionId.toString()))
+            .andExpect(jsonPath("$.outcome").value("SUCCEEDED"))
+            .andExpect(jsonPath("$.providerOperationReference").value(providerReference))
+            .andExpect(jsonPath("$.completedAt").exists())
+            .andExpect(jsonPath("$.recordedAt").exists())
+
+        mockMvc
+            .perform(post(CAPABILITY_INVOCATIONS_PATH, tenantId, consumptionId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.authorizationConsumptionId").value(consumptionId.toString()))
+            .andExpect(jsonPath("$.idempotencyKey").value(consumptionId.toString()))
+            .andExpect(jsonPath("$.providerOperationReference").value(providerReference))
+
+        assertThatThrownBy {
+            jdbcClient
+                .sql(
+                    """
+                    UPDATE capability_invocation_receipts
+                    SET outcome = outcome
                     WHERE tenant_id = :tenantId AND authorization_consumption_id = :consumptionId
                     """.trimIndent(),
                 ).param("tenantId", tenantId)
@@ -399,6 +495,16 @@ class ApprovalDecisionApiIntegrationTest(
             .query(UUID::class.java)
             .single()
 
+    private fun authorizationGrantIdFromCreatedGrant(
+        tenantId: UUID,
+        decisionId: UUID,
+    ): UUID {
+        mockMvc
+            .perform(post(AUTHORIZATION_GRANTS_PATH, tenantId, decisionId))
+            .andExpect(status().isCreated)
+        return authorizationGrantIdForDecision(tenantId, decisionId)
+    }
+
     private fun authorizationConsumptionIdForGrant(
         tenantId: UUID,
         grantId: UUID,
@@ -415,14 +521,18 @@ class ApprovalDecisionApiIntegrationTest(
             .query(UUID::class.java)
             .single()
 
-    private fun insertCapabilityRoute(tenantId: UUID) {
+    private fun insertCapabilityRoute(
+        tenantId: UUID,
+        connector: String = "identity-stub",
+    ) {
         jdbcClient
             .sql(
                 """
                 INSERT INTO tenant_capability_routes (tenant_id, capability, connector)
-                VALUES (:tenantId, 'identity.account.unlock', 'identity-stub')
+                VALUES (:tenantId, 'identity.account.unlock', :connector)
                 """.trimIndent(),
             ).param("tenantId", tenantId)
+            .param("connector", connector)
             .update()
     }
 
@@ -577,6 +687,8 @@ class ApprovalDecisionApiIntegrationTest(
             "/internal/v1/tenants/{tenantId}/approval-decisions/{decisionId}/authorization-grants"
         private const val AUTHORIZATION_CONSUMPTIONS_PATH =
             "/internal/v1/tenants/{tenantId}/capability-authorization-grants/{grantId}/consumptions"
+        private const val CAPABILITY_INVOCATIONS_PATH =
+            "/internal/v1/tenants/{tenantId}/capability-authorization-consumptions/{consumptionId}/invocations"
         private const val HUMAN_ACTORS_PATH = "/internal/v1/tenants/{tenantId}/human-actors"
         private const val AUTHORITY_EVIDENCE_PATH =
             "$HUMAN_ACTORS_PATH/{actorId}/approval-authority-evidence"

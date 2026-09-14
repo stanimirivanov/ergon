@@ -29,11 +29,13 @@ The immutable start records:
 
 Human approval produces `WAITING_FOR_APPROVAL`. No human approval would produce
 `READY_FOR_AUTHORIZATION`, which still requires later actor-scope and tenant-
-capability checks. Neither state permits tool invocation.
+capability checks. Neither initial state alone permits tool invocation;
+execution requires the separate approval, grant, and consumption chain.
 
 The start row is not current execution state. Approval, authorization,
-capability invocation, receipts, retries, verification, and terminal state will
-be represented by later append-only run events and projections.
+consumption, and connector receipts now exist as separate immutable records,
+but do not update run state. Retries, verification, and terminal state will be
+represented by later append-only run events and projections.
 
 For `WAITING_FOR_APPROVAL`, the separate [approval request](approvals.md) API
 can append a bounded human-authority request without granting that authority.
