@@ -65,6 +65,7 @@ class ApprovalDecisionApiIntegrationTest(
             .andExpect(jsonPath("$.decidedAt").exists())
             .andExpect(jsonPath("$.recordedAt").exists())
         val decisionId = decisionIdForRequest(tenantId, requestId)
+        createAndAssertAuthorizationGrant(tenantId, decisionId, requestId, runId, caseId)
 
         mockMvc
             .perform(decide(tenantId, requestId, "employee-42", "REJECTED"))
@@ -123,6 +124,73 @@ class ApprovalDecisionApiIntegrationTest(
             .perform(decide(tenantId, expiredRequestId, "employee-99", "APPROVED"))
             .andExpect(status().isConflict)
             .andExpect(jsonPath("$.type").value("urn:ergon:problem:approval-request-expired"))
+    }
+
+    @Test
+    fun `authorization requires an approved decision in the same tenant`() {
+        val tenantId = UUID.randomUUID()
+        val runId = prepareResolutionRun(tenantId)
+        val caseId = caseIdForRun(tenantId, runId)
+        val requestId = createApprovalRequest(tenantId, runId)
+        val actorId = registerActor(tenantId, "employee-authorization")
+        attestRequesterAuthority(tenantId, actorId, caseId)
+
+        mockMvc
+            .perform(decide(tenantId, requestId, "employee-authorization", "REJECTED"))
+            .andExpect(status().isCreated)
+        val decisionId = decisionIdForRequest(tenantId, requestId)
+
+        mockMvc
+            .perform(post(AUTHORIZATION_GRANTS_PATH, tenantId, decisionId))
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:approval-decision-not-approved"))
+
+        mockMvc
+            .perform(post(AUTHORIZATION_GRANTS_PATH, UUID.randomUUID(), decisionId))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:approval-decision-not-found"))
+    }
+
+    private fun createAndAssertAuthorizationGrant(
+        tenantId: UUID,
+        decisionId: UUID,
+        requestId: UUID,
+        runId: UUID,
+        caseId: UUID,
+    ) {
+        mockMvc
+            .perform(post(AUTHORIZATION_GRANTS_PATH, tenantId, decisionId))
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.approvalDecisionId").value(decisionId.toString()))
+            .andExpect(jsonPath("$.approvalRequestId").value(requestId.toString()))
+            .andExpect(jsonPath("$.runId").value(runId.toString()))
+            .andExpect(jsonPath("$.caseId").value(caseId.toString()))
+            .andExpect(jsonPath("$.policyRevision").value("ergon.dev/policy/access-restoration/v1"))
+            .andExpect(jsonPath("$.stepId").value("unlock-account"))
+            .andExpect(jsonPath("$.capability").value("identity.account.unlock"))
+            .andExpect(jsonPath("$.authorizedAt").exists())
+            .andExpect(jsonPath("$.expiresAt").value(requestExpiresAt(tenantId, requestId).toString()))
+            .andExpect(jsonPath("$.recordedAt").exists())
+        val grantId = authorizationGrantIdForDecision(tenantId, decisionId)
+
+        mockMvc
+            .perform(post(AUTHORIZATION_GRANTS_PATH, tenantId, decisionId))
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:capability-authorization-grant-already-exists"))
+            .andExpect(jsonPath("$.authorizationGrantId").value(grantId.toString()))
+
+        assertThatThrownBy {
+            jdbcClient
+                .sql(
+                    """
+                    UPDATE capability_authorization_grants
+                    SET capability = capability
+                    WHERE tenant_id = :tenantId AND authorization_grant_id = :grantId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("grantId", grantId)
+                .update()
+        }.isInstanceOf(DataAccessException::class.java)
     }
 
     private fun expectCurrentAuthorityNotFound(
@@ -258,6 +326,39 @@ class ApprovalDecisionApiIntegrationTest(
             .query(UUID::class.java)
             .single()
 
+    private fun authorizationGrantIdForDecision(
+        tenantId: UUID,
+        decisionId: UUID,
+    ): UUID =
+        jdbcClient
+            .sql(
+                """
+                SELECT authorization_grant_id
+                FROM capability_authorization_grants
+                WHERE tenant_id = :tenantId AND approval_decision_id = :decisionId
+                """.trimIndent(),
+            ).param("tenantId", tenantId)
+            .param("decisionId", decisionId)
+            .query(UUID::class.java)
+            .single()
+
+    private fun requestExpiresAt(
+        tenantId: UUID,
+        requestId: UUID,
+    ): Instant =
+        jdbcClient
+            .sql(
+                """
+                SELECT expires_at
+                FROM resolution_approval_requests
+                WHERE tenant_id = :tenantId AND approval_request_id = :requestId
+                """.trimIndent(),
+            ).param("tenantId", tenantId)
+            .param("requestId", requestId)
+            .query(OffsetDateTime::class.java)
+            .single()
+            .toInstant()
+
     private fun registerActor(
         tenantId: UUID,
         subject: String,
@@ -374,6 +475,8 @@ class ApprovalDecisionApiIntegrationTest(
             "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/approval-requests"
         private const val APPROVAL_DECISION_PATH =
             "/api/v1/tenants/{tenantId}/approval-requests/{requestId}/decision"
+        private const val AUTHORIZATION_GRANTS_PATH =
+            "/internal/v1/tenants/{tenantId}/approval-decisions/{decisionId}/authorization-grants"
         private const val HUMAN_ACTORS_PATH = "/internal/v1/tenants/{tenantId}/human-actors"
         private const val AUTHORITY_EVIDENCE_PATH =
             "$HUMAN_ACTORS_PATH/{actorId}/approval-authority-evidence"

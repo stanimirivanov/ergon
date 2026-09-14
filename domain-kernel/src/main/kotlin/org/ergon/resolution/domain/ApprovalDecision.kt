@@ -25,6 +25,24 @@ data class ApprovalDecisionBasis(
 )
 
 /**
+ * Complete immutable values needed to rehydrate a previously validated decision.
+ *
+ * This snapshot is a trusted persistence boundary, not an alternative command
+ * for creating decisions from unvalidated input.
+ */
+data class ApprovalDecisionSnapshot(
+    val id: ApprovalDecisionId,
+    val requestId: ApprovalRequestId,
+    val runId: ResolutionRunId,
+    val actorId: HumanActorId,
+    val authorityEvidenceId: ApprovalAuthorityEvidenceId,
+    val authority: ApprovalAuthority,
+    val caseId: CaseId,
+    val outcome: ApprovalDecisionOutcome,
+    val decidedAt: Instant,
+)
+
+/**
  * Immutable, attributable response to one current approval request.
  *
  * [authorityEvidenceId] identifies the current attestation used to establish
@@ -85,5 +103,25 @@ data class ApprovalDecision private constructor(
                 decidedAt = decidedAt,
             )
         }
+
+        /**
+         * Rehydrates an immutable decision whose relationships were already
+         * validated when it was recorded and are protected by durable constraints.
+         *
+         * This function is for trusted persistence adapters. New decisions must
+         * use [record] so current request and authority evidence are validated.
+         */
+        fun rehydrate(snapshot: ApprovalDecisionSnapshot): ApprovalDecision =
+            ApprovalDecision(
+                id = snapshot.id,
+                requestId = snapshot.requestId,
+                runId = snapshot.runId,
+                actorId = snapshot.actorId,
+                authorityEvidenceId = snapshot.authorityEvidenceId,
+                authority = snapshot.authority,
+                caseId = snapshot.caseId,
+                outcome = snapshot.outcome,
+                decidedAt = snapshot.decidedAt,
+            )
     }
 }
