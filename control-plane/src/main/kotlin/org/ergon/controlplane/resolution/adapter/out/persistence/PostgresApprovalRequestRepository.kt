@@ -69,8 +69,20 @@ class PostgresApprovalRequestRepository(
     override fun find(
         tenantId: TenantId,
         requestId: ApprovalRequestId,
-    ): StoredApprovalRequest? =
-        jdbcClient
+    ): StoredApprovalRequest? = find(tenantId, requestId, forUpdate = false)
+
+    override fun lockForDecision(
+        tenantId: TenantId,
+        requestId: ApprovalRequestId,
+    ): StoredApprovalRequest? = find(tenantId, requestId, forUpdate = true)
+
+    private fun find(
+        tenantId: TenantId,
+        requestId: ApprovalRequestId,
+        forUpdate: Boolean,
+    ): StoredApprovalRequest? {
+        val lockClause = if (forUpdate) "FOR UPDATE" else ""
+        return jdbcClient
             .sql(
                 """
                 SELECT
@@ -84,6 +96,7 @@ class PostgresApprovalRequestRepository(
                 FROM resolution_approval_requests
                 WHERE tenant_id = :tenantId
                     AND approval_request_id = :requestId
+                $lockClause
                 """.trimIndent(),
             ).param("tenantId", tenantId.value)
             .param("requestId", requestId.value)
@@ -91,6 +104,7 @@ class PostgresApprovalRequestRepository(
             .optional()
             .getOrNull()
             ?.toStoredRequest()
+    }
 
     private fun lockRun(
         tenantId: TenantId,

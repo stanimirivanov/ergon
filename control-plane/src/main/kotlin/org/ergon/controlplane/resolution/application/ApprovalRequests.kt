@@ -47,6 +47,19 @@ interface ApprovalRequestRepository {
         tenantId: TenantId,
         requestId: ApprovalRequestId,
     ): StoredApprovalRequest?
+
+    /**
+     * Retrieves and locks one request for a decision in the caller's transaction.
+     *
+     * The lock must be retained through decision insertion so concurrent responses
+     * cannot both observe an undecided request.
+     *
+     * @return the tenant-scoped request, or `null` when it is absent.
+     */
+    fun lockForDecision(
+        tenantId: TenantId,
+        requestId: ApprovalRequestId,
+    ): StoredApprovalRequest?
 }
 
 /** Supplies unpredictable approval-request identities without coupling the use case to UUID generation. */

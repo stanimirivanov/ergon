@@ -83,9 +83,10 @@ immutable 15-minute requests, derives expiry from time, and permits replacement
 only after expiry. Human identity bindings and authority attestations now make
 requester authority case-scoped and resolver authority tenant-scoped. Signed,
 issuer-validated JWT identity can now resolve the current actor inside one
-tenant. The next sub-slice should accept an immutable approval decision only
-when the request and matching evidence are both current; grants, authorization,
-and execution remain later behavior.
+tenant. Authenticated actors can now record one immutable approval or rejection
+only while both the request and correctly scoped authority evidence are current.
+The next sub-slice should derive a narrow authorization grant from an approved
+decision without treating the decision itself as permission to execute.
 
 ### 5. Adaptive canvas and resolver console
 

@@ -6,6 +6,11 @@ import org.ergon.contracts.domain.StepRisk
 import org.ergon.controlplane.cases.application.CaseEventStore
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
+import org.ergon.controlplane.identity.application.HumanAuthorityRepository
+import org.ergon.controlplane.resolution.application.ApprovalDecisionIdentityGenerator
+import org.ergon.controlplane.resolution.application.ApprovalDecisionRecords
+import org.ergon.controlplane.resolution.application.ApprovalDecisionRepository
+import org.ergon.controlplane.resolution.application.ApprovalDecisionService
 import org.ergon.controlplane.resolution.application.ApprovalRequestIdentityGenerator
 import org.ergon.controlplane.resolution.application.ApprovalRequestRepository
 import org.ergon.controlplane.resolution.application.ApprovalRequestService
@@ -14,6 +19,7 @@ import org.ergon.controlplane.resolution.application.ResolutionReadinessService
 import org.ergon.controlplane.resolution.application.ResolutionRunIdentityGenerator
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunService
+import org.ergon.resolution.domain.ApprovalDecisionId
 import org.ergon.resolution.domain.ApprovalRequestId
 import org.ergon.resolution.domain.CapabilityPolicyRule
 import org.ergon.resolution.domain.ResolutionPolicy
@@ -88,4 +94,26 @@ class ResolutionConfiguration {
         clock = clock,
         lifetime = builtInApprovalRequestLifetime,
     )
+
+    @Bean
+    fun approvalDecisionIdentityGenerator(): ApprovalDecisionIdentityGenerator =
+        ApprovalDecisionIdentityGenerator {
+            ApprovalDecisionId(UUID.randomUUID())
+        }
+
+    @Bean
+    fun approvalDecisionRecords(
+        requests: ApprovalRequestRepository,
+        runs: ResolutionRunRepository,
+        authorities: HumanAuthorityRepository,
+        decisions: ApprovalDecisionRepository,
+    ) = ApprovalDecisionRecords(requests, runs, authorities, decisions)
+
+    @Bean
+    fun approvalDecisionService(
+        records: ApprovalDecisionRecords,
+        identities: ApprovalDecisionIdentityGenerator,
+        transactionRunner: TransactionRunner,
+        clock: Clock,
+    ) = ApprovalDecisionService(records, identities, transactionRunner, clock)
 }

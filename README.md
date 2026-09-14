@@ -44,7 +44,7 @@ request -> case graph -> evidence bundle -> resolution contract
 - [Contracts](docs/contracts.md) — strict `v1alpha1` document shape and validation boundary.
 - [Policy](docs/policy.md) — versioned step requirements and authority boundary.
 - [Runs](docs/runs.md) — immutable start snapshots and concurrency boundary.
-- [Approvals](docs/approvals.md) — bounded requests without actor authority.
+- [Approvals](docs/approvals.md) — bounded requests and authenticated, immutable decisions.
 - [Human authority](docs/human-authority.md) — scoped, expiring evidence without approval.
 - [Authentication](docs/authentication.md) — verified JWT identity to tenant actor resolution.
 - [Contributing](CONTRIBUTING.md) — change size, Kotlin, SQL, testing, security,
@@ -88,15 +88,18 @@ contract pins in PostgreSQL. Its current APIs are:
 - `POST /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/approval-requests`
   appends one active, expiring request for the run's required human authority;
   the returned location reports its clock-derived status.
+- `POST /api/v1/tenants/{tenantId}/approval-requests/{requestId}/decision`
+  records one authenticated approval or rejection against matching current
+  authority evidence without authorizing execution.
 
 Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
-This slice deliberately has no authentication: tenant IDs in paths are a
-temporary development boundary and must not be exposed as an authorization
-mechanism. Tenant capability availability, automatic selection, AI-assisted
-binding, broader fact types, actor identity, approval grants, authorization, and execution remain
-later delivery steps. The predecessor services remain in the reactor while
-behavior is replaced incrementally.
+Only current-actor lookup and approval decisions require bearer authentication;
+the remaining endpoints retain a temporary development boundary and must not be
+exposed as though tenant IDs were authorization. Tenant capability availability,
+automatic selection, AI-assisted binding, broader fact types, approval grants,
+authorization, and execution remain later delivery steps. The predecessor
+services remain in the reactor while behavior is replaced incrementally.
 
 ```powershell
 .\mvnw.cmd -B -ntp verify

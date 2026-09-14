@@ -177,27 +177,47 @@ class PostgresHumanAuthorityRepository(
                 """.trimIndent(),
             ).param("tenantId", tenantId.value)
             .param("evidenceId", evidenceId.value)
-            .query { resultSet, _ ->
-                val caseId = resultSet.getObject("case_id", UUID::class.java)?.let(::CaseId)
-                val attestation =
-                    ApprovalAuthorityEvidence(
-                        id = ApprovalAuthorityEvidenceId(resultSet.getObject("evidence_id", UUID::class.java)),
-                        actorId = HumanActorId(resultSet.getObject("actor_id", UUID::class.java)),
-                        authority = ApprovalAuthority.valueOf(resultSet.getString("authority")),
-                        caseId = caseId,
-                        source =
-                            ApprovalAuthorityEvidenceSource.create(
-                                resultSet.getString("source_provider"),
-                                resultSet.getString("source_reference"),
-                            ),
-                        attestedAt = resultSet.getObject("attested_at", OffsetDateTime::class.java).toInstant(),
-                        expiresAt = resultSet.getObject("expires_at", OffsetDateTime::class.java).toInstant(),
-                    )
-                StoredApprovalAuthorityEvidence(
-                    evidence = attestation,
-                    recordedAt = resultSet.getObject("recorded_at", OffsetDateTime::class.java).toInstant(),
-                )
-            }.optional()
+            .query { resultSet, _ -> resultSet.toStoredApprovalAuthorityEvidence() }
+            .optional()
+            .orElse(null)
+
+    override fun findCurrent(
+        tenantId: TenantId,
+        actorId: HumanActorId,
+        authority: ApprovalAuthority,
+        caseId: CaseId?,
+        at: Instant,
+    ): StoredApprovalAuthorityEvidence? =
+        jdbcClient
+            .sql(
+                """
+                SELECT
+                    evidence_id,
+                    actor_id,
+                    authority,
+                    case_id,
+                    source_provider,
+                    source_reference,
+                    attested_at,
+                    expires_at,
+                    recorded_at
+                FROM approval_authority_evidence
+                WHERE tenant_id = :tenantId
+                    AND actor_id = :actorId
+                    AND authority = :authority
+                    AND case_id IS NOT DISTINCT FROM CAST(:caseId AS UUID)
+                    AND attested_at <= :at
+                    AND expires_at > :at
+                ORDER BY attested_at DESC, evidence_id DESC
+                LIMIT 1
+                """.trimIndent(),
+            ).param("tenantId", tenantId.value)
+            .param("actorId", actorId.value)
+            .param("authority", authority.name)
+            .param("caseId", caseId?.value)
+            .param("at", at.atOffset(ZoneOffset.UTC))
+            .query { resultSet, _ -> resultSet.toStoredApprovalAuthorityEvidence() }
+            .optional()
             .orElse(null)
 
     private fun java.sql.ResultSet.toStoredHumanActor(): StoredHumanActor {
@@ -210,6 +230,27 @@ class PostgresHumanAuthorityRepository(
         return StoredHumanActor(
             actor = actor,
             registeredAt = getObject("registered_at", OffsetDateTime::class.java).toInstant(),
+            recordedAt = getObject("recorded_at", OffsetDateTime::class.java).toInstant(),
+        )
+    }
+
+    private fun java.sql.ResultSet.toStoredApprovalAuthorityEvidence(): StoredApprovalAuthorityEvidence {
+        val evidence =
+            ApprovalAuthorityEvidence(
+                id = ApprovalAuthorityEvidenceId(getObject("evidence_id", UUID::class.java)),
+                actorId = HumanActorId(getObject("actor_id", UUID::class.java)),
+                authority = ApprovalAuthority.valueOf(getString("authority")),
+                caseId = getObject("case_id", UUID::class.java)?.let(::CaseId),
+                source =
+                    ApprovalAuthorityEvidenceSource.create(
+                        getString("source_provider"),
+                        getString("source_reference"),
+                    ),
+                attestedAt = getObject("attested_at", OffsetDateTime::class.java).toInstant(),
+                expiresAt = getObject("expires_at", OffsetDateTime::class.java).toInstant(),
+            )
+        return StoredApprovalAuthorityEvidence(
+            evidence = evidence,
             recordedAt = getObject("recorded_at", OffsetDateTime::class.java).toInstant(),
         )
     }

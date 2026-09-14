@@ -1,5 +1,7 @@
 package org.ergon.controlplane.identity.adapter.inbound.http
 
+import org.ergon.controlplane.identity.adapter.inbound.security.InvalidAuthenticatedHumanIdentityException
+import org.ergon.controlplane.identity.adapter.inbound.security.UntrustedHumanIdentityIssuerException
 import org.ergon.controlplane.identity.application.AuthenticatedHumanActorNotRegisteredException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
