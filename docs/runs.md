@@ -2,7 +2,8 @@
 
 > **TL;DR:** Starting a run freezes the ready case version, contract revision,
 > policy revision, first step, and effective safeguards in one immutable row.
-> `WAITING_FOR_APPROVAL` is a requirement state, never execution permission.
+> Capability receipts append immutable run events and advance a transactional
+> state projection. Connector success means `VERIFYING`, never resolved.
 
 ## Start and retrieve
 
@@ -32,10 +33,25 @@ Human approval produces `WAITING_FOR_APPROVAL`. No human approval would produce
 capability checks. Neither initial state alone permits tool invocation;
 execution requires the separate approval, grant, and consumption chain.
 
-The start row is not current execution state. Approval, authorization,
-consumption, and connector receipts now exist as separate immutable records,
-but do not update run state. Retries, verification, and terminal state will be
-represented by later append-only run events and projections.
+The start row is not current execution state. Its initial value seeds a separate
+version-zero projection while the row itself remains immutable.
+
+## Record a capability result
+
+After invocation has made a terminal receipt durable, call
+`POST /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/capability-results`.
+The first append returns `201`; replay returns `200` with the same event. Calling
+before a receipt exists returns `409`, and tenant scope is enforced as `404`.
+
+The command locks the current-state projection and atomically appends sequence
+one plus projection version one. Receipt and run must agree on tenant, run,
+case, policy revision, step, and capability. Database constraints additionally
+bind event outcome and occurrence time to the exact receipt.
+
+`SUCCEEDED` appends `CAPABILITY_SUCCEEDED` and moves to `VERIFYING`.
+`FAILED` appends `CAPABILITY_FAILED` and moves to `ACTION_FAILED`. Neither path
+changes case status. Verification observations, accepted outcome proof, retry,
+compensation, and later run transitions remain separate capabilities.
 
 For `WAITING_FOR_APPROVAL`, the separate [approval request](approvals.md) API
 can append a bounded human-authority request without granting that authority.

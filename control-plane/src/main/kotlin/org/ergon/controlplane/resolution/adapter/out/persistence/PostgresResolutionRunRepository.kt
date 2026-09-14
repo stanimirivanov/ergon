@@ -77,6 +77,17 @@ class PostgresResolutionRunRepository(
                 .optional()
                 .getOrNull()
                 ?: throw ResolutionRunAlreadyExistsException(run.caseId.value)
+        jdbcClient
+            .sql(
+                """
+                INSERT INTO resolution_run_states (tenant_id, run_id, state, version, updated_at)
+                VALUES (:tenantId, :runId, :state, 0, :updatedAt)
+                """.trimIndent(),
+            ).param("tenantId", tenantId.value)
+            .param("runId", run.id.value)
+            .param("state", run.initialState.name)
+            .param("updatedAt", recordedAt)
+            .update()
         return StoredResolutionRunStart(run, recordedAt.toInstant())
     }
 

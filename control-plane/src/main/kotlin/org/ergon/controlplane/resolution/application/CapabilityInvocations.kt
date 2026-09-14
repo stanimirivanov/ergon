@@ -6,6 +6,7 @@ import org.ergon.resolution.domain.CapabilityAuthorizationConsumption
 import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionId
 import org.ergon.resolution.domain.CapabilityInvocationReceipt
 import org.ergon.resolution.domain.CapabilityInvocationResult
+import org.ergon.resolution.domain.ResolutionRunId
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
@@ -49,6 +50,12 @@ interface CapabilityInvocationReceiptRepository {
     fun find(
         tenantId: TenantId,
         consumptionId: CapabilityAuthorizationConsumptionId,
+    ): StoredCapabilityInvocationReceipt?
+
+    /** @return the single receipt recorded for [runId], or `null` before its connector result exists. */
+    fun findByRun(
+        tenantId: TenantId,
+        runId: ResolutionRunId,
     ): StoredCapabilityInvocationReceipt?
 
     /**

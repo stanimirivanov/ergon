@@ -51,6 +51,28 @@ class PostgresCapabilityInvocationReceiptRepository(
             .getOrNull()
             ?.toStoredReceipt()
 
+    override fun findByRun(
+        tenantId: TenantId,
+        runId: ResolutionRunId,
+    ): StoredCapabilityInvocationReceipt? =
+        jdbcClient
+            .sql(
+                """
+                SELECT
+                    authorization_consumption_id, authorization_grant_id, run_id, case_id,
+                    policy_revision, step_id, capability, connector, idempotency_key,
+                    outcome, provider_operation_reference, consumption_consumed_at,
+                    completed_at, recorded_at
+                FROM capability_invocation_receipts
+                WHERE tenant_id = :tenantId AND run_id = :runId
+                """.trimIndent(),
+            ).param("tenantId", tenantId.value)
+            .param("runId", runId.value)
+            .query(DataClassRowMapper(CapabilityInvocationReceiptRow::class.java))
+            .optional()
+            .getOrNull()
+            ?.toStoredReceipt()
+
     override fun createOrFind(
         tenantId: TenantId,
         receipt: CapabilityInvocationReceipt,
