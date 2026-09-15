@@ -104,14 +104,23 @@ A retry is a new immutable run, not a second receipt on the failed run. The
 transaction freezes the current resolver evidence, case, and policy plan,
 inserts attempt `n + 1`, appends an actor-attributed `RETRY_STARTED` to attempt
 `n`, and marks the predecessor `SUPERSEDED`.
+New retry events also freeze the eligibility policy revision, source attempt,
+and maximum total attempts. `ergon.dev/policy/resolution-retry/v1` permits two
+total attempts: the initial run and one explicit retry. A failed second attempt
+returns `409 resolution-run-retry-attempt-limit-reached` with the evaluated
+revision, attempt, ceiling, and denial reason; no successor or event is written.
+Replay checks the recorded event before evaluating current eligibility, so an
+existing retry remains replayable under a stricter later policy. Legacy events
+return `null` policy fields rather than synthetic decision history.
 The contract revision, step, and capability must remain identical; a changed
 operation requires later replanning semantics instead of being called a retry.
 
 The successor copies no approval, grant, consumption, receipt, or provider
 idempotency key. It starts again in its policy-derived requirement state. This
-authenticated internal command neither schedules nor invokes work. Retry
-eligibility, backoff, attempt limits,
-compensation, and terminal escalation remain separate policy capabilities.
+authenticated internal command neither schedules nor invokes work. Failure
+classification, backoff, compensation, and terminal escalation remain separate
+policy capabilities. Exhaustion leaves the final run `ACTION_FAILED` and the
+case open; it does not imply resolution or automatically escalate it.
 
 For `WAITING_FOR_APPROVAL`, the separate [approval request](approvals.md) API
 can append a bounded human-authority request without granting that authority.
