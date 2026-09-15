@@ -68,7 +68,17 @@ class ApprovalDecisionApiIntegrationTest(
         val decisionId = decisionIdForRequest(tenantId, requestId)
         val grantId = createAndAssertAuthorizationGrant(tenantId, decisionId, requestId, runId, caseId)
         val consumptionId = consumeAndAssertAuthorizationGrant(tenantId, grantId, runId, caseId)
-        invokeAndAssertConsumption(tenantId, consumptionId, grantId, runId, caseId)
+        expectCapabilityResultReceiptMissing(mockMvc, tenantId, runId)
+        invokeAndAssertConsumption(
+            mockMvc,
+            jdbcClient,
+            CapabilityInvocationTestContext(tenantId, consumptionId, grantId, runId, caseId),
+        )
+        recordAndAssertCapabilityResult(
+            mockMvc,
+            jdbcClient,
+            CapabilityResultTestContext(tenantId, runId, consumptionId, caseId),
+        )
 
         mockMvc
             .perform(decide(tenantId, requestId, "employee-42", "REJECTED"))
@@ -290,60 +300,6 @@ class ApprovalDecisionApiIntegrationTest(
                 .update()
         }.isInstanceOf(DataAccessException::class.java)
         return consumptionId
-    }
-
-    private fun invokeAndAssertConsumption(
-        tenantId: UUID,
-        consumptionId: UUID,
-        grantId: UUID,
-        runId: UUID,
-        caseId: UUID,
-    ) {
-        mockMvc
-            .perform(post(CAPABILITY_INVOCATIONS_PATH, UUID.randomUUID(), consumptionId))
-            .andExpect(status().isNotFound)
-            .andExpect(
-                jsonPath("$.type")
-                    .value("urn:ergon:problem:capability-authorization-consumption-not-found"),
-            )
-
-        val providerReference = "identity-stub/operations/$consumptionId"
-        mockMvc
-            .perform(post(CAPABILITY_INVOCATIONS_PATH, tenantId, consumptionId))
-            .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.authorizationConsumptionId").value(consumptionId.toString()))
-            .andExpect(jsonPath("$.authorizationGrantId").value(grantId.toString()))
-            .andExpect(jsonPath("$.runId").value(runId.toString()))
-            .andExpect(jsonPath("$.caseId").value(caseId.toString()))
-            .andExpect(jsonPath("$.policyRevision").value("ergon.dev/policy/access-restoration/v1"))
-            .andExpect(jsonPath("$.stepId").value("unlock-account"))
-            .andExpect(jsonPath("$.capability").value("identity.account.unlock"))
-            .andExpect(jsonPath("$.connector").value("identity-stub"))
-            .andExpect(jsonPath("$.idempotencyKey").value(consumptionId.toString()))
-            .andExpect(jsonPath("$.outcome").value("SUCCEEDED"))
-            .andExpect(jsonPath("$.providerOperationReference").value(providerReference))
-            .andExpect(jsonPath("$.completedAt").exists())
-            .andExpect(jsonPath("$.recordedAt").exists())
-
-        mockMvc
-            .perform(post(CAPABILITY_INVOCATIONS_PATH, tenantId, consumptionId))
-            .andExpect(status().isOk)
-            .andExpect(jsonPath("$.authorizationConsumptionId").value(consumptionId.toString()))
-            .andExpect(jsonPath("$.idempotencyKey").value(consumptionId.toString()))
-            .andExpect(jsonPath("$.providerOperationReference").value(providerReference))
-
-        assertThatThrownBy {
-            jdbcClient
-                .sql(
-                    """
-                    UPDATE capability_invocation_receipts
-                    SET outcome = outcome
-                    WHERE tenant_id = :tenantId AND authorization_consumption_id = :consumptionId
-                    """.trimIndent(),
-                ).param("tenantId", tenantId)
-                .param("consumptionId", consumptionId)
-                .update()
-        }.isInstanceOf(DataAccessException::class.java)
     }
 
     private fun expectCurrentAuthorityNotFound(
@@ -674,36 +630,6 @@ class ApprovalDecisionApiIntegrationTest(
         .content("""{"outcome":"$outcome"}""")
 
     companion object {
-        private const val CASE_PATH = "/api/v1/tenants/{tenantId}/cases"
-        private const val CASE_RESOLUTION_CONTRACT_PATH =
-            "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-contract"
-        private const val CASE_RESOLUTION_RUNS_PATH =
-            "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-runs"
-        private const val APPROVAL_REQUESTS_PATH =
-            "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/approval-requests"
-        private const val APPROVAL_DECISION_PATH =
-            "/api/v1/tenants/{tenantId}/approval-requests/{requestId}/decision"
-        private const val AUTHORIZATION_GRANTS_PATH =
-            "/internal/v1/tenants/{tenantId}/approval-decisions/{decisionId}/authorization-grants"
-        private const val AUTHORIZATION_CONSUMPTIONS_PATH =
-            "/internal/v1/tenants/{tenantId}/capability-authorization-grants/{grantId}/consumptions"
-        private const val CAPABILITY_INVOCATIONS_PATH =
-            "/internal/v1/tenants/{tenantId}/capability-authorization-consumptions/{consumptionId}/invocations"
-        private const val HUMAN_ACTORS_PATH = "/internal/v1/tenants/{tenantId}/human-actors"
-        private const val AUTHORITY_EVIDENCE_PATH =
-            "$HUMAN_ACTORS_PATH/{actorId}/approval-authority-evidence"
-        private const val CONNECTOR_OBSERVATIONS_PATH =
-            "/internal/v1/tenants/{tenantId}/cases/{caseId}/connector-observations"
-        private const val ACCOUNT_ACCESS_FACTS_PATH =
-            "/internal/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states"
-        private const val CONTRACT_REVISIONS_PATH = "/internal/v1/tenants/{tenantId}/resolution-contracts"
-        private const val TRUSTED_ISSUER = "https://identity.example.test"
-        private const val OPEN_CASE =
-            """{"goal":"Restore workspace access","initialObservation":"I cannot sign in."}"""
-        private const val APPROVED_DECISION = """{"outcome":"APPROVED"}"""
-        private const val CONTRACT_PIN = """{"key":"restore-workspace-access","revision":1}"""
-        private const val CONNECTOR_OBSERVATION =
-            """{"connector":"identity-stub","reference":"accounts/customer-42","content":"account state observed"}"""
         private val VALID_CONTRACT =
             requireNotNull(
                 ApprovalDecisionApiIntegrationTest::class.java
@@ -723,3 +649,260 @@ class ApprovalDecisionApiIntegrationTest(
         }
     }
 }
+
+private const val CASE_PATH = "/api/v1/tenants/{tenantId}/cases"
+private const val CASE_RESOLUTION_CONTRACT_PATH =
+    "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-contract"
+private const val CASE_RESOLUTION_RUNS_PATH =
+    "/internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-runs"
+private const val APPROVAL_REQUESTS_PATH =
+    "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/approval-requests"
+private const val APPROVAL_DECISION_PATH =
+    "/api/v1/tenants/{tenantId}/approval-requests/{requestId}/decision"
+private const val AUTHORIZATION_GRANTS_PATH =
+    "/internal/v1/tenants/{tenantId}/approval-decisions/{decisionId}/authorization-grants"
+private const val AUTHORIZATION_CONSUMPTIONS_PATH =
+    "/internal/v1/tenants/{tenantId}/capability-authorization-grants/{grantId}/consumptions"
+private const val CAPABILITY_INVOCATIONS_PATH =
+    "/internal/v1/tenants/{tenantId}/capability-authorization-consumptions/{consumptionId}/invocations"
+private const val HUMAN_ACTORS_PATH = "/internal/v1/tenants/{tenantId}/human-actors"
+private const val AUTHORITY_EVIDENCE_PATH =
+    "$HUMAN_ACTORS_PATH/{actorId}/approval-authority-evidence"
+private const val CONNECTOR_OBSERVATIONS_PATH =
+    "/internal/v1/tenants/{tenantId}/cases/{caseId}/connector-observations"
+private const val ACCOUNT_ACCESS_FACTS_PATH =
+    "/internal/v1/tenants/{tenantId}/cases/{caseId}/facts/account-access-states"
+private const val CONTRACT_REVISIONS_PATH = "/internal/v1/tenants/{tenantId}/resolution-contracts"
+private const val TRUSTED_ISSUER = "https://identity.example.test"
+private const val OPEN_CASE =
+    """{"goal":"Restore workspace access","initialObservation":"I cannot sign in."}"""
+private const val APPROVED_DECISION = """{"outcome":"APPROVED"}"""
+private const val CONTRACT_PIN = """{"key":"restore-workspace-access","revision":1}"""
+private const val CONNECTOR_OBSERVATION =
+    """{"connector":"identity-stub","reference":"accounts/customer-42","content":"account state observed"}"""
+private const val RUN_CAPABILITY_RESULTS_PATH =
+    "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/capability-results"
+
+private data class CapabilityResultTestContext(
+    val tenantId: UUID,
+    val runId: UUID,
+    val consumptionId: UUID,
+    val caseId: UUID,
+)
+
+private data class CapabilityInvocationTestContext(
+    val tenantId: UUID,
+    val consumptionId: UUID,
+    val grantId: UUID,
+    val runId: UUID,
+    val caseId: UUID,
+)
+
+private fun invokeAndAssertConsumption(
+    mockMvc: MockMvc,
+    jdbcClient: JdbcClient,
+    context: CapabilityInvocationTestContext,
+) {
+    val consumptionId = context.consumptionId
+    mockMvc
+        .perform(post(CAPABILITY_INVOCATIONS_PATH, UUID.randomUUID(), consumptionId))
+        .andExpect(status().isNotFound)
+        .andExpect(
+            jsonPath("$.type")
+                .value("urn:ergon:problem:capability-authorization-consumption-not-found"),
+        )
+
+    val providerReference = "identity-stub/operations/$consumptionId"
+    mockMvc
+        .perform(post(CAPABILITY_INVOCATIONS_PATH, context.tenantId, consumptionId))
+        .andExpect(status().isCreated)
+        .andExpect(jsonPath("$.authorizationConsumptionId").value(consumptionId.toString()))
+        .andExpect(jsonPath("$.authorizationGrantId").value(context.grantId.toString()))
+        .andExpect(jsonPath("$.runId").value(context.runId.toString()))
+        .andExpect(jsonPath("$.caseId").value(context.caseId.toString()))
+        .andExpect(jsonPath("$.policyRevision").value("ergon.dev/policy/access-restoration/v1"))
+        .andExpect(jsonPath("$.stepId").value("unlock-account"))
+        .andExpect(jsonPath("$.capability").value("identity.account.unlock"))
+        .andExpect(jsonPath("$.connector").value("identity-stub"))
+        .andExpect(jsonPath("$.idempotencyKey").value(consumptionId.toString()))
+        .andExpect(jsonPath("$.outcome").value("SUCCEEDED"))
+        .andExpect(jsonPath("$.providerOperationReference").value(providerReference))
+        .andExpect(jsonPath("$.completedAt").exists())
+        .andExpect(jsonPath("$.recordedAt").exists())
+
+    mockMvc
+        .perform(post(CAPABILITY_INVOCATIONS_PATH, context.tenantId, consumptionId))
+        .andExpect(status().isOk)
+        .andExpect(jsonPath("$.authorizationConsumptionId").value(consumptionId.toString()))
+        .andExpect(jsonPath("$.idempotencyKey").value(consumptionId.toString()))
+        .andExpect(jsonPath("$.providerOperationReference").value(providerReference))
+
+    assertThatThrownBy {
+        jdbcClient
+            .sql(
+                """
+                UPDATE capability_invocation_receipts
+                SET outcome = outcome
+                WHERE tenant_id = :tenantId AND authorization_consumption_id = :consumptionId
+                """.trimIndent(),
+            ).param("tenantId", context.tenantId)
+            .param("consumptionId", consumptionId)
+            .update()
+    }.isInstanceOf(DataAccessException::class.java)
+}
+
+private fun expectCapabilityResultReceiptMissing(
+    mockMvc: MockMvc,
+    tenantId: UUID,
+    runId: UUID,
+) {
+    mockMvc
+        .perform(post(RUN_CAPABILITY_RESULTS_PATH, tenantId, runId))
+        .andExpect(status().isConflict)
+        .andExpect(
+            jsonPath("$.type")
+                .value("urn:ergon:problem:resolution-run-capability-receipt-not-found"),
+        )
+}
+
+private fun recordAndAssertCapabilityResult(
+    mockMvc: MockMvc,
+    jdbcClient: JdbcClient,
+    context: CapabilityResultTestContext,
+) {
+    mockMvc
+        .perform(post(RUN_CAPABILITY_RESULTS_PATH, UUID.randomUUID(), context.runId))
+        .andExpect(status().isNotFound)
+        .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-not-found"))
+    appendAndReplayCapabilityResult(
+        mockMvc,
+        jdbcClient,
+        context.tenantId,
+        context.runId,
+        context.consumptionId,
+    )
+    assertCapabilityResultPersistence(jdbcClient, context.tenantId, context.runId, context.caseId)
+}
+
+private fun appendAndReplayCapabilityResult(
+    mockMvc: MockMvc,
+    jdbcClient: JdbcClient,
+    tenantId: UUID,
+    runId: UUID,
+    consumptionId: UUID,
+) {
+    mockMvc
+        .perform(post(RUN_CAPABILITY_RESULTS_PATH, tenantId, runId))
+        .andExpect(status().isCreated)
+        .andExpect(jsonPath("$.runId").value(runId.toString()))
+        .andExpect(jsonPath("$.sequence").value(1))
+        .andExpect(jsonPath("$.eventType").value("CAPABILITY_SUCCEEDED"))
+        .andExpect(jsonPath("$.fromState").value("WAITING_FOR_APPROVAL"))
+        .andExpect(jsonPath("$.toState").value("VERIFYING"))
+        .andExpect(jsonPath("$.authorizationConsumptionId").value(consumptionId.toString()))
+        .andExpect(jsonPath("$.receiptOutcome").value("SUCCEEDED"))
+        .andExpect(jsonPath("$.occurredAt").exists())
+        .andExpect(jsonPath("$.recordedAt").exists())
+        .andExpect(jsonPath("$.currentState").value("VERIFYING"))
+        .andExpect(jsonPath("$.stateVersion").value(1))
+    val eventId = runEventId(jdbcClient, tenantId, runId)
+
+    mockMvc
+        .perform(post(RUN_CAPABILITY_RESULTS_PATH, tenantId, runId))
+        .andExpect(status().isOk)
+        .andExpect(jsonPath("$.eventId").value(eventId.toString()))
+        .andExpect(jsonPath("$.currentState").value("VERIFYING"))
+        .andExpect(jsonPath("$.stateVersion").value(1))
+}
+
+private fun assertCapabilityResultPersistence(
+    jdbcClient: JdbcClient,
+    tenantId: UUID,
+    runId: UUID,
+    caseId: UUID,
+) {
+    assertThat(runState(jdbcClient, tenantId, runId)).isEqualTo("VERIFYING:1")
+    assertThat(runInitialState(jdbcClient, tenantId, runId)).isEqualTo("WAITING_FOR_APPROVAL")
+    assertThat(caseStatus(jdbcClient, tenantId, caseId)).isEqualTo("OPEN")
+    val eventId = runEventId(jdbcClient, tenantId, runId)
+    assertThatThrownBy {
+        jdbcClient
+            .sql(
+                """
+                UPDATE resolution_run_events
+                SET event_type = event_type
+                WHERE tenant_id = :tenantId AND event_id = :eventId
+                """.trimIndent(),
+            ).param("tenantId", tenantId)
+            .param("eventId", eventId)
+            .update()
+    }.isInstanceOf(DataAccessException::class.java)
+}
+
+private fun runState(
+    jdbcClient: JdbcClient,
+    tenantId: UUID,
+    runId: UUID,
+): String =
+    jdbcClient
+        .sql(
+            """
+            SELECT state || ':' || version
+            FROM resolution_run_states
+            WHERE tenant_id = :tenantId AND run_id = :runId
+            """.trimIndent(),
+        ).param("tenantId", tenantId)
+        .param("runId", runId)
+        .query(String::class.java)
+        .single()
+
+private fun runInitialState(
+    jdbcClient: JdbcClient,
+    tenantId: UUID,
+    runId: UUID,
+): String =
+    jdbcClient
+        .sql(
+            """
+            SELECT initial_state
+            FROM resolution_runs
+            WHERE tenant_id = :tenantId AND run_id = :runId
+            """.trimIndent(),
+        ).param("tenantId", tenantId)
+        .param("runId", runId)
+        .query(String::class.java)
+        .single()
+
+private fun caseStatus(
+    jdbcClient: JdbcClient,
+    tenantId: UUID,
+    caseId: UUID,
+): String =
+    jdbcClient
+        .sql(
+            """
+            SELECT status
+            FROM cases
+            WHERE tenant_id = :tenantId AND case_id = :caseId
+            """.trimIndent(),
+        ).param("tenantId", tenantId)
+        .param("caseId", caseId)
+        .query(String::class.java)
+        .single()
+
+private fun runEventId(
+    jdbcClient: JdbcClient,
+    tenantId: UUID,
+    runId: UUID,
+): UUID =
+    jdbcClient
+        .sql(
+            """
+            SELECT event_id
+            FROM resolution_run_events
+            WHERE tenant_id = :tenantId AND run_id = :runId
+            """.trimIndent(),
+        ).param("tenantId", tenantId)
+        .param("runId", runId)
+        .query(UUID::class.java)
+        .single()

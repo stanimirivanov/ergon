@@ -170,6 +170,11 @@ private class InMemoryReceiptRepository : CapabilityInvocationReceiptRepository 
         consumptionId: CapabilityAuthorizationConsumptionId,
     ): StoredCapabilityInvocationReceipt? = stored
 
+    override fun findByRun(
+        tenantId: TenantId,
+        runId: ResolutionRunId,
+    ): StoredCapabilityInvocationReceipt? = stored
+
     override fun createOrFind(
         tenantId: TenantId,
         receipt: CapabilityInvocationReceipt,

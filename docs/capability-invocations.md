@@ -27,4 +27,6 @@ Receipts preserve the authorization scope, terminal `SUCCEEDED` or `FAILED`
 outcome, opaque provider reference, completion time, and database recording
 time. Completion may follow grant expiry because consumption already reserved
 the grant while current. A receipt records the connector's claim only; it does
-not close the run or prove that the requester can sign in.
+not close the run or prove that the requester can sign in. The separate
+[run capability-result command](runs.md#record-a-capability-result) projects the
+claim into `VERIFYING` or `ACTION_FAILED` while preserving that distinction.

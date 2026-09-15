@@ -102,6 +102,9 @@ contract pins in PostgreSQL. Its current APIs are:
 - `POST /internal/v1/tenants/{tenantId}/capability-authorization-consumptions/{consumptionId}/invocations`
   invokes the deterministic identity connector with a stable idempotency key
   and stores or replays its immutable terminal receipt.
+- `POST /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/capability-results`
+  appends or replays the receipt-backed run event and advances current state to
+  `VERIFYING` or `ACTION_FAILED` without closing the case.
 
 Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
@@ -109,8 +112,9 @@ Only current-actor lookup and approval decisions require bearer authentication;
 the remaining endpoints retain a temporary development boundary and must not be
 exposed as though tenant IDs were authorization. Capability-route provisioning,
 automatic selection, AI-assisted binding, broader fact types, real connector
-credentials, run transitions, and outcome proof remain later delivery steps. The predecessor
-services remain in the reactor while behavior is replaced incrementally.
+credentials, verification observations, retries, and accepted outcome proof
+remain later delivery steps. The predecessor services remain in the reactor
+while behavior is replaced incrementally.
 
 ```powershell
 .\mvnw.cmd -B -ntp verify

@@ -92,8 +92,11 @@ for the same tenant and capability. The consumption is a durable reservation,
 not an execution receipt. That reservation can now invoke the deterministic
 identity connector outside the database transaction and persist or replay its
 terminal receipt using the consumption identity as the provider idempotency
-key. The next sub-slice should append durable run state for that result without
-yet treating connector success as verified resolution.
+key. The receipt-backed run-state projection now appends an immutable event and
+advances the current state to
+`VERIFYING` or `ACTION_FAILED`; successful execution leaves the case open. The
+next sub-slice should capture a separate verification observation and evaluate
+the pinned contract's outcome proof without yet automating retries.
 
 ### 5. Adaptive canvas and resolver console
 

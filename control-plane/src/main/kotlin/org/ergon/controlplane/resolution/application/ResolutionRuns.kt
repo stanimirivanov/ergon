@@ -19,14 +19,14 @@ data class StoredResolutionRunStart(
     val recordedAt: Instant,
 )
 
-/** Durable, tenant-scoped storage for immutable resolution-run start snapshots. */
+/** Durable, tenant-scoped storage for immutable run starts and their initial state projections. */
 interface ResolutionRunRepository {
     /**
      * Stores [run] only while its case remains at [ResolutionRunStart.caseStreamVersion].
      *
-     * Implementations must lock the case version check and insert in the caller's
-     * transaction. This prevents evidence from changing between planning and the
-     * durable snapshot.
+     * Implementations must lock the case version check and insert both the start
+     * and its version-zero current-state projection in the caller's transaction.
+     * This prevents evidence from changing between planning and the durable snapshot.
      *
      * @throws ConcurrentCaseModificationException when the case has advanced.
      * @throws ResolutionRunAlreadyExistsException when the case already has a run.
