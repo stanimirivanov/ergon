@@ -98,6 +98,7 @@ class HumanJwtSecurityConfiguration {
                 it.requestMatchers(HttpMethod.GET, CURRENT_HUMAN_ACTOR_PATH).authenticated()
                 it.requestMatchers(HttpMethod.POST, APPROVAL_DECISION_PATH).authenticated()
                 it.requestMatchers(HttpMethod.POST, RESOLUTION_RUN_RETRY_PATH).authenticated()
+                it.requestMatchers(HttpMethod.POST, RESOLUTION_RUN_ESCALATION_PATH).authenticated()
                 it.anyRequest().permitAll()
             }.oauth2ResourceServer { resourceServer ->
                 resourceServer.authenticationEntryPoint(authenticationEntryPoint)
@@ -110,6 +111,7 @@ class HumanJwtSecurityConfiguration {
         const val APPROVAL_DECISION_PATH = "/api/v1/tenants/*/approval-requests/*/decision"
         const val CURRENT_HUMAN_ACTOR_PATH = "/api/v1/tenants/*/human-actor"
         const val RESOLUTION_RUN_RETRY_PATH = "/internal/v1/tenants/*/resolution-runs/*/retries"
+        const val RESOLUTION_RUN_ESCALATION_PATH = "/internal/v1/tenants/*/resolution-runs/*/escalations"
     }
 }
 
