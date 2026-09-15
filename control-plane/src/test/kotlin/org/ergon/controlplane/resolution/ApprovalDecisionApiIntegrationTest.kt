@@ -287,6 +287,12 @@ class ApprovalDecisionApiIntegrationTest(
             .andExpect(jsonPath("$.reason").value("ATTEMPT_LIMIT_REACHED"))
         assertThat(runCountForCase(jdbcClient, tenantId, caseId)).isEqualTo(2)
         assertThat(runStateAndVersion(jdbcClient, tenantId, replacementRunId)).isEqualTo("ACTION_FAILED" to 1L)
+
+        assertExhaustedRunEscalation(
+            mockMvc,
+            jdbcClient,
+            ExhaustedRunEscalationContext(tenantId, replacementRunId, caseId, subject),
+        )
     }
 
     private fun createAndAssertAuthorizationGrant(
@@ -693,6 +699,8 @@ private const val RUN_CAPABILITY_RESULTS_PATH =
     "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/capability-results"
 private const val RUN_RETRIES_PATH =
     "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/retries"
+private const val RUN_ESCALATIONS_PATH =
+    "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/escalations"
 private const val RUN_OUTCOME_PROOF_PATH =
     "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/outcome-proof"
 private const val RUN_OUTCOME_PROOF_ACCEPTANCES_PATH =
@@ -1143,13 +1151,23 @@ private fun assertAuthorizedRetryBoundary(
         .perform(post(RUN_RETRIES_PATH, context.tenantId, context.failedRunId).header("If-Match", "\"4\""))
         .andExpect(status().isUnauthorized)
     expectRecoveryAuthorityNotFound(mockMvc, context.tenantId, context.failedRunId, context.subject)
+    mockMvc
+        .perform(escalate(context.tenantId, context.failedRunId, context.subject))
+        .andExpect(status().isForbidden)
     insertExpiredResolverAuthority(jdbcClient, context.tenantId, context.actorId)
     expectRecoveryAuthorityNotFound(mockMvc, context.tenantId, context.failedRunId, context.subject)
 
     val resolverEvidenceId = attestResolverAuthority(mockMvc, context.tenantId, context.actorId)
+    mockMvc
+        .perform(escalate(context.tenantId, context.failedRunId, context.subject))
+        .andExpect(status().isConflict)
+        .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-retry-budget-available"))
     val otherTenantId = UUID.randomUUID()
     val otherTenantActorId = registerActor(mockMvc, otherTenantId, context.subject)
     attestResolverAuthority(mockMvc, otherTenantId, otherTenantActorId)
+    mockMvc
+        .perform(escalate(otherTenantId, context.failedRunId, context.subject))
+        .andExpect(status().isNotFound)
     val replacementRunId =
         assertExplicitRetry(
             mockMvc,
@@ -1174,6 +1192,53 @@ private data class RetryAuthorityBoundaryContext(
     val subject: String,
     val actorId: UUID,
 )
+
+private data class ExhaustedRunEscalationContext(
+    val tenantId: UUID,
+    val runId: UUID,
+    val caseId: UUID,
+    val subject: String,
+)
+
+private fun assertExhaustedRunEscalation(
+    mockMvc: MockMvc,
+    jdbcClient: JdbcClient,
+    context: ExhaustedRunEscalationContext,
+) {
+    mockMvc.perform(post(RUN_ESCALATIONS_PATH, context.tenantId, context.runId)).andExpect(status().isUnauthorized)
+    mockMvc
+        .perform(escalate(context.tenantId, context.runId, context.subject))
+        .andExpect(status().isCreated)
+        .andExpect(jsonPath("$.runId").value(context.runId.toString()))
+        .andExpect(jsonPath("$.state").value("ESCALATED"))
+        .andExpect(jsonPath("$.stateVersion").value(2))
+        .andExpect(jsonPath("$.reason").value("RETRY_ATTEMPT_LIMIT_REACHED"))
+        .andExpect(jsonPath("$.retryPolicyRevision").value(RETRY_POLICY_REVISION))
+        .andExpect(jsonPath("$.retrySourceAttemptNumber").value(2))
+        .andExpect(jsonPath("$.retryMaximumAttempts").value(2))
+        .andExpect(jsonPath("$.escalationEventId").isNotEmpty)
+    mockMvc
+        .perform(escalate(context.tenantId, context.runId, context.subject))
+        .andExpect(status().isOk)
+        .andExpect(jsonPath("$.state").value("ESCALATED"))
+    val escalationCount =
+        jdbcClient
+            .sql(
+                """
+                SELECT count(*)
+                FROM resolution_run_events
+                WHERE tenant_id = :tenantId AND run_id = :runId
+                    AND event_type = 'ESCALATION_REQUESTED'
+                """.trimIndent(),
+            ).param("tenantId", context.tenantId)
+            .param("runId", context.runId)
+            .query(Int::class.java)
+            .single()
+    assertThat(escalationCount).isEqualTo(1)
+    assertThat(runStateAndVersion(jdbcClient, context.tenantId, context.runId)).isEqualTo("ESCALATED" to 2L)
+    assertThat(runCountForCase(jdbcClient, context.tenantId, context.caseId)).isEqualTo(2)
+    assertThat(caseStatus(jdbcClient, context.tenantId, context.caseId)).isEqualTo("OPEN")
+}
 
 private fun expectRecoveryAuthorityNotFound(
     mockMvc: MockMvc,
@@ -1404,6 +1469,18 @@ private fun retry(
             it.subject(subject)
         },
     ).header("If-Match", "\"$expectedCaseVersion\"")
+
+private fun escalate(
+    tenantId: UUID,
+    runId: UUID,
+    subject: String,
+) = post(RUN_ESCALATIONS_PATH, tenantId, runId)
+    .with(
+        jwt().jwt {
+            it.issuer(TRUSTED_ISSUER)
+            it.subject(subject)
+        },
+    )
 
 private fun assertRetryOperationMeaningConstrained(
     jdbcClient: JdbcClient,

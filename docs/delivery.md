@@ -105,9 +105,11 @@ evidence and safeguards. Each attempt requires new approval and authorization
 and receives a new provider idempotency key. Retry now requires a verified human
 identity with current tenant-wide resolver evidence, and the immutable event
 retains that actor and attestation. Retry eligibility now has a versioned ceiling
-of two total attempts, frozen on each new retry event; exhausted failures remain
-open without another successor. The next sub-slice should define explicit
-terminal escalation or compensation policy before exposing recovery publicly.
+of two total attempts, frozen on each new retry event. A resolver can now record
+explicit escalation only after that budget is exhausted; the immutable event
+freezes the actor, authority evidence, and denial inputs while leaving the case
+open. The next sub-slice should model a durable human follow-up work item before
+adding assignment or notification delivery.
 
 ### 5. Adaptive canvas and resolver console
 

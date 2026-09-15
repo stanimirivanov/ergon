@@ -118,9 +118,24 @@ operation requires later replanning semantics instead of being called a retry.
 The successor copies no approval, grant, consumption, receipt, or provider
 idempotency key. It starts again in its policy-derived requirement state. This
 authenticated internal command neither schedules nor invokes work. Failure
-classification, backoff, compensation, and terminal escalation remain separate
-policy capabilities. Exhaustion leaves the final run `ACTION_FAILED` and the
-case open; it does not imply resolution or automatically escalate it.
+classification, backoff, and compensation remain separate policy capabilities.
+Exhaustion leaves the final run `ACTION_FAILED` and the case open; it does not
+imply resolution or automatically escalate it.
+
+## Escalate exhausted recovery
+
+Call
+`POST /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/escalations`
+with a valid human bearer token. The actor needs current tenant-wide `RESOLVER`
+evidence. Only an `ACTION_FAILED` run denied another attempt by the current
+versioned retry policy may escalate; remaining budget returns
+`409 resolution-run-retry-budget-available` without writing state.
+
+The first call appends `ESCALATION_REQUESTED`, records the actor, attestation,
+denial reason, policy revision, source attempt, and ceiling, then advances the
+run to `ESCALATED`; it returns `201`. Replay returns the same event with `200`.
+The case remains open. This command does not assign a resolver, notify anyone,
+schedule work, invoke a capability, or compensate an earlier action.
 
 For `WAITING_FOR_APPROVAL`, the separate [approval request](approvals.md) API
 can append a bounded human-authority request without granting that authority.

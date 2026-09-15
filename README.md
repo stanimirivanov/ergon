@@ -115,10 +115,13 @@ contract pins in PostgreSQL. Its current APIs are:
   requires an authenticated actor with current tenant-wide resolver authority
   and starts or replays the failed run's attributed successor, subject to a
   versioned ceiling of two total attempts.
+- `POST /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/escalations`
+  requires the same resolver authority and records or replays explicit human
+  follow-up after the versioned retry budget is exhausted.
 
 Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
-Current-actor lookup, approval decisions, and failed-run retries require bearer
+Current-actor lookup, approval decisions, failed-run retries, and exhausted-run escalation require bearer
 authentication; the remaining endpoints retain a temporary development boundary
 and must not be exposed as though tenant IDs were authorization. Capability-route
 provisioning,
