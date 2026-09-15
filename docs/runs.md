@@ -67,8 +67,27 @@ latest eligible fact controls the assessment: a later contradictory value makes
 the result pending with `VALUE_MISMATCH`.
 
 This endpoint is intentionally read-only. `ACCEPTED` does not append a run
-event, freeze the evidence, or close the case; durable proof acceptance is the
-next state-transition boundary.
+event, freeze the evidence, or close the case.
+
+## Accept outcome proof
+
+Call
+`POST /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/outcome-proof-acceptances`
+to make a currently accepted assessment durable. Pending evidence returns
+`409`; the command is valid only while the run is in `VERIFYING`.
+
+The command locks run state, reassesses the pinned condition, and freezes the
+exact case version, observation, and typed fact as run event sequence two. It
+then advances the run and case to `VERIFIED_RESOLVED` in the same transaction.
+The case closure is the event immediately following the assessed case version;
+if evidence arrives concurrently, optimistic append rolls everything back and
+the caller must reassess.
+
+First acceptance returns `201`. Replay returns `200` with the original event
+and never appends another case closure. Database foreign keys bind the durable
+acceptance to the same tenant, run, case snapshot, observation, fact, and value.
+Retries, failed-action recovery, and proof conditions beyond
+`account.access.state` remain separate capabilities.
 
 For `WAITING_FOR_APPROVAL`, the separate [approval request](approvals.md) API
 can append a bounded human-authority request without granting that authority.

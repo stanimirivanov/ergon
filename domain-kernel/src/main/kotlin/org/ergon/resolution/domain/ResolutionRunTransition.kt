@@ -15,12 +15,14 @@ enum class ResolutionRunState {
     READY_FOR_AUTHORIZATION,
     VERIFYING,
     ACTION_FAILED,
+    VERIFIED_RESOLVED,
 }
 
 /** Closed set of append-only run events supported by the first execution slice. */
 enum class ResolutionRunEventType {
     CAPABILITY_SUCCEEDED,
     CAPABILITY_FAILED,
+    OUTCOME_PROOF_ACCEPTED,
 }
 
 /** Current projected run state used as the optimistic append precondition. */

@@ -46,6 +46,7 @@ class ErgonCase private constructor(
      * does that.
      */
     fun record(observation: SourceObservation) {
+        requireOpen()
         record(
             ObservationRecorded(
                 observationId = observation.id.value,
@@ -76,6 +77,7 @@ class ErgonCase private constructor(
         state: AccountAccessState,
         boundAt: Instant,
     ) {
+        requireOpen()
         val origin =
             requireNotNull(observations[observationId]) {
                 "observation ${observationId.value} does not belong to this case"
@@ -110,6 +112,7 @@ class ErgonCase private constructor(
         contract: ResolutionContractIdentity,
         pinnedAt: Instant,
     ) {
+        requireOpen()
         require(pinnedResolutionContract == null) { "case already has a pinned resolution contract" }
         record(
             ResolutionContractRevisionPinned(
@@ -135,6 +138,35 @@ class ErgonCase private constructor(
      * this aggregate instance.
      */
     fun markChangesCommitted() = changes.clear()
+
+    /**
+     * Closes this case from one accepted resolution outcome.
+     *
+     * [resolution]'s proof case version must equal the current stream version so proof
+     * cannot be accepted after unassessed evidence has arrived.
+     *
+     * @throws IllegalArgumentException when the case is already closed, the
+     *   proof version is stale.
+     */
+    fun verifyResolved(
+        resolution: VerifiedResolution,
+        resolvedAt: Instant,
+    ) {
+        requireOpen()
+        require(resolution.proofCaseStreamVersion == streamVersion) {
+            "outcome proof must assess the current case stream version"
+        }
+        record(
+            CaseVerifiedResolved(
+                resolutionRunId = resolution.resolutionRunId,
+                outcomeProofEventId = resolution.outcomeProofEventId,
+                proofCaseStreamVersion = resolution.proofCaseStreamVersion,
+                factId = resolution.factId.value,
+                observationId = resolution.observationId.value,
+                occurredAt = resolvedAt,
+            ),
+        )
+    }
 
     private fun record(event: CaseEvent) {
         apply(event)
@@ -180,8 +212,20 @@ class ErgonCase private constructor(
                         revision = ResolutionContractRevision.of(event.contractRevision),
                     )
             }
+
+            is CaseVerifiedResolved -> {
+                require(status == CaseStatus.OPEN) { "case is already closed" }
+                require(event.proofCaseStreamVersion == streamVersion) {
+                    "verified resolution must immediately follow its proof case version"
+                }
+                status = CaseStatus.VERIFIED_RESOLVED
+            }
         }
         streamVersion++
+    }
+
+    private fun requireOpen() {
+        require(status == CaseStatus.OPEN) { "case must be open" }
     }
 
     private fun rememberObservation(observation: SourceObservation) {

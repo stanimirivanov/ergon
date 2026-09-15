@@ -97,8 +97,10 @@ advances the current state to
 `VERIFYING` or `ACTION_FAILED`; successful execution leaves the case open. The
 outcome-proof assessment now requires a separate post-action observation and
 fact binding, evaluates the pinned equality at an exact case version, and leaves
-run and case state unchanged. The next sub-slice should durably accept exact
-proof and close the case without yet automating retries.
+run and case state unchanged. A separate acceptance command now freezes that
+exact evidence as run event sequence two and atomically advances both the run
+and case to `VERIFIED_RESOLVED`. The next sub-slice should define failed-action
+recovery without yet introducing autonomous retry policy.
 
 ### 5. Adaptive canvas and resolver console
 

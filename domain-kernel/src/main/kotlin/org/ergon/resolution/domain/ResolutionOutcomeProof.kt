@@ -33,7 +33,12 @@ data class ResolutionOutcomeEvidence(
     }
 }
 
-/** Exact immutable inputs used to assess one run's pinned outcome condition. */
+/**
+ * Exact immutable inputs used to assess one run's pinned outcome condition.
+ *
+ * @throws IllegalArgumentException when the case snapshot predates the run or
+ *   any supplied evidence lies beyond the case snapshot.
+ */
 data class ResolutionOutcomeProofBasis(
     val condition: FactCondition,
     val runCaseStreamVersion: Long,
@@ -45,6 +50,9 @@ data class ResolutionOutcomeProofBasis(
         require(runCaseStreamVersion > 0) { "run case stream version must be positive" }
         require(caseStreamVersion >= runCaseStreamVersion) {
             "assessed case stream cannot precede the run evidence boundary"
+        }
+        require(evidence.all { it.factStreamVersion <= caseStreamVersion }) {
+            "outcome evidence cannot follow the assessed case stream"
         }
     }
 }
@@ -60,12 +68,21 @@ sealed interface ResolutionOutcomeProofAssessment {
     val condition: FactCondition
     val caseStreamVersion: Long
 
-    /** A post-action source fact exactly satisfies the pinned condition. */
+    /**
+     * A post-action source fact exactly satisfies the pinned condition.
+     *
+     * @throws IllegalArgumentException when [evidence] names another fact or value.
+     */
     data class Accepted(
         override val condition: FactCondition,
         override val caseStreamVersion: Long,
         val evidence: ResolutionOutcomeEvidence,
-    ) : ResolutionOutcomeProofAssessment
+    ) : ResolutionOutcomeProofAssessment {
+        init {
+            require(evidence.fact == condition.fact) { "accepted evidence names another fact" }
+            require(evidence.value == condition.expectedValue) { "accepted evidence has another value" }
+        }
+    }
 
     /** No eligible post-action fact satisfies the condition yet. */
     data class Pending(

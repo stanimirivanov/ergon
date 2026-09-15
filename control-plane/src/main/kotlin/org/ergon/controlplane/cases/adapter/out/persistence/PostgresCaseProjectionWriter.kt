@@ -3,6 +3,7 @@ package org.ergon.controlplane.cases.adapter.out.persistence
 import org.ergon.cases.domain.AccountAccessStateBound
 import org.ergon.cases.domain.CaseEvent
 import org.ergon.cases.domain.CaseOpened
+import org.ergon.cases.domain.CaseVerifiedResolved
 import org.ergon.cases.domain.ErgonCase
 import org.ergon.cases.domain.ObservationOriginType
 import org.ergon.cases.domain.ObservationRecorded
@@ -27,6 +28,7 @@ class PostgresCaseProjectionWriter(
             is CaseOpened -> insertCase(case, first)
 
             is AccountAccessStateBound,
+            is CaseVerifiedResolved,
             is ObservationRecorded,
             is ResolutionContractRevisionPinned,
             -> updateCase(case, events.first().streamVersion - 1, events.last())
@@ -36,6 +38,8 @@ class PostgresCaseProjectionWriter(
                 is AccountAccessStateBound -> insertAccountAccessFact(case, stored, event)
 
                 is ResolutionContractRevisionPinned -> insertResolutionContractPin(case, stored, event)
+
+                is CaseVerifiedResolved -> Unit
 
                 is CaseOpened,
                 is ObservationRecorded,
@@ -186,6 +190,7 @@ class PostgresCaseProjectionWriter(
         when (this) {
             is AccountAccessStateBound -> error("account-access facts use their dedicated projection")
             is CaseOpened -> "CASE_OPENED"
+            is CaseVerifiedResolved -> error("case closure has no timeline observation")
             is ObservationRecorded -> "OBSERVATION_RECORDED"
             is ResolutionContractRevisionPinned -> error("contract pins use their dedicated projection")
         }
@@ -194,6 +199,7 @@ class PostgresCaseProjectionWriter(
         when (this) {
             is AccountAccessStateBound -> error("account-access facts use their dedicated projection")
             is CaseOpened -> "Case opened from requester observation"
+            is CaseVerifiedResolved -> error("case closure has no timeline observation")
             is ObservationRecorded -> "Connector observation recorded"
             is ResolutionContractRevisionPinned -> error("contract pins use their dedicated projection")
         }
@@ -212,6 +218,10 @@ class PostgresCaseProjectionWriter(
                     observationReference,
                     observationContent,
                 )
+            }
+
+            is CaseVerifiedResolved -> {
+                error("case closure has no timeline observation")
             }
 
             is ObservationRecorded -> {

@@ -687,6 +687,8 @@ private const val RUN_CAPABILITY_RESULTS_PATH =
     "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/capability-results"
 private const val RUN_OUTCOME_PROOF_PATH =
     "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/outcome-proof"
+private const val RUN_OUTCOME_PROOF_ACCEPTANCES_PATH =
+    "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/outcome-proof-acceptances"
 
 private data class CapabilityResultTestContext(
     val tenantId: UUID,
@@ -710,6 +712,11 @@ private fun expectOutcomeAssessmentNotVerifying(
 ) {
     mockMvc
         .perform(get(RUN_OUTCOME_PROOF_PATH, tenantId, runId))
+        .andExpect(status().isConflict)
+        .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-not-verifying"))
+        .andExpect(jsonPath("$.state").value("WAITING_FOR_APPROVAL"))
+    mockMvc
+        .perform(post(RUN_OUTCOME_PROOF_ACCEPTANCES_PATH, tenantId, runId))
         .andExpect(status().isConflict)
         .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-not-verifying"))
         .andExpect(jsonPath("$.state").value("WAITING_FOR_APPROVAL"))
@@ -740,13 +747,19 @@ private class OutcomeProofApiFixture(
         val observationId = recordObservation(expectedVersion = 4, state = "ACTIVE")
         expectPending(expectedVersion = 5, reason = "ELIGIBLE_EVIDENCE_MISSING")
         bindFact(observationId, expectedVersion = 5, state = "ACTIVE")
-        expectAccepted(observationId)
+        expectAccepted(observationId, expectedVersion = 6)
 
         val mismatchId = recordObservation(expectedVersion = 6, state = "LOCKED")
         bindFact(mismatchId, expectedVersion = 7, state = "LOCKED")
         expectPending(expectedVersion = 8, reason = "VALUE_MISMATCH", actualValue = "LOCKED")
+        expectAcceptancePending(expectedVersion = 8, reason = "VALUE_MISMATCH")
         assertThat(runState(jdbcClient, tenantId, runId)).isEqualTo("VERIFYING:1")
         assertThat(caseStatus(jdbcClient, tenantId, caseId)).isEqualTo("OPEN")
+
+        val finalObservationId = recordObservation(expectedVersion = 8, state = "ACTIVE")
+        bindFact(finalObservationId, expectedVersion = 9, state = "ACTIVE")
+        expectAccepted(finalObservationId, expectedVersion = 10)
+        acceptAndAssert(finalObservationId)
     }
 
     private fun expectPending(
@@ -770,19 +783,127 @@ private class OutcomeProofApiFixture(
         }
     }
 
-    private fun expectAccepted(observationId: UUID) {
+    private fun expectAccepted(
+        observationId: UUID,
+        expectedVersion: Long,
+    ) {
         mockMvc
             .perform(get(RUN_OUTCOME_PROOF_PATH, tenantId, runId))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("ACCEPTED"))
             .andExpect(jsonPath("$.pendingReason").doesNotExist())
-            .andExpect(jsonPath("$.caseStreamVersion").value(6))
+            .andExpect(jsonPath("$.caseStreamVersion").value(expectedVersion))
             .andExpect(jsonPath("$.evidence.observationId").value(observationId.toString()))
-            .andExpect(jsonPath("$.evidence.observationStreamVersion").value(5))
-            .andExpect(jsonPath("$.evidence.factStreamVersion").value(6))
+            .andExpect(jsonPath("$.evidence.observationStreamVersion").value(expectedVersion - 1))
+            .andExpect(jsonPath("$.evidence.factStreamVersion").value(expectedVersion))
             .andExpect(jsonPath("$.evidence.actualValue").value("ACTIVE"))
             .andExpect(jsonPath("$.evidence.observedAt").exists())
             .andExpect(jsonPath("$.evidence.boundAt").exists())
+    }
+
+    private fun expectAcceptancePending(
+        expectedVersion: Long,
+        reason: String,
+    ) {
+        mockMvc
+            .perform(post(RUN_OUTCOME_PROOF_ACCEPTANCES_PATH, tenantId, runId))
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-outcome-proof-pending"))
+            .andExpect(jsonPath("$.reason").value(reason))
+            .andExpect(jsonPath("$.caseStreamVersion").value(expectedVersion))
+    }
+
+    private fun acceptAndAssert(observationId: UUID) {
+        mockMvc
+            .perform(post(RUN_OUTCOME_PROOF_ACCEPTANCES_PATH, UUID.randomUUID(), runId))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-not-found"))
+
+        mockMvc
+            .perform(post(RUN_OUTCOME_PROOF_ACCEPTANCES_PATH, tenantId, runId))
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.runId").value(runId.toString()))
+            .andExpect(jsonPath("$.sequence").value(2))
+            .andExpect(jsonPath("$.eventType").value("OUTCOME_PROOF_ACCEPTED"))
+            .andExpect(jsonPath("$.fromState").value("VERIFYING"))
+            .andExpect(jsonPath("$.toState").value("VERIFIED_RESOLVED"))
+            .andExpect(jsonPath("$.runCaseStreamVersion").value(4))
+            .andExpect(jsonPath("$.caseStreamVersion").value(10))
+            .andExpect(jsonPath("$.fact").value("account.access.state"))
+            .andExpect(jsonPath("$.expectedValue").value("ACTIVE"))
+            .andExpect(jsonPath("$.observationId").value(observationId.toString()))
+            .andExpect(jsonPath("$.observationStreamVersion").value(9))
+            .andExpect(jsonPath("$.factStreamVersion").value(10))
+            .andExpect(jsonPath("$.acceptedAt").exists())
+            .andExpect(jsonPath("$.recordedAt").exists())
+        val eventId = acceptedProofEventId()
+
+        mockMvc
+            .perform(post(RUN_OUTCOME_PROOF_ACCEPTANCES_PATH, tenantId, runId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.eventId").value(eventId.toString()))
+            .andExpect(jsonPath("$.toState").value("VERIFIED_RESOLVED"))
+        assertThat(runState(jdbcClient, tenantId, runId)).isEqualTo("VERIFIED_RESOLVED:2")
+        assertThat(caseStatus(jdbcClient, tenantId, caseId)).isEqualTo("VERIFIED_RESOLVED")
+        assertThat(caseStreamVersion(jdbcClient, tenantId, caseId)).isEqualTo(11)
+        assertThat(latestCaseEventType()).isEqualTo("CaseVerifiedResolved")
+        assertAcceptanceImmutable()
+
+        mockMvc
+            .perform(get(RUN_OUTCOME_PROOF_PATH, tenantId, runId))
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.state").value("VERIFIED_RESOLVED"))
+        mockMvc
+            .perform(
+                post(CONNECTOR_OBSERVATIONS_PATH, tenantId, caseId)
+                    .header("If-Match", "\"11\"")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(CONNECTOR_OBSERVATION),
+            ).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:invalid-case-command"))
+    }
+
+    private fun acceptedProofEventId(): UUID =
+        jdbcClient
+            .sql(
+                """
+                SELECT run_event_id
+                FROM resolution_outcome_proof_acceptances
+                WHERE tenant_id = :tenantId AND run_id = :runId
+                """.trimIndent(),
+            ).param("tenantId", tenantId)
+            .param("runId", runId)
+            .query(UUID::class.java)
+            .single()
+
+    private fun latestCaseEventType(): String =
+        jdbcClient
+            .sql(
+                """
+                SELECT event_type
+                FROM case_events
+                WHERE tenant_id = :tenantId AND case_id = :caseId
+                ORDER BY stream_version DESC
+                LIMIT 1
+                """.trimIndent(),
+            ).param("tenantId", tenantId)
+            .param("caseId", caseId)
+            .query(String::class.java)
+            .single()
+
+    private fun assertAcceptanceImmutable() {
+        assertThatThrownBy {
+            jdbcClient
+                .sql(
+                    """
+                    UPDATE resolution_outcome_proof_acceptances
+                    SET expected_value = expected_value
+                    WHERE tenant_id = :tenantId AND run_id = :runId
+                    """.trimIndent(),
+                ).param("tenantId", tenantId)
+                .param("runId", runId)
+                .update()
+        }.isInstanceOf(DataAccessException::class.java)
     }
 
     private fun recordObservation(
@@ -1024,6 +1145,23 @@ private fun caseStatus(
         ).param("tenantId", tenantId)
         .param("caseId", caseId)
         .query(String::class.java)
+        .single()
+
+private fun caseStreamVersion(
+    jdbcClient: JdbcClient,
+    tenantId: UUID,
+    caseId: UUID,
+): Long =
+    jdbcClient
+        .sql(
+            """
+            SELECT stream_version
+            FROM cases
+            WHERE tenant_id = :tenantId AND case_id = :caseId
+            """.trimIndent(),
+        ).param("tenantId", tenantId)
+        .param("caseId", caseId)
+        .query(Long::class.java)
         .single()
 
 private fun runEventId(

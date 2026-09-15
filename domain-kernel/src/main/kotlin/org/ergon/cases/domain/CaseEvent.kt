@@ -66,3 +66,28 @@ data class ResolutionContractRevisionPinned(
     val contractRevision: Int,
     override val occurredAt: Instant,
 ) : CaseEvent
+
+/**
+ * Closes a case only after one resolution run durably accepts attributable outcome proof.
+ *
+ * [proofCaseStreamVersion] identifies the final case event assessed as proof;
+ * this event must immediately follow that version. The referenced run event
+ * and evidence identities retain the decision's audit path.
+ */
+data class CaseVerifiedResolved(
+    val resolutionRunId: UUID,
+    val outcomeProofEventId: UUID,
+    val proofCaseStreamVersion: Long,
+    val factId: UUID,
+    val observationId: UUID,
+    override val occurredAt: Instant,
+) : CaseEvent
+
+/** References the run decision and evidence that permit verified case closure. */
+data class VerifiedResolution(
+    val resolutionRunId: UUID,
+    val outcomeProofEventId: UUID,
+    val proofCaseStreamVersion: Long,
+    val factId: FactId,
+    val observationId: ObservationId,
+)
