@@ -13,6 +13,7 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -74,11 +75,13 @@ class ApprovalDecisionApiIntegrationTest(
             jdbcClient,
             CapabilityInvocationTestContext(tenantId, consumptionId, grantId, runId, caseId),
         )
+        expectOutcomeAssessmentNotVerifying(mockMvc, tenantId, runId)
         recordAndAssertCapabilityResult(
             mockMvc,
             jdbcClient,
             CapabilityResultTestContext(tenantId, runId, consumptionId, caseId),
         )
+        assessAndAssertOutcomeProof(mockMvc, jdbcClient, tenantId, runId, caseId)
 
         mockMvc
             .perform(decide(tenantId, requestId, "employee-42", "REJECTED"))
@@ -682,6 +685,8 @@ private const val CONNECTOR_OBSERVATION =
     """{"connector":"identity-stub","reference":"accounts/customer-42","content":"account state observed"}"""
 private const val RUN_CAPABILITY_RESULTS_PATH =
     "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/capability-results"
+private const val RUN_OUTCOME_PROOF_PATH =
+    "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/outcome-proof"
 
 private data class CapabilityResultTestContext(
     val tenantId: UUID,
@@ -697,6 +702,137 @@ private data class CapabilityInvocationTestContext(
     val runId: UUID,
     val caseId: UUID,
 )
+
+private fun expectOutcomeAssessmentNotVerifying(
+    mockMvc: MockMvc,
+    tenantId: UUID,
+    runId: UUID,
+) {
+    mockMvc
+        .perform(get(RUN_OUTCOME_PROOF_PATH, tenantId, runId))
+        .andExpect(status().isConflict)
+        .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-not-verifying"))
+        .andExpect(jsonPath("$.state").value("WAITING_FOR_APPROVAL"))
+}
+
+private fun assessAndAssertOutcomeProof(
+    mockMvc: MockMvc,
+    jdbcClient: JdbcClient,
+    tenantId: UUID,
+    runId: UUID,
+    caseId: UUID,
+) = OutcomeProofApiFixture(mockMvc, jdbcClient, tenantId, runId, caseId).assertScenario()
+
+private class OutcomeProofApiFixture(
+    private val mockMvc: MockMvc,
+    private val jdbcClient: JdbcClient,
+    private val tenantId: UUID,
+    private val runId: UUID,
+    private val caseId: UUID,
+) {
+    fun assertScenario() {
+        mockMvc
+            .perform(get(RUN_OUTCOME_PROOF_PATH, UUID.randomUUID(), runId))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-not-found"))
+        expectPending(expectedVersion = 4, reason = "ELIGIBLE_EVIDENCE_MISSING")
+
+        val observationId = recordObservation(expectedVersion = 4, state = "ACTIVE")
+        expectPending(expectedVersion = 5, reason = "ELIGIBLE_EVIDENCE_MISSING")
+        bindFact(observationId, expectedVersion = 5, state = "ACTIVE")
+        expectAccepted(observationId)
+
+        val mismatchId = recordObservation(expectedVersion = 6, state = "LOCKED")
+        bindFact(mismatchId, expectedVersion = 7, state = "LOCKED")
+        expectPending(expectedVersion = 8, reason = "VALUE_MISMATCH", actualValue = "LOCKED")
+        assertThat(runState(jdbcClient, tenantId, runId)).isEqualTo("VERIFYING:1")
+        assertThat(caseStatus(jdbcClient, tenantId, caseId)).isEqualTo("OPEN")
+    }
+
+    private fun expectPending(
+        expectedVersion: Long,
+        reason: String,
+        actualValue: String? = null,
+    ) {
+        val result =
+            mockMvc
+                .perform(get(RUN_OUTCOME_PROOF_PATH, tenantId, runId))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.pendingReason").value(reason))
+                .andExpect(jsonPath("$.caseStreamVersion").value(expectedVersion))
+                .andExpect(jsonPath("$.fact").value("account.access.state"))
+                .andExpect(jsonPath("$.expectedValue").value("ACTIVE"))
+        if (actualValue == null) {
+            result.andExpect(jsonPath("$.evidence").doesNotExist())
+        } else {
+            result.andExpect(jsonPath("$.evidence.actualValue").value(actualValue))
+        }
+    }
+
+    private fun expectAccepted(observationId: UUID) {
+        mockMvc
+            .perform(get(RUN_OUTCOME_PROOF_PATH, tenantId, runId))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("ACCEPTED"))
+            .andExpect(jsonPath("$.pendingReason").doesNotExist())
+            .andExpect(jsonPath("$.caseStreamVersion").value(6))
+            .andExpect(jsonPath("$.evidence.observationId").value(observationId.toString()))
+            .andExpect(jsonPath("$.evidence.observationStreamVersion").value(5))
+            .andExpect(jsonPath("$.evidence.factStreamVersion").value(6))
+            .andExpect(jsonPath("$.evidence.actualValue").value("ACTIVE"))
+            .andExpect(jsonPath("$.evidence.observedAt").exists())
+            .andExpect(jsonPath("$.evidence.boundAt").exists())
+    }
+
+    private fun recordObservation(
+        expectedVersion: Long,
+        state: String,
+    ): UUID {
+        val streamVersion = expectedVersion + 1
+        mockMvc
+            .perform(
+                post(CONNECTOR_OBSERVATIONS_PATH, tenantId, caseId)
+                    .header("If-Match", "\"$expectedVersion\"")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "connector": "login-probe-stub",
+                          "reference": "accounts/customer-42",
+                          "content": "post-action login probe reports $state"
+                        }
+                        """.trimIndent(),
+                    ),
+            ).andExpect(status().isOk)
+        return jdbcClient
+            .sql(
+                """
+                SELECT observation_id
+                FROM case_timeline_entries
+                WHERE tenant_id = :tenantId AND case_id = :caseId AND stream_version = :streamVersion
+                """.trimIndent(),
+            ).param("tenantId", tenantId)
+            .param("caseId", caseId)
+            .param("streamVersion", streamVersion)
+            .query(UUID::class.java)
+            .single()
+    }
+
+    private fun bindFact(
+        observationId: UUID,
+        expectedVersion: Long,
+        state: String,
+    ) {
+        mockMvc
+            .perform(
+                post(ACCOUNT_ACCESS_FACTS_PATH, tenantId, caseId)
+                    .header("If-Match", "\"$expectedVersion\"")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"observationId":"$observationId","state":"$state"}"""),
+            ).andExpect(status().isOk)
+    }
+}
 
 private fun invokeAndAssertConsumption(
     mockMvc: MockMvc,

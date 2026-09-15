@@ -26,6 +26,24 @@ import kotlin.jvm.optionals.getOrNull
 class PostgresResolutionRunTransitionRepository(
     private val jdbcClient: JdbcClient,
 ) : ResolutionRunTransitionRepository {
+    override fun findState(
+        tenantId: TenantId,
+        runId: ResolutionRunId,
+    ): ResolutionRunStateSnapshot? =
+        jdbcClient
+            .sql(
+                """
+                SELECT run_id, state, version, updated_at
+                FROM resolution_run_states
+                WHERE tenant_id = :tenantId AND run_id = :runId
+                """.trimIndent(),
+            ).param("tenantId", tenantId.value)
+            .param("runId", runId.value)
+            .query(DataClassRowMapper(ResolutionRunStateRow::class.java))
+            .optional()
+            .getOrNull()
+            ?.toSnapshot()
+
     override fun lockState(
         tenantId: TenantId,
         runId: ResolutionRunId,
