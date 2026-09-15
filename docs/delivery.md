@@ -102,9 +102,11 @@ exact evidence as run event sequence two and atomically advances both the run
 and case to `VERIFIED_RESOLVED`. Failed runs can now be explicitly superseded by
 one durable successor that retains operation meaning while recalculating
 evidence and safeguards. Each attempt requires new approval and authorization
-and receives a new provider idempotency key. The next sub-slice should define
-authenticated recovery authority and bounded retry, compensation, or escalation
-policy before exposing recovery publicly.
+and receives a new provider idempotency key. Retry now requires a verified human
+identity with current tenant-wide resolver evidence, and the immutable event
+retains that actor and attestation. The next sub-slice should define bounded
+retry eligibility, compensation, or escalation policy before exposing recovery
+publicly.
 
 ### 5. Adaptive canvas and resolver console
 

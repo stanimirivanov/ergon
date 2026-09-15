@@ -1,9 +1,14 @@
 package org.ergon.controlplane.resolution.application
 
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.identity.application.HumanAuthorityRepository
+import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
+import org.ergon.resolution.domain.ApprovalAuthority
+import org.ergon.resolution.domain.ApprovalAuthorityEvidence
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunPlan
+import org.ergon.resolution.domain.ResolutionRunRetryBasis
 import org.ergon.resolution.domain.ResolutionRunRetryStarted
 import org.ergon.resolution.domain.ResolutionRunStart
 import org.ergon.resolution.domain.ResolutionRunState
@@ -57,6 +62,7 @@ data class ResolutionRunRetryRecords(
     val runs: ResolutionRunRepository,
     val transitions: ResolutionRunTransitionRepository,
     val retries: ResolutionRunRetryRepository,
+    val authorities: HumanAuthorityRepository,
 )
 
 /** Signals that the run is not an unsuperseded failed attempt. */
@@ -67,6 +73,10 @@ class ResolutionRunRetryStateException(
 /** Signals that current planning no longer describes the operation that failed. */
 class ResolutionRunRetryPlanChangedException :
     RuntimeException("current plan changes the failed contract, step, or capability; retry requires the same operation")
+
+/** Signals that the authenticated actor has no current tenant-wide resolver attestation. */
+class CurrentResolutionRecoveryAuthorityNotFoundException :
+    RuntimeException("authenticated actor lacks current resolver authority for resolution recovery")
 
 /** Starts explicit successor attempts without reusing or executing previous authorization. */
 class ResolutionRunRetryService(
@@ -83,12 +93,15 @@ class ResolutionRunRetryService(
      * new attempt retains operation meaning but begins with fresh requirements;
      * no approval, grant, consumption, receipt, or connector call is copied.
      * Replay returns the original successor even if the case has since advanced.
+     * [actorId] must originate from a verified tenant-scoped bearer identity.
      *
      * @throws ResolutionRunNotFoundException when [failedRunId] is absent from [tenantId].
      * @throws ResolutionRunRetryStateException unless the run is `ACTION_FAILED`.
      * @throws ResolutionRunRetryPlanChangedException when the pinned operation changed.
      * @throws ResolutionRunNotReadyException when current evidence is not ready.
      * @throws ResolutionRunPolicyDeniedException when current policy denies the operation.
+     * @throws CurrentResolutionRecoveryAuthorityNotFoundException when the actor lacks
+     *   current tenant-wide resolver evidence.
      * @throws org.ergon.controlplane.cases.application.ConcurrentCaseModificationException
      *   when the supplied positive case version is stale or changes before insert.
      */
@@ -96,14 +109,15 @@ class ResolutionRunRetryService(
         tenantId: UUID,
         failedRunId: UUID,
         expectedCaseVersion: Long,
+        actorId: UUID,
     ): ResolutionRunRetryExecution {
         require(expectedCaseVersion > 0) { "If-Match version must be positive" }
         return transactionRunner.required {
             val scopedTenantId = TenantId(tenantId)
             val scopedRunId = ResolutionRunId(failedRunId)
-            val failedRun =
-                records.runs.find(scopedTenantId, scopedRunId)?.run
-                    ?: throw ResolutionRunNotFoundException(failedRunId)
+            val now = clock.instant()
+            val authorityEvidence = records.requireRecoveryAuthority(scopedTenantId, HumanActorId(actorId), now)
+            val failedRun = records.requireRun(scopedTenantId, scopedRunId)
             val state =
                 checkNotNull(records.transitions.lockState(scopedTenantId, scopedRunId)) {
                     "resolution run current-state projection is missing"
@@ -123,7 +137,7 @@ class ResolutionRunRetryService(
             }
             val plan = records.planning.plan(tenantId, failedRun.caseId.value).toRunPlan(expectedCaseVersion)
             plan.requireSameOperation(failedRun)
-            val (replacement, event) = createRetry(failedRun, state, plan)
+            val (replacement, event) = createRetry(failedRun, state, plan, authorityEvidence, now)
             val storedRun = records.runs.createRetry(scopedTenantId, replacement)
             val recording = records.retries.append(scopedTenantId, event)
             ResolutionRunRetryExecution(storedRun, recording)
@@ -134,16 +148,16 @@ class ResolutionRunRetryService(
         failedRun: ResolutionRunStart,
         state: ResolutionRunStateSnapshot,
         plan: ResolutionRunPlan,
+        authorityEvidence: ApprovalAuthorityEvidence,
+        retriedAt: Instant,
     ): Pair<ResolutionRunStart, ResolutionRunRetryStarted> =
         try {
             val replacement = ResolutionRunStart.retry(runIdentities.next(), failedRun, plan)
             val event =
                 ResolutionRunRetryStarted.start(
                     eventIdentities.next(),
-                    failedRun,
-                    state,
-                    replacement,
-                    clock.instant(),
+                    ResolutionRunRetryBasis(failedRun, state, replacement, authorityEvidence),
+                    retriedAt,
                 )
             replacement to event
         } catch (exception: IllegalArgumentException) {
@@ -151,6 +165,25 @@ class ResolutionRunRetryService(
             throw IllegalStateException("stored resolution retry sources are inconsistent", exception)
         }
 }
+
+private fun ResolutionRunRetryRecords.requireRecoveryAuthority(
+    tenantId: TenantId,
+    actorId: HumanActorId,
+    at: Instant,
+): ApprovalAuthorityEvidence =
+    authorities
+        .findCurrent(
+            tenantId = tenantId,
+            actorId = actorId,
+            authority = ApprovalAuthority.RESOLVER,
+            caseId = null,
+            at = at,
+        )?.evidence ?: throw CurrentResolutionRecoveryAuthorityNotFoundException()
+
+private fun ResolutionRunRetryRecords.requireRun(
+    tenantId: TenantId,
+    runId: ResolutionRunId,
+): ResolutionRunStart = runs.find(tenantId, runId)?.run ?: throw ResolutionRunNotFoundException(runId.value)
 
 private fun ResolutionRunPlan.requireSameOperation(failedRun: ResolutionRunStart) {
     if (contract != failedRun.contract || stepId != failedRun.stepId || capability != failedRun.capability) {

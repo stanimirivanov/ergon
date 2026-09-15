@@ -46,7 +46,7 @@ class ApprovalDecisionApiIntegrationTest(
         val runId = prepareResolutionRun(tenantId)
         val caseId = caseIdForRun(tenantId, runId)
         val requestId = createApprovalRequest(tenantId, runId)
-        val actorId = registerActor(tenantId, "employee-42")
+        val actorId = registerActor(mockMvc, tenantId, "employee-42")
         val evidenceId = attestRequesterAuthority(tenantId, actorId, caseId)
 
         mockMvc
@@ -109,9 +109,9 @@ class ApprovalDecisionApiIntegrationTest(
         val runId = prepareResolutionRun(tenantId)
         val caseId = caseIdForRun(tenantId, runId)
         val requestId = createApprovalRequest(tenantId, runId)
-        val actorId = registerActor(tenantId, "employee-99")
+        val actorId = registerActor(mockMvc, tenantId, "employee-99")
         val otherTenantId = UUID.randomUUID()
-        registerActor(otherTenantId, "employee-99")
+        registerActor(mockMvc, otherTenantId, "employee-99")
 
         mockMvc
             .perform(decide(otherTenantId, requestId, "employee-99", "APPROVED"))
@@ -148,7 +148,7 @@ class ApprovalDecisionApiIntegrationTest(
         val runId = prepareResolutionRun(tenantId)
         val caseId = caseIdForRun(tenantId, runId)
         val requestId = createApprovalRequest(tenantId, runId)
-        val actorId = registerActor(tenantId, "employee-authorization")
+        val actorId = registerActor(mockMvc, tenantId, "employee-authorization")
         attestRequesterAuthority(tenantId, actorId, caseId)
 
         mockMvc
@@ -173,7 +173,7 @@ class ApprovalDecisionApiIntegrationTest(
         val runId = prepareResolutionRun(tenantId)
         val caseId = caseIdForRun(tenantId, runId)
         val requestId = createApprovalRequest(tenantId, runId)
-        val actorId = registerActor(tenantId, "employee-unavailable-connector")
+        val actorId = registerActor(mockMvc, tenantId, "employee-unavailable-connector")
         attestRequesterAuthority(tenantId, actorId, caseId)
         mockMvc
             .perform(decide(tenantId, requestId, "employee-unavailable-connector", "APPROVED"))
@@ -209,13 +209,14 @@ class ApprovalDecisionApiIntegrationTest(
     @Test
     fun `failed action starts one explicit successor with fresh authorization requirements`() {
         val tenantId = UUID.randomUUID()
+        val retrySubject = "employee-retry"
         val failedRunId = prepareResolutionRun(tenantId)
         val caseId = caseIdForRun(tenantId, failedRunId)
         val requestId = createApprovalRequest(tenantId, failedRunId)
-        val actorId = registerActor(tenantId, "employee-retry")
+        val actorId = registerActor(mockMvc, tenantId, retrySubject)
         attestRequesterAuthority(tenantId, actorId, caseId)
         mockMvc
-            .perform(decide(tenantId, requestId, "employee-retry", "APPROVED"))
+            .perform(decide(tenantId, requestId, retrySubject, "APPROVED"))
             .andExpect(status().isCreated)
         val decisionId = decisionIdForRequest(tenantId, requestId)
         val grantId = createAndAssertAuthorizationGrant(tenantId, decisionId, requestId, failedRunId, caseId)
@@ -237,7 +238,12 @@ class ApprovalDecisionApiIntegrationTest(
             .perform(post(RUN_CAPABILITY_RESULTS_PATH, tenantId, failedRunId))
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.toState").value("ACTION_FAILED"))
-        assertExplicitRetry(mockMvc, jdbcClient, FailedRunRetryContext(tenantId, failedRunId, caseId))
+
+        assertAuthorizedRetryBoundary(
+            mockMvc,
+            jdbcClient,
+            RetryAuthorityBoundaryContext(tenantId, failedRunId, caseId, retrySubject, actorId),
+        )
     }
 
     private fun createAndAssertAuthorizationGrant(
@@ -560,21 +566,6 @@ class ApprovalDecisionApiIntegrationTest(
             .query(OffsetDateTime::class.java)
             .single()
             .toInstant()
-
-    private fun registerActor(
-        tenantId: UUID,
-        subject: String,
-    ): UUID {
-        val response =
-            mockMvc
-                .perform(
-                    post(HUMAN_ACTORS_PATH, tenantId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""{"identityProvider":"workforce-sso","subject":"$subject"}"""),
-                ).andExpect(status().isCreated)
-                .andReturn()
-        return UUID.fromString(requireNotNull(response.response.getHeader("Location")).substringAfterLast('/'))
-    }
 
     private fun attestRequesterAuthority(
         tenantId: UUID,
@@ -992,10 +983,135 @@ private class OutcomeProofApiFixture(
     }
 }
 
+private fun registerActor(
+    mockMvc: MockMvc,
+    tenantId: UUID,
+    subject: String,
+): UUID {
+    val response =
+        mockMvc
+            .perform(
+                post(HUMAN_ACTORS_PATH, tenantId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"identityProvider":"workforce-sso","subject":"$subject"}"""),
+            ).andExpect(status().isCreated)
+            .andReturn()
+    return UUID.fromString(requireNotNull(response.response.getHeader("Location")).substringAfterLast('/'))
+}
+
+private fun assertAuthorizedRetryBoundary(
+    mockMvc: MockMvc,
+    jdbcClient: JdbcClient,
+    context: RetryAuthorityBoundaryContext,
+) {
+    mockMvc
+        .perform(post(RUN_RETRIES_PATH, context.tenantId, context.failedRunId).header("If-Match", "\"4\""))
+        .andExpect(status().isUnauthorized)
+    expectRecoveryAuthorityNotFound(mockMvc, context.tenantId, context.failedRunId, context.subject)
+    insertExpiredResolverAuthority(jdbcClient, context.tenantId, context.actorId)
+    expectRecoveryAuthorityNotFound(mockMvc, context.tenantId, context.failedRunId, context.subject)
+
+    val resolverEvidenceId = attestResolverAuthority(mockMvc, context.tenantId, context.actorId)
+    val otherTenantId = UUID.randomUUID()
+    val otherTenantActorId = registerActor(mockMvc, otherTenantId, context.subject)
+    attestResolverAuthority(mockMvc, otherTenantId, otherTenantActorId)
+    assertExplicitRetry(
+        mockMvc,
+        jdbcClient,
+        FailedRunRetryContext(
+            context.tenantId,
+            context.failedRunId,
+            context.caseId,
+            context.subject,
+            context.actorId,
+            resolverEvidenceId,
+            otherTenantId,
+        ),
+    )
+}
+
+private data class RetryAuthorityBoundaryContext(
+    val tenantId: UUID,
+    val failedRunId: UUID,
+    val caseId: UUID,
+    val subject: String,
+    val actorId: UUID,
+)
+
+private fun expectRecoveryAuthorityNotFound(
+    mockMvc: MockMvc,
+    tenantId: UUID,
+    failedRunId: UUID,
+    subject: String,
+) {
+    mockMvc
+        .perform(retry(tenantId, failedRunId, subject, 4))
+        .andExpect(status().isForbidden)
+        .andExpect(
+            jsonPath("$.type")
+                .value("urn:ergon:problem:current-resolution-recovery-authority-not-found"),
+        )
+}
+
+private fun attestResolverAuthority(
+    mockMvc: MockMvc,
+    tenantId: UUID,
+    actorId: UUID,
+): UUID {
+    val expiresAt = Instant.now().plus(10, ChronoUnit.MINUTES)
+    val response =
+        mockMvc
+            .perform(
+                post(AUTHORITY_EVIDENCE_PATH, tenantId, actorId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "authority": "RESOLVER",
+                          "sourceProvider": "workforce-sso",
+                          "sourceReference": "groups/resolvers",
+                          "expiresAt": "$expiresAt"
+                        }
+                        """.trimIndent(),
+                    ),
+            ).andExpect(status().isCreated)
+            .andReturn()
+    return UUID.fromString(requireNotNull(response.response.getHeader("Location")).substringAfterLast('/'))
+}
+
+private fun insertExpiredResolverAuthority(
+    jdbcClient: JdbcClient,
+    tenantId: UUID,
+    actorId: UUID,
+) {
+    val now = OffsetDateTime.now(ZoneOffset.UTC)
+    jdbcClient
+        .sql(
+            """
+            INSERT INTO approval_authority_evidence (
+                tenant_id, evidence_id, actor_id, authority,
+                source_provider, source_reference, attested_at, expires_at
+            ) VALUES (
+                :tenantId, :evidenceId, :actorId, 'RESOLVER',
+                'workforce-sso', 'groups/expired-resolvers', :attestedAt, :expiresAt
+            )
+            """.trimIndent(),
+        ).param("tenantId", tenantId)
+        .param("evidenceId", UUID.randomUUID())
+        .param("actorId", actorId)
+        .param("attestedAt", now.minusMinutes(20))
+        .param("expiresAt", now.minusMinutes(10))
+        .update()
+}
+
 private data class FailedRunRetryContext(
     val tenantId: UUID,
     val failedRunId: UUID,
     val caseId: UUID,
+    val subject: String,
+    val actorId: UUID,
+    val authorityEvidenceId: UUID,
+    val otherTenantId: UUID,
 )
 
 private fun assertExplicitRetry(
@@ -1016,10 +1132,10 @@ private fun assertRetryRejections(
     context: FailedRunRetryContext,
 ) {
     mockMvc
-        .perform(post(RUN_RETRIES_PATH, UUID.randomUUID(), context.failedRunId).header("If-Match", "\"4\""))
+        .perform(retry(context.otherTenantId, context.failedRunId, context.subject, 4))
         .andExpect(status().isNotFound)
     mockMvc
-        .perform(post(RUN_RETRIES_PATH, context.tenantId, context.failedRunId).header("If-Match", "\"3\""))
+        .perform(retry(context.tenantId, context.failedRunId, context.subject, 3))
         .andExpect(status().isPreconditionFailed)
         .andExpect(jsonPath("$.type").value("urn:ergon:problem:stale-case-version"))
     assertThat(runCountForCase(jdbcClient, context.tenantId, context.caseId)).isEqualTo(1)
@@ -1033,12 +1149,14 @@ private fun startRetryAndAssert(
 ): UUID {
     val result =
         mockMvc
-            .perform(post(RUN_RETRIES_PATH, context.tenantId, context.failedRunId).header("If-Match", "\"4\""))
+            .perform(retry(context.tenantId, context.failedRunId, context.subject, 4))
             .andExpect(status().isCreated)
             .andExpect(header().exists("Location"))
             .andExpect(jsonPath("$.failedRunId").value(context.failedRunId.toString()))
             .andExpect(jsonPath("$.failedRunState").value("SUPERSEDED"))
             .andExpect(jsonPath("$.failedRunStateVersion").value(2))
+            .andExpect(jsonPath("$.requestedByActorId").value(context.actorId.toString()))
+            .andExpect(jsonPath("$.authorityEvidenceId").value(context.authorityEvidenceId.toString()))
             .andExpect(jsonPath("$.replacementRun.attemptNumber").value(2))
             .andExpect(jsonPath("$.replacementRun.predecessorRunId").value(context.failedRunId.toString()))
             .andExpect(jsonPath("$.replacementRun.initialState").value("WAITING_FOR_APPROVAL"))
@@ -1052,11 +1170,11 @@ private fun assertRetryReplay(
     replacementRunId: UUID,
 ) {
     mockMvc
-        .perform(post(RUN_RETRIES_PATH, context.tenantId, context.failedRunId).header("If-Match", "\"4\""))
+        .perform(retry(context.tenantId, context.failedRunId, context.subject, 4))
         .andExpect(status().isOk)
         .andExpect(jsonPath("$.replacementRun.runId").value(replacementRunId.toString()))
     mockMvc
-        .perform(post(RUN_RETRIES_PATH, context.tenantId, replacementRunId).header("If-Match", "\"4\""))
+        .perform(retry(context.tenantId, replacementRunId, context.subject, 4))
         .andExpect(status().isConflict)
         .andExpect(jsonPath("$.type").value("urn:ergon:problem:resolution-run-not-retryable"))
         .andExpect(jsonPath("$.state").value("WAITING_FOR_APPROVAL"))
@@ -1100,16 +1218,22 @@ private fun assertRetryPersistence(
         jdbcClient
             .sql(
                 """
-                SELECT replacement_run_id
+                SELECT replacement_run_id, retry_actor_id, retry_authority_evidence_id
                 FROM resolution_run_events
                 WHERE tenant_id = :tenantId AND run_id = :failedRunId
                     AND sequence = 2 AND event_type = 'RETRY_STARTED'
                 """.trimIndent(),
             ).param("tenantId", context.tenantId)
             .param("failedRunId", context.failedRunId)
-            .query(UUID::class.java)
-            .single()
-    assertThat(linkedReplacement).isEqualTo(replacementRunId)
+            .query { row, _ ->
+                Triple(
+                    row.getObject("replacement_run_id", UUID::class.java),
+                    row.getObject("retry_actor_id", UUID::class.java),
+                    row.getObject("retry_authority_evidence_id", UUID::class.java),
+                )
+            }.single()
+    assertThat(linkedReplacement)
+        .isEqualTo(Triple(replacementRunId, context.actorId, context.authorityEvidenceId))
     assertThatThrownBy {
         jdbcClient
             .sql(
@@ -1123,6 +1247,19 @@ private fun assertRetryPersistence(
             .update()
     }.isInstanceOf(DataAccessException::class.java)
 }
+
+private fun retry(
+    tenantId: UUID,
+    runId: UUID,
+    subject: String,
+    expectedCaseVersion: Long,
+) = post(RUN_RETRIES_PATH, tenantId, runId)
+    .with(
+        jwt().jwt {
+            it.issuer(TRUSTED_ISSUER)
+            it.subject(subject)
+        },
+    ).header("If-Match", "\"$expectedCaseVersion\"")
 
 private fun assertRetryOperationMeaningConstrained(
     jdbcClient: JdbcClient,

@@ -93,20 +93,24 @@ Automated retries, compensation, and proof conditions beyond
 
 Call
 `POST /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/retries` with the
-current quoted case version in `If-Match`. Only an `ACTION_FAILED` run at event
-sequence one can start a retry. The first call returns `201` and the successor
-location; replay returns the same successor with `200`.
+current quoted case version in `If-Match` and a valid human bearer token. The
+authenticated actor must have a current tenant-wide `RESOLVER` attestation.
+Requester authority, expired evidence, and an identity registered only in
+another tenant grant nothing. Only an `ACTION_FAILED` run at event sequence one
+can start a retry. The first call returns `201` and the successor location;
+replay returns the same successor with `200`.
 
 A retry is a new immutable run, not a second receipt on the failed run. The
-transaction freezes the current case and policy plan, inserts attempt `n + 1`,
-appends `RETRY_STARTED` to attempt `n`, and marks the predecessor `SUPERSEDED`.
+transaction freezes the current resolver evidence, case, and policy plan,
+inserts attempt `n + 1`, appends an actor-attributed `RETRY_STARTED` to attempt
+`n`, and marks the predecessor `SUPERSEDED`.
 The contract revision, step, and capability must remain identical; a changed
 operation requires later replanning semantics instead of being called a retry.
 
 The successor copies no approval, grant, consumption, receipt, or provider
 idempotency key. It starts again in its policy-derived requirement state. This
-internal command neither schedules nor invokes work and is not yet an
-authenticated operator API. Retry eligibility, backoff, attempt limits,
+authenticated internal command neither schedules nor invokes work. Retry
+eligibility, backoff, attempt limits,
 compensation, and terminal escalation remain separate policy capabilities.
 
 For `WAITING_FOR_APPROVAL`, the separate [approval request](approvals.md) API
