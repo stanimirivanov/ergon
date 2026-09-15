@@ -104,9 +104,10 @@ one durable successor that retains operation meaning while recalculating
 evidence and safeguards. Each attempt requires new approval and authorization
 and receives a new provider idempotency key. Retry now requires a verified human
 identity with current tenant-wide resolver evidence, and the immutable event
-retains that actor and attestation. The next sub-slice should define bounded
-retry eligibility, compensation, or escalation policy before exposing recovery
-publicly.
+retains that actor and attestation. Retry eligibility now has a versioned ceiling
+of two total attempts, frozen on each new retry event; exhausted failures remain
+open without another successor. The next sub-slice should define explicit
+terminal escalation or compensation policy before exposing recovery publicly.
 
 ### 5. Adaptive canvas and resolver console
 

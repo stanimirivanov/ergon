@@ -6,6 +6,10 @@ import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthority
 import org.ergon.resolution.domain.ApprovalAuthorityEvidence
+import org.ergon.resolution.domain.ResolutionRetryDenialReason
+import org.ergon.resolution.domain.ResolutionRetryEligibility
+import org.ergon.resolution.domain.ResolutionRetryPolicy
+import org.ergon.resolution.domain.ResolutionRetryPolicyRevision
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunPlan
 import org.ergon.resolution.domain.ResolutionRunRetryBasis
@@ -74,6 +78,16 @@ class ResolutionRunRetryStateException(
 class ResolutionRunRetryPlanChangedException :
     RuntimeException("current plan changes the failed contract, step, or capability; retry requires the same operation")
 
+/** Signals that the exact retry policy revision refuses another successor. */
+class ResolutionRunRetryLimitReachedException(
+    val policyRevision: ResolutionRetryPolicyRevision,
+    val sourceAttemptNumber: Int,
+    val maximumAttempts: Int,
+    val reason: ResolutionRetryDenialReason,
+) : RuntimeException(
+        "retry policy ${policyRevision.value} denies a successor after attempt $sourceAttemptNumber: ${reason.name}",
+    )
+
 /** Signals that the authenticated actor has no current tenant-wide resolver attestation. */
 class CurrentResolutionRecoveryAuthorityNotFoundException :
     RuntimeException("authenticated actor lacks current resolver authority for resolution recovery")
@@ -83,6 +97,7 @@ class ResolutionRunRetryService(
     private val records: ResolutionRunRetryRecords,
     private val runIdentities: ResolutionRunIdentityGenerator,
     private val eventIdentities: ResolutionRunEventIdentityGenerator,
+    private val retryPolicy: ResolutionRetryPolicy,
     private val transactionRunner: TransactionRunner,
     private val clock: Clock,
 ) {
@@ -98,6 +113,8 @@ class ResolutionRunRetryService(
      * @throws ResolutionRunNotFoundException when [failedRunId] is absent from [tenantId].
      * @throws ResolutionRunRetryStateException unless the run is `ACTION_FAILED`.
      * @throws ResolutionRunRetryPlanChangedException when the pinned operation changed.
+     * @throws ResolutionRunRetryLimitReachedException when the retry policy has
+     *   reached its total attempt limit.
      * @throws ResolutionRunNotReadyException when current evidence is not ready.
      * @throws ResolutionRunPolicyDeniedException when current policy denies the operation.
      * @throws CurrentResolutionRecoveryAuthorityNotFoundException when the actor lacks
@@ -135,36 +152,45 @@ class ResolutionRunRetryService(
             if (state.state != ResolutionRunState.ACTION_FAILED || state.version != 1L) {
                 throw ResolutionRunRetryStateException(state.state.name)
             }
+            val eligibility = retryPolicy.requireEligible(failedRun.attemptNumber)
             val plan = records.planning.plan(tenantId, failedRun.caseId.value).toRunPlan(expectedCaseVersion)
             plan.requireSameOperation(failedRun)
-            val (replacement, event) = createRetry(failedRun, state, plan, authorityEvidence, now)
+            val (replacement, event) =
+                try {
+                    val replacement = ResolutionRunStart.retry(runIdentities.next(), failedRun, plan)
+                    val event =
+                        ResolutionRunRetryStarted.start(
+                            eventIdentities.next(),
+                            ResolutionRunRetryBasis(failedRun, state, replacement, authorityEvidence, eligibility),
+                            now,
+                        )
+                    replacement to event
+                } catch (exception: IllegalArgumentException) {
+                    // Durable inputs disagree only when storage or an internal port broke their contracts.
+                    throw IllegalStateException("stored resolution retry sources are inconsistent", exception)
+                }
             val storedRun = records.runs.createRetry(scopedTenantId, replacement)
             val recording = records.retries.append(scopedTenantId, event)
             ResolutionRunRetryExecution(storedRun, recording)
         }
     }
-
-    private fun createRetry(
-        failedRun: ResolutionRunStart,
-        state: ResolutionRunStateSnapshot,
-        plan: ResolutionRunPlan,
-        authorityEvidence: ApprovalAuthorityEvidence,
-        retriedAt: Instant,
-    ): Pair<ResolutionRunStart, ResolutionRunRetryStarted> =
-        try {
-            val replacement = ResolutionRunStart.retry(runIdentities.next(), failedRun, plan)
-            val event =
-                ResolutionRunRetryStarted.start(
-                    eventIdentities.next(),
-                    ResolutionRunRetryBasis(failedRun, state, replacement, authorityEvidence),
-                    retriedAt,
-                )
-            replacement to event
-        } catch (exception: IllegalArgumentException) {
-            // All inputs were validated durable records; disagreement is an internal integrity failure.
-            throw IllegalStateException("stored resolution retry sources are inconsistent", exception)
-        }
 }
+
+private fun ResolutionRetryPolicy.requireEligible(sourceAttemptNumber: Int): ResolutionRetryEligibility.Eligible =
+    when (val decision = evaluate(sourceAttemptNumber)) {
+        is ResolutionRetryEligibility.Eligible -> {
+            decision
+        }
+
+        is ResolutionRetryEligibility.Denied -> {
+            throw ResolutionRunRetryLimitReachedException(
+                decision.revision,
+                decision.sourceAttemptNumber,
+                decision.maximumAttempts,
+                decision.reason,
+            )
+        }
+    }
 
 private fun ResolutionRunRetryRecords.requireRecoveryAuthority(
     tenantId: TenantId,

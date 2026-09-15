@@ -113,7 +113,8 @@ contract pins in PostgreSQL. Its current APIs are:
   one transaction; replay returns the original acceptance.
 - `POST /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/retries`
   requires an authenticated actor with current tenant-wide resolver authority
-  and starts or replays the failed run's attributed successor.
+  and starts or replays the failed run's attributed successor, subject to a
+  versioned ceiling of two total attempts.
 
 Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
@@ -122,7 +123,7 @@ authentication; the remaining endpoints retain a temporary development boundary
 and must not be exposed as though tenant IDs were authorization. Capability-route
 provisioning,
 automatic selection, AI-assisted binding, broader fact types, real connector
-credentials, bounded recovery policy, autonomous retries, compensation,
+credentials, failure classification and backoff, autonomous retries, compensation,
 and broader proof conditions remain later delivery steps. The predecessor
 services remain in the reactor while behavior is replaced incrementally.
 

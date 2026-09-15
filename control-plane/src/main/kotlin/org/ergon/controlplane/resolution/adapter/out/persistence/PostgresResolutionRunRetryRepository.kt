@@ -6,6 +6,8 @@ import org.ergon.controlplane.resolution.application.StoredResolutionRunRetry
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
+import org.ergon.resolution.domain.ResolutionRetryEligibility
+import org.ergon.resolution.domain.ResolutionRetryPolicyRevision
 import org.ergon.resolution.domain.ResolutionRunEventId
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunRetryAuthorization
@@ -36,7 +38,8 @@ class PostgresResolutionRunRetryRepository(
                 SELECT
                     event_id, run_id, sequence, from_state, to_state,
                     occurred_at, replacement_run_id, retry_actor_id,
-                    retry_authority_evidence_id, recorded_at
+                    retry_authority_evidence_id, retry_policy_revision,
+                    retry_source_attempt_number, retry_maximum_attempts, recorded_at
                 FROM resolution_run_events
                 WHERE tenant_id = :tenantId AND run_id = :runId
                     AND event_type = 'RETRY_STARTED'
@@ -71,11 +74,15 @@ class PostgresResolutionRunRetryRepository(
                 INSERT INTO resolution_run_events (
                     tenant_id, run_id, sequence, event_id, event_type,
                     from_state, to_state, replacement_run_id, occurred_at,
-                    retry_actor_id, retry_authority_evidence_id
+                    retry_actor_id, retry_authority_evidence_id,
+                    retry_policy_revision, retry_source_attempt_number,
+                    retry_maximum_attempts
                 ) VALUES (
                     :tenantId, :runId, :sequence, :eventId, 'RETRY_STARTED',
                     :fromState, :toState, :replacementRunId, :occurredAt,
-                    :retryActorId, :retryAuthorityEvidenceId
+                    :retryActorId, :retryAuthorityEvidenceId,
+                    :retryPolicyRevision, :retrySourceAttemptNumber,
+                    :retryMaximumAttempts
                 )
                 RETURNING recorded_at
                 """.trimIndent(),
@@ -89,6 +96,9 @@ class PostgresResolutionRunRetryRepository(
             .param("occurredAt", event.occurredAt.atOffset(ZoneOffset.UTC))
             .param("retryActorId", event.authorization?.actorId?.value)
             .param("retryAuthorityEvidenceId", event.authorization?.authorityEvidenceId?.value)
+            .param("retryPolicyRevision", event.eligibility?.revision?.value)
+            .param("retrySourceAttemptNumber", event.eligibility?.sourceAttemptNumber)
+            .param("retryMaximumAttempts", event.eligibility?.maximumAttempts)
             .query(OffsetDateTime::class.java)
             .single()
 
@@ -135,6 +145,7 @@ private fun ResolutionRunRetryRow.toStoredRetry(): StoredResolutionRunRetry =
                     ResolutionRunState.valueOf(fromState),
                     ResolutionRunState.valueOf(toState),
                     retryAuthorization(),
+                    retryEligibility(),
                     occurredAt.toInstant(),
                 ),
             ),
@@ -153,6 +164,9 @@ private data class ResolutionRunRetryRow(
     val toState: String,
     val retryActorId: UUID?,
     val retryAuthorityEvidenceId: UUID?,
+    val retryPolicyRevision: String?,
+    val retrySourceAttemptNumber: Int?,
+    val retryMaximumAttempts: Int?,
     val occurredAt: OffsetDateTime,
     val recordedAt: OffsetDateTime,
 ) {
@@ -165,6 +179,25 @@ private data class ResolutionRunRetryRow(
             ResolutionRunRetryAuthorization(
                 HumanActorId(retryActorId),
                 ApprovalAuthorityEvidenceId(retryAuthorityEvidenceId),
+            )
+        }
+
+    fun retryEligibility() =
+        if (
+            retryPolicyRevision == null &&
+            retrySourceAttemptNumber == null &&
+            retryMaximumAttempts == null
+        ) {
+            null
+        } else {
+            ResolutionRetryEligibility.Eligible(
+                ResolutionRetryPolicyRevision.of(
+                    requireNotNull(retryPolicyRevision) {
+                        "stored retry policy revision is missing"
+                    },
+                ),
+                requireNotNull(retrySourceAttemptNumber) { "stored retry source attempt is missing" },
+                requireNotNull(retryMaximumAttempts) { "stored retry maximum attempts is missing" },
             )
         }
 }

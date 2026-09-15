@@ -4,6 +4,7 @@ import org.ergon.controlplane.cases.application.ConcurrentCaseModificationExcept
 import org.ergon.controlplane.resolution.application.ResolutionRunNotFoundException
 import org.ergon.controlplane.resolution.application.ResolutionRunNotReadyException
 import org.ergon.controlplane.resolution.application.ResolutionRunPolicyDeniedException
+import org.ergon.controlplane.resolution.application.ResolutionRunRetryLimitReachedException
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryPlanChangedException
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryStateException
 import org.springframework.http.HttpStatus
@@ -32,6 +33,20 @@ class ResolutionRunRetryExceptionHandler {
     @ExceptionHandler(ResolutionRunRetryPlanChangedException::class)
     fun retryPlanChanged(exception: ResolutionRunRetryPlanChangedException): ProblemDetail =
         problem(HttpStatus.CONFLICT, "resolution-run-retry-plan-changed", "Retry operation changed", exception)
+
+    @ExceptionHandler(ResolutionRunRetryLimitReachedException::class)
+    fun retryLimitReached(exception: ResolutionRunRetryLimitReachedException): ProblemDetail =
+        problem(
+            HttpStatus.CONFLICT,
+            "resolution-run-retry-attempt-limit-reached",
+            "Retry attempt limit reached",
+            exception,
+        ).apply {
+            setProperty("policyRevision", exception.policyRevision.value)
+            setProperty("sourceAttemptNumber", exception.sourceAttemptNumber)
+            setProperty("maximumAttempts", exception.maximumAttempts)
+            setProperty("reason", exception.reason.name)
+        }
 
     @ExceptionHandler(ResolutionRunNotReadyException::class)
     fun runNotReady(exception: ResolutionRunNotReadyException): ProblemDetail =

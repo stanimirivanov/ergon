@@ -19,6 +19,7 @@ class ResolutionRunRetryTest {
     @Test
     fun `retry creates a distinct next attempt with fresh safeguards`() {
         val replacement = ResolutionRunStart.retry(REPLACEMENT_RUN_ID, failedRun(), plan())
+        val eligibility = retryPolicy().evaluate(1) as ResolutionRetryEligibility.Eligible
 
         assertThat(replacement.attemptNumber).isEqualTo(2)
         assertThat(replacement.predecessorRunId).isEqualTo(FAILED_RUN_ID)
@@ -27,7 +28,7 @@ class ResolutionRunRetryTest {
         val event =
             ResolutionRunRetryStarted.start(
                 EVENT_ID,
-                ResolutionRunRetryBasis(failedRun(), failedState(), replacement, resolverEvidence()),
+                ResolutionRunRetryBasis(failedRun(), failedState(), replacement, resolverEvidence(), eligibility),
                 RETRIED_AT,
             )
         assertThat(event.sequence).isEqualTo(2)
@@ -36,6 +37,77 @@ class ResolutionRunRetryTest {
         assertThat(event.replacementRunId).isEqualTo(REPLACEMENT_RUN_ID)
         assertThat(event.authorization)
             .isEqualTo(ResolutionRunRetryAuthorization(RESOLVER_ACTOR_ID, RESOLVER_EVIDENCE_ID))
+        assertThat(event.eligibility).isEqualTo(eligibility)
+    }
+
+    @Test
+    fun `retry policy permits only attempts below its total limit`() {
+        assertThat(retryPolicy().evaluate(1))
+            .isEqualTo(ResolutionRetryEligibility.Eligible(RETRY_POLICY_REVISION, 1, 2))
+        assertThat(retryPolicy().evaluate(2))
+            .isEqualTo(
+                ResolutionRetryEligibility.Denied(
+                    RETRY_POLICY_REVISION,
+                    2,
+                    2,
+                    ResolutionRetryDenialReason.ATTEMPT_LIMIT_REACHED,
+                ),
+            )
+    }
+
+    @Test
+    fun `a maximum of one disables successors and higher attempts remain denied`() {
+        val noRetryPolicy = ResolutionRetryPolicy.define(RETRY_POLICY_REVISION, maximumAttempts = 1)
+        assertThat(noRetryPolicy.evaluate(1)).isInstanceOf(ResolutionRetryEligibility.Denied::class.java)
+        assertThat(retryPolicy().evaluate(3)).isInstanceOf(ResolutionRetryEligibility.Denied::class.java)
+    }
+
+    @Test
+    fun `retry policy rejects invalid limits and attempt positions`() {
+        assertThatThrownBy { ResolutionRetryPolicy.define(RETRY_POLICY_REVISION, maximumAttempts = 0) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { retryPolicy().evaluate(0) }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { ResolutionRetryEligibility.Eligible(RETRY_POLICY_REVISION, 2, 2) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+    @Test
+    fun `legacy retry rehydration does not invent an eligibility decision`() {
+        val event =
+            ResolutionRunRetryStarted.rehydrate(
+                ResolutionRunRetrySnapshot(
+                    EVENT_ID,
+                    FAILED_RUN_ID,
+                    REPLACEMENT_RUN_ID,
+                    2,
+                    ResolutionRunState.ACTION_FAILED,
+                    ResolutionRunState.SUPERSEDED,
+                    authorization = null,
+                    eligibility = null,
+                    RETRIED_AT,
+                ),
+            )
+        assertThat(event.eligibility).isNull()
+        assertThat(event.authorization).isNull()
+    }
+
+    @Test
+    fun `retry event rejects eligibility evaluated for another attempt`() {
+        val replacement = ResolutionRunStart.retry(REPLACEMENT_RUN_ID, failedRun(), plan())
+        assertThatThrownBy {
+            ResolutionRunRetryStarted.start(
+                EVENT_ID,
+                ResolutionRunRetryBasis(
+                    failedRun(),
+                    failedState(),
+                    replacement,
+                    resolverEvidence(),
+                    ResolutionRetryEligibility.Eligible(RETRY_POLICY_REVISION, 2, 3),
+                ),
+                RETRIED_AT,
+            )
+        }.isInstanceOf(IllegalArgumentException::class.java)
+            .hasMessage("retry eligibility belongs to another source attempt")
     }
 
     @Test
@@ -62,6 +134,7 @@ class ResolutionRunRetryTest {
                     failedState().copy(state = ResolutionRunState.VERIFYING),
                     replacement,
                     resolverEvidence(),
+                    retryPolicy().evaluate(1) as ResolutionRetryEligibility.Eligible,
                 ),
                 RETRIED_AT,
             )
@@ -112,6 +185,8 @@ class ResolutionRunRetryTest {
             expiresAt = Instant.parse("2026-09-15T11:00:00Z"),
         )
 
+    private fun retryPolicy() = ResolutionRetryPolicy.define(RETRY_POLICY_REVISION, maximumAttempts = 2)
+
     private companion object {
         val FAILED_RUN_ID = ResolutionRunId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
         val REPLACEMENT_RUN_ID = ResolutionRunId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
@@ -126,6 +201,7 @@ class ResolutionRunRetryTest {
             )
         val ORIGINAL_POLICY = ResolutionPolicyRevision.of("ergon.dev/policy/access-restoration/v1")
         val REVISED_POLICY = ResolutionPolicyRevision.of("ergon.dev/policy/access-restoration/v2")
+        val RETRY_POLICY_REVISION = ResolutionRetryPolicyRevision.of("ergon.dev/policy/resolution-retry/v1")
         val STEP = ResolutionStepId.of("unlock-account")
         val CAPABILITY = CapabilityName.of("identity.account.unlock")
         val RETRIED_AT = Instant.parse("2026-09-15T10:01:00Z")

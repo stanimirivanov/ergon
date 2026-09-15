@@ -21,6 +21,8 @@ import org.ergon.controlplane.resolution.application.ResolutionRunRetryRecords
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryService
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
+import org.ergon.resolution.domain.ResolutionRetryPolicy
+import org.ergon.resolution.domain.ResolutionRetryPolicyRevision
 import org.ergon.resolution.domain.ResolutionRunEventId
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -40,13 +42,28 @@ class ResolutionRunTransitionConfiguration {
     ) = ResolutionRunRetryRecords(planning, runs, transitions, retries, authorities)
 
     @Bean
+    @Suppress("LongParameterList") // Composition roots make dependencies explicit for Spring wiring.
     fun resolutionRunRetryService(
         records: ResolutionRunRetryRecords,
         runIdentities: ResolutionRunIdentityGenerator,
         eventIdentities: ResolutionRunEventIdentityGenerator,
+        retryPolicy: ResolutionRetryPolicy,
         transactionRunner: TransactionRunner,
         clock: Clock,
-    ) = ResolutionRunRetryService(records, runIdentities, eventIdentities, transactionRunner, clock)
+    ) = ResolutionRunRetryService(records, runIdentities, eventIdentities, retryPolicy, transactionRunner, clock)
+
+    /**
+     * Limits the initial recovery slice to one explicit retry.
+     *
+     * The revision is persisted with every new decision so changing this rule
+     * requires an intentional code, documentation, and ADR update.
+     */
+    @Bean
+    fun resolutionRetryPolicy() =
+        ResolutionRetryPolicy.define(
+            ResolutionRetryPolicyRevision.of("ergon.dev/policy/resolution-retry/v1"),
+            maximumAttempts = 2,
+        )
 
     @Bean
     fun resolutionOutcomeCaseCloser(
