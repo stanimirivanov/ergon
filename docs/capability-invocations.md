@@ -18,10 +18,12 @@ terminal result in a second transaction. Concurrent or crash retries can reach
 the connector, but all carry the same idempotency key and therefore address one
 provider operation. Database uniqueness retains one immutable receipt.
 
-The first adapter supports only `identity-stub` with
+The first adapter supports `identity-stub` with
 `identity.account.unlock`. It is deterministic and needs no network or
-credentials. The command carries tenant, run, case, step, capability, and
-connector scope; a general connector-input schema is not yet defined.
+credentials. The local-only `identity-stub-failure` route deterministically
+exercises terminal failure and explicit retry. The command carries tenant, run,
+case, step, capability, and connector scope; a general connector-input schema is
+not yet defined.
 
 Receipts preserve the authorization scope, terminal `SUCCEEDED` or `FAILED`
 outcome, opaque provider reference, completion time, and database recording

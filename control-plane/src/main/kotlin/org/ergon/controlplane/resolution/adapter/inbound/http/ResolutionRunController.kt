@@ -43,7 +43,7 @@ class InvalidRunVersionPreconditionException(
     value: String,
 ) : RuntimeException("If-Match must contain a quoted positive case stream version; received $value")
 
-private fun parseRunVersion(ifMatch: String): Long {
+internal fun parseRunVersion(ifMatch: String): Long {
     val match =
         Regex("^\"([0-9]+)\"$").matchEntire(ifMatch.trim())
             ?: throw InvalidRunVersionPreconditionException(ifMatch)
@@ -69,10 +69,12 @@ data class ResolutionRunStartResponse(
     val effectiveRisk: String,
     val requiredApproval: String,
     val initialState: String,
+    val attemptNumber: Int,
+    val predecessorRunId: UUID?,
     val recordedAt: Instant,
 )
 
-private fun StoredResolutionRunStart.toResponse(): ResolutionRunStartResponse {
+internal fun StoredResolutionRunStart.toResponse(): ResolutionRunStartResponse {
     val snapshot = run
     return ResolutionRunStartResponse(
         runId = snapshot.id.value,
@@ -86,6 +88,8 @@ private fun StoredResolutionRunStart.toResponse(): ResolutionRunStartResponse {
         effectiveRisk = snapshot.effectiveRisk.name,
         requiredApproval = snapshot.requiredApproval.name,
         initialState = snapshot.initialState.name,
+        attemptNumber = snapshot.attemptNumber,
+        predecessorRunId = snapshot.predecessorRunId?.value,
         recordedAt = recordedAt,
     )
 }

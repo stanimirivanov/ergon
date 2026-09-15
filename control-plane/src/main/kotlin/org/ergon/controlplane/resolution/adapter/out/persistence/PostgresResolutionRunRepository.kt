@@ -41,6 +41,9 @@ class PostgresResolutionRunRepository(
         tenantId: TenantId,
         run: ResolutionRunStart,
     ): StoredResolutionRunStart {
+        check(run.predecessorRunId == null && run.attemptNumber == 1) {
+            "initial run creation requires a root attempt"
+        }
         val actualVersion = lockCaseVersion(tenantId, run.caseId)
         if (actualVersion != run.caseStreamVersion) {
             throw ConcurrentCaseModificationException(run.caseStreamVersion, actualVersion)
@@ -52,13 +55,15 @@ class PostgresResolutionRunRepository(
                     INSERT INTO resolution_runs (
                         tenant_id, run_id, case_id, case_stream_version,
                         contract_key, contract_revision, policy_revision,
-                        step_id, capability, effective_risk, required_approval, initial_state
+                        step_id, capability, effective_risk, required_approval, initial_state,
+                        attempt_number, predecessor_run_id
                     ) VALUES (
                         :tenantId, :runId, :caseId, :caseStreamVersion,
                         :contractKey, :contractRevision, :policyRevision,
-                        :stepId, :capability, :effectiveRisk, :requiredApproval, :initialState
+                        :stepId, :capability, :effectiveRisk, :requiredApproval, :initialState,
+                        :attemptNumber, :predecessorRunId
                     )
-                    ON CONFLICT (tenant_id, case_id) DO NOTHING
+                    ON CONFLICT (tenant_id, case_id) WHERE predecessor_run_id IS NULL DO NOTHING
                     RETURNING recorded_at
                     """.trimIndent(),
                 ).param("tenantId", tenantId.value)
@@ -73,6 +78,8 @@ class PostgresResolutionRunRepository(
                 .param("effectiveRisk", run.effectiveRisk.name)
                 .param("requiredApproval", run.requiredApproval.name)
                 .param("initialState", run.initialState.name)
+                .param("attemptNumber", run.attemptNumber)
+                .param("predecessorRunId", run.predecessorRunId?.value)
                 .query(OffsetDateTime::class.java)
                 .optional()
                 .getOrNull()
@@ -88,6 +95,56 @@ class PostgresResolutionRunRepository(
             .param("state", run.initialState.name)
             .param("updatedAt", recordedAt)
             .update()
+        return StoredResolutionRunStart(run, recordedAt.toInstant())
+    }
+
+    override fun createRetry(
+        tenantId: TenantId,
+        run: ResolutionRunStart,
+    ): StoredResolutionRunStart {
+        val predecessorRunId = checkNotNull(run.predecessorRunId) { "retry run must identify its predecessor" }
+        val actualVersion = lockCaseVersion(tenantId, run.caseId)
+        if (actualVersion != run.caseStreamVersion) {
+            throw ConcurrentCaseModificationException(run.caseStreamVersion, actualVersion)
+        }
+        val recordedAt =
+            jdbcClient
+                .sql(
+                    """
+                    INSERT INTO resolution_runs (
+                        tenant_id, run_id, case_id, case_stream_version,
+                        contract_key, contract_revision, policy_revision,
+                        step_id, capability, effective_risk, required_approval, initial_state,
+                        attempt_number, predecessor_run_id
+                    ) VALUES (
+                        :tenantId, :runId, :caseId, :caseStreamVersion,
+                        :contractKey, :contractRevision, :policyRevision,
+                        :stepId, :capability, :effectiveRisk, :requiredApproval, :initialState,
+                        :attemptNumber, :predecessorRunId
+                    )
+                    ON CONFLICT (tenant_id, predecessor_run_id)
+                        WHERE predecessor_run_id IS NOT NULL DO NOTHING
+                    RETURNING recorded_at
+                    """.trimIndent(),
+                ).param("tenantId", tenantId.value)
+                .param("runId", run.id.value)
+                .param("caseId", run.caseId.value)
+                .param("caseStreamVersion", run.caseStreamVersion)
+                .param("contractKey", run.contract.key.value)
+                .param("contractRevision", run.contract.revision.value)
+                .param("policyRevision", run.policyRevision.value)
+                .param("stepId", run.stepId.value)
+                .param("capability", run.capability.value)
+                .param("effectiveRisk", run.effectiveRisk.name)
+                .param("requiredApproval", run.requiredApproval.name)
+                .param("initialState", run.initialState.name)
+                .param("attemptNumber", run.attemptNumber)
+                .param("predecessorRunId", predecessorRunId.value)
+                .query(OffsetDateTime::class.java)
+                .optional()
+                .getOrNull()
+                ?: error("failed run already has a replacement")
+        insertInitialState(tenantId, run, recordedAt)
         return StoredResolutionRunStart(run, recordedAt.toInstant())
     }
 
@@ -110,6 +167,8 @@ class PostgresResolutionRunRepository(
                     effective_risk,
                     required_approval,
                     initial_state,
+                    attempt_number,
+                    predecessor_run_id,
                     recorded_at
                 FROM resolution_runs
                 WHERE tenant_id = :tenantId AND run_id = :runId
@@ -120,6 +179,24 @@ class PostgresResolutionRunRepository(
             .optional()
             .getOrNull()
             ?.toStoredRun()
+
+    private fun insertInitialState(
+        tenantId: TenantId,
+        run: ResolutionRunStart,
+        recordedAt: OffsetDateTime,
+    ) {
+        jdbcClient
+            .sql(
+                """
+                INSERT INTO resolution_run_states (tenant_id, run_id, state, version, updated_at)
+                VALUES (:tenantId, :runId, :state, 0, :updatedAt)
+                """.trimIndent(),
+            ).param("tenantId", tenantId.value)
+            .param("runId", run.id.value)
+            .param("state", run.initialState.name)
+            .param("updatedAt", recordedAt)
+            .update()
+    }
 
     private fun lockCaseVersion(
         tenantId: TenantId,
@@ -159,6 +236,8 @@ class PostgresResolutionRunRepository(
                         effectiveRisk = StepRisk.valueOf(effectiveRisk),
                         requiredApproval = ApprovalRequirement.valueOf(requiredApproval),
                         initialState = ResolutionRunInitialState.valueOf(initialState),
+                        attemptNumber = attemptNumber,
+                        predecessorRunId = predecessorRunId?.let(::ResolutionRunId),
                     ),
                 recordedAt = recordedAt.toInstant(),
             )
@@ -180,5 +259,7 @@ private data class ResolutionRunRow(
     val effectiveRisk: String,
     val requiredApproval: String,
     val initialState: String,
+    val attemptNumber: Int,
+    val predecessorRunId: UUID?,
     val recordedAt: OffsetDateTime,
 )

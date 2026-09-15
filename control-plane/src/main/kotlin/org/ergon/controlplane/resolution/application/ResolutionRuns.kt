@@ -36,6 +36,20 @@ interface ResolutionRunRepository {
         run: ResolutionRunStart,
     ): StoredResolutionRunStart
 
+    /**
+     * Stores [run] as the sole direct successor of its failed predecessor.
+     *
+     * Implementations must lock and compare the case version exactly as for
+     * [create]. The caller owns the predecessor state lock and commits the
+     * corresponding retry event in the same transaction.
+     *
+     * @throws ConcurrentCaseModificationException when the case has advanced.
+     */
+    fun createRetry(
+        tenantId: TenantId,
+        run: ResolutionRunStart,
+    ): StoredResolutionRunStart
+
     /** @return the tenant-scoped run start, or `null` when it is absent. */
     fun find(
         tenantId: TenantId,
@@ -96,23 +110,12 @@ class ResolutionRunService(
         require(expectedCaseVersion > 0) { "If-Match version must be positive" }
         return transactionRunner.required {
             val plan = planningService.plan(tenantId, caseId)
-            plan.requireVersion(expectedCaseVersion)
-            val readiness = plan.requireReady()
-            val planned = plan.requireNextStep()
-            val decision = planned.requireAllowed()
+            val runPlan = plan.toRunPlan(expectedCaseVersion)
             val run =
                 ResolutionRunStart.create(
                     id = identities.next(),
                     caseId = CaseId(caseId),
-                    plan =
-                        ResolutionRunPlan(
-                            caseStreamVersion = expectedCaseVersion,
-                            contract = ResolutionContractIdentity(readiness.contract.key, readiness.contract.revision),
-                            policyRevision = plan.policyRevision,
-                            stepId = planned.step.id,
-                            capability = planned.step.capability,
-                            decision = decision,
-                        ),
+                    plan = runPlan,
                 )
             repository.create(TenantId(tenantId), run)
         }
@@ -153,6 +156,27 @@ private fun PlannedResolutionStep.requireAllowed(): StepPolicyDecision.Requireme
         is StepPolicyDecision.Denied -> throw ResolutionRunPolicyDeniedException(decision.reason.name)
         is StepPolicyDecision.Requirements -> decision
     }
+
+/**
+ * Converts current readiness and policy output into immutable inputs at [expectedVersion].
+ *
+ * @throws ConcurrentCaseModificationException when the plan describes another case version.
+ * @throws ResolutionRunNotReadyException when evidence is incomplete or inapplicable.
+ * @throws ResolutionRunPolicyDeniedException when policy denies the first step.
+ */
+internal fun CaseResolutionPlan.toRunPlan(expectedVersion: Long): ResolutionRunPlan {
+    requireVersion(expectedVersion)
+    val evaluated = requireReady()
+    val planned = requireNextStep()
+    return ResolutionRunPlan(
+        caseStreamVersion = expectedVersion,
+        contract = ResolutionContractIdentity(evaluated.contract.key, evaluated.contract.revision),
+        policyRevision = policyRevision,
+        stepId = planned.step.id,
+        capability = planned.step.capability,
+        decision = planned.requireAllowed(),
+    )
+}
 
 private fun CaseReadiness.statusName(): String =
     when (this) {

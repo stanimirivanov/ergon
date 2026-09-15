@@ -86,8 +86,28 @@ the caller must reassess.
 First acceptance returns `201`. Replay returns `200` with the original event
 and never appends another case closure. Database foreign keys bind the durable
 acceptance to the same tenant, run, case snapshot, observation, fact, and value.
-Retries, failed-action recovery, and proof conditions beyond
+Automated retries, compensation, and proof conditions beyond
 `account.access.state` remain separate capabilities.
+
+## Retry a failed attempt
+
+Call
+`POST /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/retries` with the
+current quoted case version in `If-Match`. Only an `ACTION_FAILED` run at event
+sequence one can start a retry. The first call returns `201` and the successor
+location; replay returns the same successor with `200`.
+
+A retry is a new immutable run, not a second receipt on the failed run. The
+transaction freezes the current case and policy plan, inserts attempt `n + 1`,
+appends `RETRY_STARTED` to attempt `n`, and marks the predecessor `SUPERSEDED`.
+The contract revision, step, and capability must remain identical; a changed
+operation requires later replanning semantics instead of being called a retry.
+
+The successor copies no approval, grant, consumption, receipt, or provider
+idempotency key. It starts again in its policy-derived requirement state. This
+internal command neither schedules nor invokes work and is not yet an
+authenticated operator API. Retry eligibility, backoff, attempt limits,
+compensation, and terminal escalation remain separate policy capabilities.
 
 For `WAITING_FOR_APPROVAL`, the separate [approval request](approvals.md) API
 can append a bounded human-authority request without granting that authority.

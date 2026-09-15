@@ -92,6 +92,11 @@ private object ImmediateTransactionRunner : TransactionRunner {
 }
 
 private object NeverCalledRunRepository : ResolutionRunRepository {
+    override fun createRetry(
+        tenantId: TenantId,
+        run: ResolutionRunStart,
+    ): StoredResolutionRunStart = error("retry must not be persisted")
+
     override fun create(
         tenantId: TenantId,
         run: ResolutionRunStart,

@@ -118,9 +118,9 @@ Only current-actor lookup and approval decisions require bearer authentication;
 the remaining endpoints retain a temporary development boundary and must not be
 exposed as though tenant IDs were authorization. Capability-route provisioning,
 automatic selection, AI-assisted binding, broader fact types, real connector
-credentials, retries, failure recovery, and broader proof conditions remain
-later delivery steps. The predecessor services remain in the reactor
-while behavior is replaced incrementally.
+credentials, authenticated recovery policy, autonomous retries, compensation,
+and broader proof conditions remain later delivery steps. The predecessor
+services remain in the reactor while behavior is replaced incrementally.
 
 ```powershell
 .\mvnw.cmd -B -ntp verify

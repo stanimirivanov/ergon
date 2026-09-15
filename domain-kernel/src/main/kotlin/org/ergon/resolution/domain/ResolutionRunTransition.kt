@@ -16,6 +16,7 @@ enum class ResolutionRunState {
     VERIFYING,
     ACTION_FAILED,
     VERIFIED_RESOLVED,
+    SUPERSEDED,
 }
 
 /** Closed set of append-only run events supported by the first execution slice. */
@@ -23,6 +24,7 @@ enum class ResolutionRunEventType {
     CAPABILITY_SUCCEEDED,
     CAPABILITY_FAILED,
     OUTCOME_PROOF_ACCEPTED,
+    RETRY_STARTED,
 }
 
 /** Current projected run state used as the optimistic append precondition. */

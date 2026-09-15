@@ -72,6 +72,11 @@ class ApprovalRequestServiceTest {
 private class SingleRunRepository(
     private val run: ResolutionRunStart,
 ) : ResolutionRunRepository {
+    override fun createRetry(
+        tenantId: TenantId,
+        run: ResolutionRunStart,
+    ): StoredResolutionRunStart = error("retry creation is not used")
+
     override fun create(
         tenantId: TenantId,
         run: ResolutionRunStart,

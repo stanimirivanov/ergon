@@ -11,9 +11,14 @@ import org.ergon.controlplane.resolution.application.ResolutionOutcomeProofAccep
 import org.ergon.controlplane.resolution.application.ResolutionOutcomeProofAcceptedEventFactory
 import org.ergon.controlplane.resolution.application.ResolutionOutcomeProofAssessmentService
 import org.ergon.controlplane.resolution.application.ResolutionOutcomeProofCompletion
+import org.ergon.controlplane.resolution.application.ResolutionPlanningService
 import org.ergon.controlplane.resolution.application.ResolutionRunCapabilityResultService
 import org.ergon.controlplane.resolution.application.ResolutionRunEventIdentityGenerator
+import org.ergon.controlplane.resolution.application.ResolutionRunIdentityGenerator
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
+import org.ergon.controlplane.resolution.application.ResolutionRunRetryRecords
+import org.ergon.controlplane.resolution.application.ResolutionRunRetryRepository
+import org.ergon.controlplane.resolution.application.ResolutionRunRetryService
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
 import org.ergon.resolution.domain.ResolutionRunEventId
 import org.springframework.context.annotation.Bean
@@ -24,6 +29,23 @@ import java.util.UUID
 /** Wires receipt-backed resolution-run state transitions. */
 @Configuration(proxyBeanMethods = false)
 class ResolutionRunTransitionConfiguration {
+    @Bean
+    fun resolutionRunRetryRecords(
+        planning: ResolutionPlanningService,
+        runs: ResolutionRunRepository,
+        transitions: ResolutionRunTransitionRepository,
+        retries: ResolutionRunRetryRepository,
+    ) = ResolutionRunRetryRecords(planning, runs, transitions, retries)
+
+    @Bean
+    fun resolutionRunRetryService(
+        records: ResolutionRunRetryRecords,
+        runIdentities: ResolutionRunIdentityGenerator,
+        eventIdentities: ResolutionRunEventIdentityGenerator,
+        transactionRunner: TransactionRunner,
+        clock: Clock,
+    ) = ResolutionRunRetryService(records, runIdentities, eventIdentities, transactionRunner, clock)
+
     @Bean
     fun resolutionOutcomeCaseCloser(
         eventStore: CaseEventStore,
