@@ -39,10 +39,10 @@ retry policy, backoff, and recovery authority exist.
 
 Attempt history remains auditable, every external attempt has fresh authority,
 and repeated retry commands return one successor. Existing runs migrate as
-attempt one without rewriting immutable rows. The internal command currently
-accepts any sequence-one `ACTION_FAILED` run; authenticated recovery authority,
-retry eligibility and limits, compensation, escalation, and generalized
-replanning remain later decisions.
+attempt one without rewriting immutable rows. ADR 0026 adds authenticated
+resolver attribution to newly created retry events. Retry eligibility and
+limits, compensation, escalation, and generalized replanning remain later
+decisions.
 
 ## Verification
 

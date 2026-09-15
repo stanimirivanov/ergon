@@ -10,6 +10,7 @@ import org.ergon.contracts.domain.ResolutionContractKey
 import org.ergon.contracts.domain.ResolutionContractRevision
 import org.ergon.contracts.domain.ResolutionStepId
 import org.ergon.contracts.domain.StepRisk
+import org.ergon.identity.domain.HumanActorId
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
@@ -26,15 +27,15 @@ class ResolutionRunRetryTest {
         val event =
             ResolutionRunRetryStarted.start(
                 EVENT_ID,
-                failedRun(),
-                failedState(),
-                replacement,
+                ResolutionRunRetryBasis(failedRun(), failedState(), replacement, resolverEvidence()),
                 RETRIED_AT,
             )
         assertThat(event.sequence).isEqualTo(2)
         assertThat(event.fromState).isEqualTo(ResolutionRunState.ACTION_FAILED)
         assertThat(event.toState).isEqualTo(ResolutionRunState.SUPERSEDED)
         assertThat(event.replacementRunId).isEqualTo(REPLACEMENT_RUN_ID)
+        assertThat(event.authorization)
+            .isEqualTo(ResolutionRunRetryAuthorization(RESOLVER_ACTOR_ID, RESOLVER_EVIDENCE_ID))
     }
 
     @Test
@@ -56,9 +57,12 @@ class ResolutionRunRetryTest {
         assertThatThrownBy {
             ResolutionRunRetryStarted.start(
                 EVENT_ID,
-                failedRun(),
-                failedState().copy(state = ResolutionRunState.VERIFYING),
-                replacement,
+                ResolutionRunRetryBasis(
+                    failedRun(),
+                    failedState().copy(state = ResolutionRunState.VERIFYING),
+                    replacement,
+                    resolverEvidence(),
+                ),
                 RETRIED_AT,
             )
         }.isInstanceOf(IllegalArgumentException::class.java)
@@ -97,10 +101,24 @@ class ResolutionRunRetryTest {
             Instant.parse("2026-09-15T10:00:00Z"),
         )
 
+    private fun resolverEvidence() =
+        ApprovalAuthorityEvidence(
+            id = RESOLVER_EVIDENCE_ID,
+            actorId = RESOLVER_ACTOR_ID,
+            authority = ApprovalAuthority.RESOLVER,
+            caseId = null,
+            source = ApprovalAuthorityEvidenceSource.create("workforce-sso", "groups/resolvers"),
+            attestedAt = Instant.parse("2026-09-15T09:00:00Z"),
+            expiresAt = Instant.parse("2026-09-15T11:00:00Z"),
+        )
+
     private companion object {
         val FAILED_RUN_ID = ResolutionRunId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
         val REPLACEMENT_RUN_ID = ResolutionRunId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
         val EVENT_ID = ResolutionRunEventId(UUID.fromString("44444444-4444-4444-4444-444444444444"))
+        val RESOLVER_ACTOR_ID = HumanActorId(UUID.fromString("55555555-5555-5555-5555-555555555555"))
+        val RESOLVER_EVIDENCE_ID =
+            ApprovalAuthorityEvidenceId(UUID.fromString("66666666-6666-6666-6666-666666666666"))
         val CONTRACT =
             ResolutionContractIdentity(
                 ResolutionContractKey.of("restore-workspace-access"),

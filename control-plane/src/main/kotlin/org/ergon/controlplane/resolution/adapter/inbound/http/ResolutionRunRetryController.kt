@@ -1,8 +1,11 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement
+import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryExecution
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryService
 import org.springframework.http.ResponseEntity
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestHeader
@@ -15,7 +18,9 @@ import java.util.UUID
 /** Internal development boundary for explicitly starting a failed run's successor. */
 @RestController
 @RequestMapping("/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/retries")
+@SecurityRequirement(name = "bearerAuth")
 class ResolutionRunRetryController(
+    private val actors: AuthenticatedHumanActorResolver,
     private val service: ResolutionRunRetryService,
 ) {
     /**
@@ -29,8 +34,10 @@ class ResolutionRunRetryController(
         @PathVariable tenantId: UUID,
         @PathVariable runId: UUID,
         @RequestHeader("If-Match") ifMatch: String,
+        authentication: JwtAuthenticationToken,
     ): ResponseEntity<ResolutionRunRetryResponse> {
-        val result = service.retry(tenantId, runId, parseRunVersion(ifMatch))
+        val actor = actors.resolve(tenantId, authentication)
+        val result = service.retry(tenantId, runId, parseRunVersion(ifMatch), actor.actor.id.value)
         val location =
             URI.create("/internal/v1/tenants/$tenantId/resolution-runs/${result.replacementRun.run.id.value}")
         return if (result.recording.created) {
@@ -49,6 +56,10 @@ data class ResolutionRunRetryResponse(
     val failedRunStateVersion: Long,
     val startedAt: Instant,
     val recordedAt: Instant,
+    /** Actor recorded on the retry event, or `null` only for a legacy unattributed event. */
+    val requestedByActorId: UUID?,
+    /** Resolver attestation recorded on the event, or `null` only for a legacy event. */
+    val authorityEvidenceId: UUID?,
     val replacementRun: ResolutionRunStartResponse,
 )
 
@@ -60,5 +71,13 @@ private fun ResolutionRunRetryExecution.toResponse(): ResolutionRunRetryResponse
         failedRunStateVersion = recording.failedRunState.version,
         startedAt = recording.storedEvent.event.occurredAt,
         recordedAt = recording.storedEvent.recordedAt,
+        requestedByActorId =
+            recording.storedEvent.event.authorization
+                ?.actorId
+                ?.value,
+        authorityEvidenceId =
+            recording.storedEvent.event.authorization
+                ?.authorityEvidenceId
+                ?.value,
         replacementRun = replacementRun.toResponse(),
     )

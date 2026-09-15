@@ -3,9 +3,12 @@ package org.ergon.controlplane.resolution.adapter.out.persistence
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryRecording
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryRepository
 import org.ergon.controlplane.resolution.application.StoredResolutionRunRetry
+import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
+import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
 import org.ergon.resolution.domain.ResolutionRunEventId
 import org.ergon.resolution.domain.ResolutionRunId
+import org.ergon.resolution.domain.ResolutionRunRetryAuthorization
 import org.ergon.resolution.domain.ResolutionRunRetrySnapshot
 import org.ergon.resolution.domain.ResolutionRunRetryStarted
 import org.ergon.resolution.domain.ResolutionRunState
@@ -32,7 +35,8 @@ class PostgresResolutionRunRetryRepository(
                 """
                 SELECT
                     event_id, run_id, sequence, from_state, to_state,
-                    occurred_at, replacement_run_id, recorded_at
+                    occurred_at, replacement_run_id, retry_actor_id,
+                    retry_authority_evidence_id, recorded_at
                 FROM resolution_run_events
                 WHERE tenant_id = :tenantId AND run_id = :runId
                     AND event_type = 'RETRY_STARTED'
@@ -66,10 +70,12 @@ class PostgresResolutionRunRetryRepository(
                 """
                 INSERT INTO resolution_run_events (
                     tenant_id, run_id, sequence, event_id, event_type,
-                    from_state, to_state, replacement_run_id, occurred_at
+                    from_state, to_state, replacement_run_id, occurred_at,
+                    retry_actor_id, retry_authority_evidence_id
                 ) VALUES (
                     :tenantId, :runId, :sequence, :eventId, 'RETRY_STARTED',
-                    :fromState, :toState, :replacementRunId, :occurredAt
+                    :fromState, :toState, :replacementRunId, :occurredAt,
+                    :retryActorId, :retryAuthorityEvidenceId
                 )
                 RETURNING recorded_at
                 """.trimIndent(),
@@ -81,6 +87,8 @@ class PostgresResolutionRunRetryRepository(
             .param("toState", event.toState.name)
             .param("replacementRunId", event.replacementRunId.value)
             .param("occurredAt", event.occurredAt.atOffset(ZoneOffset.UTC))
+            .param("retryActorId", event.authorization?.actorId?.value)
+            .param("retryAuthorityEvidenceId", event.authorization?.authorityEvidenceId?.value)
             .query(OffsetDateTime::class.java)
             .single()
 
@@ -126,6 +134,7 @@ private fun ResolutionRunRetryRow.toStoredRetry(): StoredResolutionRunRetry =
                     sequence,
                     ResolutionRunState.valueOf(fromState),
                     ResolutionRunState.valueOf(toState),
+                    retryAuthorization(),
                     occurredAt.toInstant(),
                 ),
             ),
@@ -142,6 +151,20 @@ private data class ResolutionRunRetryRow(
     val sequence: Long,
     val fromState: String,
     val toState: String,
+    val retryActorId: UUID?,
+    val retryAuthorityEvidenceId: UUID?,
     val occurredAt: OffsetDateTime,
     val recordedAt: OffsetDateTime,
-)
+) {
+    fun retryAuthorization() =
+        if (retryActorId == null && retryAuthorityEvidenceId == null) {
+            null
+        } else {
+            requireNotNull(retryActorId) { "stored retry actor is missing" }
+            requireNotNull(retryAuthorityEvidenceId) { "stored retry authority evidence is missing" }
+            ResolutionRunRetryAuthorization(
+                HumanActorId(retryActorId),
+                ApprovalAuthorityEvidenceId(retryAuthorityEvidenceId),
+            )
+        }
+}

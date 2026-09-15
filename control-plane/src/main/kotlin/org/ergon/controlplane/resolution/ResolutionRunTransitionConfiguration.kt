@@ -5,6 +5,7 @@ import org.ergon.controlplane.cases.application.CaseProjectionWriter
 import org.ergon.controlplane.cases.application.IdentityGenerator
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
+import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
 import org.ergon.controlplane.resolution.application.ResolutionOutcomeCaseCloser
 import org.ergon.controlplane.resolution.application.ResolutionOutcomeProofAcceptanceService
@@ -35,7 +36,8 @@ class ResolutionRunTransitionConfiguration {
         runs: ResolutionRunRepository,
         transitions: ResolutionRunTransitionRepository,
         retries: ResolutionRunRetryRepository,
-    ) = ResolutionRunRetryRecords(planning, runs, transitions, retries)
+        authorities: HumanAuthorityRepository,
+    ) = ResolutionRunRetryRecords(planning, runs, transitions, retries, authorities)
 
     @Bean
     fun resolutionRunRetryService(
