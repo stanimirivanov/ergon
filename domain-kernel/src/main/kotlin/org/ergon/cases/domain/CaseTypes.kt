@@ -188,6 +188,7 @@ data class SourceObservation private constructor(
  */
 enum class CaseStatus {
     OPEN,
+    VERIFIED_RESOLVED,
 }
 
 /**

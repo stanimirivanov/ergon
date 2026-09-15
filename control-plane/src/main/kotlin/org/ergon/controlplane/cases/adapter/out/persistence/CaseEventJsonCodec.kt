@@ -3,6 +3,7 @@ package org.ergon.controlplane.cases.adapter.out.persistence
 import org.ergon.cases.domain.AccountAccessStateBound
 import org.ergon.cases.domain.CaseEvent
 import org.ergon.cases.domain.CaseOpened
+import org.ergon.cases.domain.CaseVerifiedResolved
 import org.ergon.cases.domain.ObservationRecorded
 import org.ergon.cases.domain.ResolutionContractRevisionPinned
 import org.springframework.stereotype.Component
@@ -21,6 +22,10 @@ class CaseEventJsonCodec(
 
             is CaseOpened -> {
                 EncodedCaseEvent("CaseOpened", 1, objectMapper.writeValueAsString(event))
+            }
+
+            is CaseVerifiedResolved -> {
+                EncodedCaseEvent("CaseVerifiedResolved", 1, objectMapper.writeValueAsString(event))
             }
 
             is ObservationRecorded -> {
@@ -45,6 +50,10 @@ class CaseEventJsonCodec(
 
             "CaseOpened" -> {
                 objectMapper.readValue(payload, CaseOpened::class.java)
+            }
+
+            "CaseVerifiedResolved" -> {
+                objectMapper.readValue(payload, CaseVerifiedResolved::class.java)
             }
 
             "ObservationRecorded" -> {

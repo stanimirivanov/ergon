@@ -1,8 +1,10 @@
 package org.ergon.controlplane.resolution.application
 
+import org.ergon.cases.domain.CaseId
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionId
+import org.ergon.resolution.domain.ResolutionOutcomeProofAccepted
 import org.ergon.resolution.domain.ResolutionRunCapabilityResult
 import org.ergon.resolution.domain.ResolutionRunCapabilityResultBasis
 import org.ergon.resolution.domain.ResolutionRunEventId
@@ -20,6 +22,19 @@ data class StoredResolutionRunCapabilityResult(
 /** Result of appending or replaying the run event for a connector receipt. */
 data class ResolutionRunCapabilityResultRecording(
     val storedEvent: StoredResolutionRunCapabilityResult,
+    val currentState: ResolutionRunStateSnapshot,
+    val created: Boolean,
+)
+
+/** Accepted proof event paired with its database recording instant. */
+data class StoredResolutionOutcomeProofAcceptance(
+    val event: ResolutionOutcomeProofAccepted,
+    val recordedAt: Instant,
+)
+
+/** Result of appending or replaying the terminal accepted-proof transition. */
+data class ResolutionOutcomeProofAcceptanceRecording(
+    val storedEvent: StoredResolutionOutcomeProofAcceptance,
     val currentState: ResolutionRunStateSnapshot,
     val created: Boolean,
 )
@@ -49,6 +64,12 @@ interface ResolutionRunTransitionRepository {
         consumptionId: CapabilityAuthorizationConsumptionId,
     ): StoredResolutionRunCapabilityResult?
 
+    /** @return the accepted proof already recorded for [runId], or `null` before acceptance. */
+    fun findAcceptedProof(
+        tenantId: TenantId,
+        runId: ResolutionRunId,
+    ): StoredResolutionOutcomeProofAcceptance?
+
     /**
      * Appends [event] and advances its current-state projection atomically.
      *
@@ -61,6 +82,21 @@ interface ResolutionRunTransitionRepository {
         tenantId: TenantId,
         event: ResolutionRunCapabilityResult,
     ): ResolutionRunCapabilityResultRecording
+
+    /**
+     * Appends terminal accepted [event], its evidence projection, and advances run state.
+     *
+     * The caller must hold the state lock obtained from [lockState] and commit
+     * the paired case closure in the same transaction.
+     *
+     * @throws IllegalStateException when the projection version no longer
+     *   matches the event sequence precondition.
+     */
+    fun appendAcceptedProof(
+        tenantId: TenantId,
+        caseId: CaseId,
+        event: ResolutionOutcomeProofAccepted,
+    ): ResolutionOutcomeProofAcceptanceRecording
 }
 
 /** Supplies unpredictable run-event identities without coupling the use case to UUID generation. */

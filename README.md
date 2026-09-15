@@ -108,6 +108,9 @@ contract pins in PostgreSQL. Its current APIs are:
 - `GET /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/outcome-proof`
   assesses the pinned proof condition against the latest eligible post-action
   case evidence without mutating run or case state.
+- `POST /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/outcome-proof-acceptances`
+  freezes currently accepted proof, completes the run, and closes the case in
+  one transaction; replay returns the original acceptance.
 
 Set `ERGON_DATABASE_URL`, `ERGON_DATABASE_USERNAME`, and
 `ERGON_DATABASE_PASSWORD` to run `control-plane`; Flyway creates its schema.
@@ -115,7 +118,7 @@ Only current-actor lookup and approval decisions require bearer authentication;
 the remaining endpoints retain a temporary development boundary and must not be
 exposed as though tenant IDs were authorization. Capability-route provisioning,
 automatic selection, AI-assisted binding, broader fact types, real connector
-credentials, durable proof acceptance, retries, and verified case closure remain
+credentials, retries, failure recovery, and broader proof conditions remain
 later delivery steps. The predecessor services remain in the reactor
 while behavior is replaced incrementally.
 

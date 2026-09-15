@@ -144,6 +144,57 @@ class ErgonCaseTest {
     }
 
     @Test
+    fun `closes at the exact proof version and rejects later mutation`() {
+        val case = caseWithConnectorObservation(ObservationId(UUID.randomUUID()))
+        val factId = FactId(UUID.randomUUID())
+        val observationId = ObservationId(UUID.randomUUID())
+
+        case.verifyResolved(
+            resolution =
+                VerifiedResolution(
+                    resolutionRunId = UUID.randomUUID(),
+                    outcomeProofEventId = UUID.randomUUID(),
+                    proofCaseStreamVersion = case.streamVersion,
+                    factId = factId,
+                    observationId = observationId,
+                ),
+            resolvedAt = OCCURRED_AT.plusSeconds(3),
+        )
+
+        assertThat(case.status).isEqualTo(CaseStatus.VERIFIED_RESOLVED)
+        assertThat((case.pendingEvents().single() as CaseVerifiedResolved).factId).isEqualTo(factId.value)
+        assertThatIllegalArgumentException().isThrownBy {
+            case.record(
+                SourceObservation.create(
+                    ObservationId(UUID.randomUUID()),
+                    ObservationOrigin.connector("identity-stub", "accounts/customer-42"),
+                    "late observation",
+                    OCCURRED_AT.plusSeconds(4),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `rejects closing against a stale proof version`() {
+        val case = caseWithConnectorObservation(ObservationId(UUID.randomUUID()))
+
+        assertThatIllegalArgumentException().isThrownBy {
+            case.verifyResolved(
+                resolution =
+                    VerifiedResolution(
+                        resolutionRunId = UUID.randomUUID(),
+                        outcomeProofEventId = UUID.randomUUID(),
+                        proofCaseStreamVersion = case.streamVersion - 1,
+                        factId = FactId(UUID.randomUUID()),
+                        observationId = ObservationId(UUID.randomUUID()),
+                    ),
+                resolvedAt = OCCURRED_AT.plusSeconds(3),
+            )
+        }
+    }
+
+    @Test
     fun `rejects blank goals and malformed connector providers`() {
         assertThatIllegalArgumentException().isThrownBy { CaseGoal.of(" ") }
         assertThatIllegalArgumentException().isThrownBy {
