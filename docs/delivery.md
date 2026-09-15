@@ -99,8 +99,12 @@ outcome-proof assessment now requires a separate post-action observation and
 fact binding, evaluates the pinned equality at an exact case version, and leaves
 run and case state unchanged. A separate acceptance command now freezes that
 exact evidence as run event sequence two and atomically advances both the run
-and case to `VERIFIED_RESOLVED`. The next sub-slice should define failed-action
-recovery without yet introducing autonomous retry policy.
+and case to `VERIFIED_RESOLVED`. Failed runs can now be explicitly superseded by
+one durable successor that retains operation meaning while recalculating
+evidence and safeguards. Each attempt requires new approval and authorization
+and receives a new provider idempotency key. The next sub-slice should define
+authenticated recovery authority and bounded retry, compensation, or escalation
+policy before exposing recovery publicly.
 
 ### 5. Adaptive canvas and resolver console
 

@@ -54,10 +54,12 @@ data class ResolutionRunPlan(
  * [caseStreamVersion] fixes the evidence boundary. Contract and policy identities,
  * the first step, and effective safeguards are copied into the snapshot so later
  * configuration changes cannot alter the meaning of this run.
+ * [attemptNumber] starts at one; every later attempt identifies exactly one
+ * [predecessorRunId] rather than changing the failed attempt's inputs.
  *
  * @throws IllegalArgumentException when the evidence version is not positive,
  *   high risk has no human approval, or [initialState] contradicts
- *   [requiredApproval].
+ *   [requiredApproval], or the attempt position contradicts predecessor presence.
  */
 data class ResolutionRunStart(
     val id: ResolutionRunId,
@@ -70,6 +72,8 @@ data class ResolutionRunStart(
     val effectiveRisk: StepRisk,
     val requiredApproval: ApprovalRequirement,
     val initialState: ResolutionRunInitialState,
+    val attemptNumber: Int = 1,
+    val predecessorRunId: ResolutionRunId? = null,
 ) {
     init {
         require(caseStreamVersion > 0) { "run case stream version must be positive" }
@@ -84,6 +88,10 @@ data class ResolutionRunStart(
                     ResolutionRunInitialState.WAITING_FOR_APPROVAL
                 },
         ) { "run initial state must match its approval requirement" }
+        require(attemptNumber > 0) { "run attempt number must be positive" }
+        require((attemptNumber == 1) == (predecessorRunId == null)) {
+            "only the first run attempt may omit a predecessor"
+        }
     }
 
     companion object {
@@ -113,5 +121,34 @@ data class ResolutionRunStart(
                         ResolutionRunInitialState.WAITING_FOR_APPROVAL
                     },
             )
+
+        /**
+         * Starts a fresh authorized attempt after [predecessor] failed.
+         *
+         * A retry retains the same case, contract, step, and capability meaning,
+         * while [plan] may apply newer evidence or stronger policy safeguards.
+         * It receives a new run identity so approvals, authorization, and provider
+         * idempotency cannot be reused from the failed attempt.
+         *
+         * @throws IllegalArgumentException when [plan] changes the operation being
+         *   retried or does not use a later-or-equal case evidence boundary.
+         */
+        fun retry(
+            id: ResolutionRunId,
+            predecessor: ResolutionRunStart,
+            plan: ResolutionRunPlan,
+        ): ResolutionRunStart {
+            require(plan.caseStreamVersion >= predecessor.caseStreamVersion) {
+                "retry cannot use an older case evidence boundary"
+            }
+            require(plan.contract == predecessor.contract) { "retry must retain the contract revision" }
+            require(plan.stepId == predecessor.stepId) { "retry must retain the failed step" }
+            require(plan.capability == predecessor.capability) { "retry must retain the failed capability" }
+            val base = create(id, predecessor.caseId, plan)
+            return base.copy(
+                attemptNumber = predecessor.attemptNumber + 1,
+                predecessorRunId = predecessor.id,
+            )
+        }
     }
 }
