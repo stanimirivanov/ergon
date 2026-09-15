@@ -1,7 +1,10 @@
 package org.ergon.controlplane.resolution
 
+import org.ergon.controlplane.cases.application.CaseEventStore
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
+import org.ergon.controlplane.resolution.application.ResolutionOutcomeProofAssessmentService
 import org.ergon.controlplane.resolution.application.ResolutionRunCapabilityResultService
 import org.ergon.controlplane.resolution.application.ResolutionRunEventIdentityGenerator
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
@@ -14,6 +17,15 @@ import java.util.UUID
 /** Wires receipt-backed resolution-run state transitions. */
 @Configuration(proxyBeanMethods = false)
 class ResolutionRunTransitionConfiguration {
+    @Bean
+    fun resolutionOutcomeProofAssessmentService(
+        runs: ResolutionRunRepository,
+        transitions: ResolutionRunTransitionRepository,
+        receipts: CapabilityInvocationReceiptRepository,
+        contracts: ResolutionContractRevisionRepository,
+        eventStore: CaseEventStore,
+    ) = ResolutionOutcomeProofAssessmentService(runs, transitions, receipts, contracts, eventStore)
+
     @Bean
     fun resolutionRunEventIdentityGenerator() =
         ResolutionRunEventIdentityGenerator {

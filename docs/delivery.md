@@ -95,8 +95,10 @@ terminal receipt using the consumption identity as the provider idempotency
 key. The receipt-backed run-state projection now appends an immutable event and
 advances the current state to
 `VERIFYING` or `ACTION_FAILED`; successful execution leaves the case open. The
-next sub-slice should capture a separate verification observation and evaluate
-the pinned contract's outcome proof without yet automating retries.
+outcome-proof assessment now requires a separate post-action observation and
+fact binding, evaluates the pinned equality at an exact case version, and leaves
+run and case state unchanged. The next sub-slice should durably accept exact
+proof and close the case without yet automating retries.
 
 ### 5. Adaptive canvas and resolver console
 

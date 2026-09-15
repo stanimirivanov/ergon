@@ -26,6 +26,12 @@ data class ResolutionRunCapabilityResultRecording(
 
 /** Durable append and current-state projection boundary for resolution runs. */
 interface ResolutionRunTransitionRepository {
+    /** @return the tenant-scoped current state for [runId], or `null` when absent. */
+    fun findState(
+        tenantId: TenantId,
+        runId: ResolutionRunId,
+    ): ResolutionRunStateSnapshot?
+
     /**
      * Locks and returns the tenant-scoped current state for [runId].
      *

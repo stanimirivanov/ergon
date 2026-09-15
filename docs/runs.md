@@ -53,5 +53,22 @@ bind event outcome and occurrence time to the exact receipt.
 changes case status. Verification observations, accepted outcome proof, retry,
 compensation, and later run transitions remain separate capabilities.
 
+## Assess outcome proof
+
+For a run in `VERIFYING`, query
+`GET /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/outcome-proof`.
+The response evaluates the pinned contract condition at an exact current case
+stream version and returns `ACCEPTED` or `PENDING`.
+
+Proof cannot reuse the evidence snapshot that started the run. Its connector
+observation and semantic fact binding must both occur later in stream order, and
+the observation occurrence time must not precede capability completion. The
+latest eligible fact controls the assessment: a later contradictory value makes
+the result pending with `VALUE_MISMATCH`.
+
+This endpoint is intentionally read-only. `ACCEPTED` does not append a run
+event, freeze the evidence, or close the case; durable proof acceptance is the
+next state-transition boundary.
+
 For `WAITING_FOR_APPROVAL`, the separate [approval request](approvals.md) API
 can append a bounded human-authority request without granting that authority.
