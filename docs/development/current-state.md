@@ -4,13 +4,14 @@
 
 - `domain-kernel` and `control-plane` contain the active Ergon implementation.
 - The first access-restoration vertical slice now reaches verified resolution,
-  bounded retry, and explicit escalation using deterministic local adapters.
+  bounded retry, explicit escalation, and durable human follow-up using
+  deterministic local adapters.
 - The other executable services implement the predecessor RAG Help Center and
   remain buildable while capabilities are replaced incrementally.
 - Internal endpoints are development boundaries and must not be treated as a
   production authorization model.
-- The next runtime outcome is a durable human follow-up work item for an
-  escalated run.
+- The next human-work outcome is explicit queue, priority, ownership, and
+  assignment semantics.
 
 ## Active Ergon slice
 
@@ -34,7 +35,9 @@ The current slice can:
 12. start one attributed successor for a failed run under a versioned retry
     ceiling; and
 13. record explicit resolver escalation when that retry budget is exhausted,
-    leaving the case open.
+    leaving the case open; and
+14. atomically open and retrieve one immutable-source human follow-up work item
+    for that escalation.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -46,6 +49,7 @@ Detailed HTTP semantics live with their capabilities:
 - [authentication](../authentication.md)
 - [authorization grants](../authorization-grants.md)
 - [capability invocation](../capability-invocations.md)
+- [human follow-up](../human-follow-up.md)
 
 ## Runtime and data
 
@@ -80,7 +84,8 @@ topology, and provisional tenant header are not compatibility requirements.
 
 ## Deliberate limitations
 
-- No durable human follow-up work item, assignment, queue, or notification.
+- No follow-up assignment, queue, priority, due-time, lifecycle transition, or
+  notification.
 - No automatic resolution-contract selection or multi-step interpreter.
 - No AI-assisted semantic binding or Ergon evidence compiler.
 - Only one built-in access-restoration vocabulary and deterministic connector.

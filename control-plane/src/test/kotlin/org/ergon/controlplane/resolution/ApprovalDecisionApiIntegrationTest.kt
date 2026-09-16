@@ -1205,22 +1205,96 @@ private fun assertExhaustedRunEscalation(
     jdbcClient: JdbcClient,
     context: ExhaustedRunEscalationContext,
 ) {
+    val followUp = createExhaustedRunEscalation(mockMvc, context)
+    assertFollowUpRetrieval(mockMvc, context, followUp)
+    assertEscalationReplay(mockMvc, context, followUp)
+    assertEscalationPersistence(jdbcClient, context, followUp.workItemId)
+}
+
+private data class CreatedFollowUp(
+    val workItemId: UUID,
+    val location: String,
+)
+
+private fun createExhaustedRunEscalation(
+    mockMvc: MockMvc,
+    context: ExhaustedRunEscalationContext,
+): CreatedFollowUp {
     mockMvc.perform(post(RUN_ESCALATIONS_PATH, context.tenantId, context.runId)).andExpect(status().isUnauthorized)
+    val creation =
+        mockMvc
+            .perform(escalate(context.tenantId, context.runId, context.subject))
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.runId").value(context.runId.toString()))
+            .andExpect(jsonPath("$.state").value("ESCALATED"))
+            .andExpect(jsonPath("$.stateVersion").value(2))
+            .andExpect(jsonPath("$.reason").value("RETRY_ATTEMPT_LIMIT_REACHED"))
+            .andExpect(jsonPath("$.retryPolicyRevision").value(RETRY_POLICY_REVISION))
+            .andExpect(jsonPath("$.retrySourceAttemptNumber").value(2))
+            .andExpect(jsonPath("$.retryMaximumAttempts").value(2))
+            .andExpect(jsonPath("$.escalationEventId").isNotEmpty)
+            .andExpect(jsonPath("$.followUpWorkItemId").isNotEmpty)
+            .andExpect(jsonPath("$.followUpStatus").value("OPEN"))
+            .andReturn()
+    val location = requireNotNull(creation.response.getHeader("Location"))
+    return CreatedFollowUp(UUID.fromString(location.substringAfterLast('/')), location)
+}
+
+private fun assertFollowUpRetrieval(
+    mockMvc: MockMvc,
+    context: ExhaustedRunEscalationContext,
+    followUp: CreatedFollowUp,
+) {
+    mockMvc.perform(get(followUp.location)).andExpect(status().isUnauthorized)
     mockMvc
-        .perform(escalate(context.tenantId, context.runId, context.subject))
-        .andExpect(status().isCreated)
+        .perform(
+            get(followUp.location).with(
+                jwt().jwt {
+                    it.issuer(TRUSTED_ISSUER)
+                    it.subject(context.subject)
+                },
+            ),
+        ).andExpect(status().isOk)
+        .andExpect(jsonPath("$.workItemId").value(followUp.workItemId.toString()))
+        .andExpect(jsonPath("$.caseId").value(context.caseId.toString()))
         .andExpect(jsonPath("$.runId").value(context.runId.toString()))
-        .andExpect(jsonPath("$.state").value("ESCALATED"))
-        .andExpect(jsonPath("$.stateVersion").value(2))
-        .andExpect(jsonPath("$.reason").value("RETRY_ATTEMPT_LIMIT_REACHED"))
-        .andExpect(jsonPath("$.retryPolicyRevision").value(RETRY_POLICY_REVISION))
-        .andExpect(jsonPath("$.retrySourceAttemptNumber").value(2))
-        .andExpect(jsonPath("$.retryMaximumAttempts").value(2))
         .andExpect(jsonPath("$.escalationEventId").isNotEmpty)
+        .andExpect(jsonPath("$.reason").value("RETRY_ATTEMPT_LIMIT_REACHED"))
+        .andExpect(jsonPath("$.status").value("OPEN"))
+        .andExpect(jsonPath("$.openedAt").exists())
+        .andExpect(jsonPath("$.recordedAt").exists())
+    val observerSubject = "follow-up-observer-${UUID.randomUUID()}"
+    registerActor(mockMvc, context.tenantId, observerSubject)
+    mockMvc
+        .perform(
+            get(followUp.location).with(
+                jwt().jwt {
+                    it.issuer(TRUSTED_ISSUER)
+                    it.subject(observerSubject)
+                },
+            ),
+        ).andExpect(status().isNotFound)
+        .andExpect(jsonPath("$.type").value("urn:ergon:problem:human-follow-up-work-item-not-found"))
+}
+
+private fun assertEscalationReplay(
+    mockMvc: MockMvc,
+    context: ExhaustedRunEscalationContext,
+    followUp: CreatedFollowUp,
+) {
     mockMvc
         .perform(escalate(context.tenantId, context.runId, context.subject))
         .andExpect(status().isOk)
         .andExpect(jsonPath("$.state").value("ESCALATED"))
+        .andExpect(jsonPath("$.followUpWorkItemId").value(followUp.workItemId.toString()))
+        .andExpect(header().string("Location", followUp.location))
+}
+
+private fun assertEscalationPersistence(
+    jdbcClient: JdbcClient,
+    context: ExhaustedRunEscalationContext,
+    workItemId: UUID,
+) {
     val escalationCount =
         jdbcClient
             .sql(
@@ -1234,7 +1308,32 @@ private fun assertExhaustedRunEscalation(
             .param("runId", context.runId)
             .query(Int::class.java)
             .single()
+    val followUpCount =
+        jdbcClient
+            .sql(
+                """
+                SELECT count(*)
+                FROM human_follow_up_work_items
+                WHERE tenant_id = :tenantId AND run_id = :runId
+                """.trimIndent(),
+            ).param("tenantId", context.tenantId)
+            .param("runId", context.runId)
+            .query(Int::class.java)
+            .single()
     assertThat(escalationCount).isEqualTo(1)
+    assertThat(followUpCount).isEqualTo(1)
+    assertThatThrownBy {
+        jdbcClient
+            .sql(
+                """
+                UPDATE human_follow_up_work_items
+                SET status = status
+                WHERE tenant_id = :tenantId AND work_item_id = :workItemId
+                """.trimIndent(),
+            ).param("tenantId", context.tenantId)
+            .param("workItemId", workItemId)
+            .update()
+    }.isInstanceOf(DataAccessException::class.java)
     assertThat(runStateAndVersion(jdbcClient, context.tenantId, context.runId)).isEqualTo("ESCALATED" to 2L)
     assertThat(runCountForCase(jdbcClient, context.tenantId, context.caseId)).isEqualTo(2)
     assertThat(caseStatus(jdbcClient, context.tenantId, context.caseId)).isEqualTo("OPEN")

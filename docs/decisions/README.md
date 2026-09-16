@@ -85,3 +85,4 @@ benchmarks rather than duplicating them.
 | 0026 | [Require resolver authority for retry](0026-require-resolver-authority-for-retry.md) |
 | 0027 | [Bound explicit retry attempts](0027-bound-explicit-retry-attempts.md) |
 | 0028 | [Record explicit exhausted-run escalation](0028-record-explicit-exhausted-run-escalation.md) |
+| 0029 | [Open durable work from escalation](0029-open-durable-work-from-escalation.md) |
