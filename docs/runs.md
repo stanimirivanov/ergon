@@ -1,9 +1,11 @@
 # Resolution runs
 
-> **TL;DR:** Starting a run freezes the ready case version, contract revision,
-> policy revision, first step, and effective safeguards in one immutable row.
-> Capability receipts append immutable run events and advance a transactional
-> state projection. Connector success means `VERIFYING`, never resolved.
+## TL;DR
+
+Starting a run freezes the ready case version, contract revision, policy
+revision, first step, and effective safeguards in one immutable row. Capability
+receipts append immutable run events and advance a transactional state
+projection. Connector success means `VERIFYING`, never resolved.
 
 ## Start and retrieve
 

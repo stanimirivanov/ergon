@@ -1,7 +1,5 @@
-# top-most EditorConfig file
 root = true
 
-# Global settings for all files
 [*]
 charset = utf-8
 end_of_line = lf
@@ -16,6 +14,12 @@ indent_size = 2
 
 [*.{yml,yaml}]
 indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
 
 # Kotlin
 [*.{kt,kts}]
