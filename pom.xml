@@ -7,8 +7,8 @@
     <groupId>org.raghc</groupId>
     <artifactId>rag-help-center</artifactId>
     <version>${revision}</version>
-    <name>${project.artifactId}</name>
-    <description>RAG reference system for a help-center</description>
+    <name>Ergon</name>
+    <description>Open-source resolution engineering platform</description>
     <packaging>pom</packaging>
 
     <scm>

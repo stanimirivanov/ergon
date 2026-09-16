@@ -1,10 +1,12 @@
 # Ergon Architecture
 
-> **TL;DR:** Start with a Kotlin modular monolith, two asynchronous workers, a
-> React application, and PostgreSQL. Keep the domain free of Spring, persistence,
-> transport, model, and connector dependencies. Probabilistic components
-> interpret and propose; deterministic components own authority, execution, and
-> verification.
+## TL;DR
+
+Start with a Kotlin modular monolith, two asynchronous workers, a React
+application, and PostgreSQL. Keep the domain free of Spring, persistence,
+transport, model, and connector dependencies. Probabilistic components
+interpret and propose; deterministic components own authority, execution, and
+verification.
 
 ## Runtime view
 

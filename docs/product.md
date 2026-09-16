@@ -1,9 +1,11 @@
 # Ergon Product
 
-> **TL;DR:** Ergon is not another help desk or RAG chatbot. It is an open
-> resolution compiler: it represents a problem as evidence, runs a reviewed and
-> policy-gated resolution contract, verifies the resulting state, and proposes
-> improvements from what actually happened.
+## TL;DR
+
+Ergon is not another help desk or RAG chatbot. It is an open resolution
+compiler: it represents a problem as evidence, runs a reviewed and policy-gated
+resolution contract, verifies the resulting state, and proposes improvements
+from what actually happened.
 
 ## Thesis
 

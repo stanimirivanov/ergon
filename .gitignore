@@ -9,8 +9,19 @@ dependency-reduced-pom.xml
 *.iml
 /out/
 
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+.local/
+
 # OS
 .DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
 
 # detekt report output (default location when no custom output path is configured)
 detekt/
