@@ -5,6 +5,7 @@
 `control-plane` is the active Spring Boot application for Ergon cases,
 evidence bindings, contract revisions, planning, authority, approvals,
 capability execution, outcome proof, retries, and escalation.
+Escalation atomically opens durable resolver follow-up work.
 
 It is a modular monolith: capability packages contain application-owned ports
 and inbound/outbound adapters while `domain-kernel` remains framework-free.

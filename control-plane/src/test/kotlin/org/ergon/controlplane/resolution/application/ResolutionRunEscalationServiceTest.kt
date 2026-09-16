@@ -11,8 +11,14 @@ import org.ergon.contracts.domain.ResolutionContractRevision
 import org.ergon.contracts.domain.ResolutionStepId
 import org.ergon.contracts.domain.StepRisk
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemIdentityGenerator
+import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemRepository
+import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.identity.application.StoredApprovalAuthorityEvidence
+import org.ergon.followup.domain.HumanFollowUpSource
+import org.ergon.followup.domain.HumanFollowUpWorkItem
+import org.ergon.followup.domain.HumanFollowUpWorkItemId
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthority
@@ -45,6 +51,7 @@ class ResolutionRunEscalationServiceTest {
     private val runs = mock(ResolutionRunRepository::class.java)
     private val transitions = mock(ResolutionRunTransitionRepository::class.java)
     private val escalations = mock(ResolutionRunEscalationRepository::class.java)
+    private val followUps = mock(HumanFollowUpWorkItemRepository::class.java)
     private val authorities = mock(HumanAuthorityRepository::class.java)
     private val root = ResolutionRunStart.create(ResolutionRunId(UUID.randomUUID()), CaseId(UUID.randomUUID()), plan())
     private val finalAttempt = ResolutionRunStart.retry(ResolutionRunId(UUID.randomUUID()), root, plan())
@@ -82,13 +89,22 @@ class ResolutionRunEscalationServiceTest {
                 created = true,
             ),
         )
+        val workItem =
+            HumanFollowUpWorkItem.open(
+                WORK_ITEM_ID,
+                HumanFollowUpSource(finalAttempt.caseId, finalAttempt.id, event.id, event.reason),
+                NOW,
+            )
+        `when`(followUps.create(TENANT, workItem)).thenReturn(StoredHumanFollowUpWorkItem(workItem, NOW))
 
         val result = service().escalate(TENANT.value, finalAttempt.id.value, ACTOR.value)
 
-        assertThat(result.currentState.state).isEqualTo(ResolutionRunState.ESCALATED)
-        assertThat(result.storedEvent.event.authorization.actorId).isEqualTo(ACTOR)
-        assertThat(result.storedEvent.event.retryDenial.sourceAttemptNumber).isEqualTo(2)
-        verify(escalations).append(TENANT, result.storedEvent.event)
+        assertThat(result.escalation.currentState.state).isEqualTo(ResolutionRunState.ESCALATED)
+        assertThat(result.escalation.storedEvent.event.authorization.actorId).isEqualTo(ACTOR)
+        assertThat(result.escalation.storedEvent.event.retryDenial.sourceAttemptNumber).isEqualTo(2)
+        assertThat(result.followUp.item).isEqualTo(workItem)
+        verify(escalations).append(TENANT, result.escalation.storedEvent.event)
+        verify(followUps).create(TENANT, workItem)
     }
 
     private fun prepare(
@@ -105,9 +121,12 @@ class ResolutionRunEscalationServiceTest {
 
     private fun service() =
         ResolutionRunEscalationService(
-            ResolutionRunEscalationRecords(runs, transitions, escalations, authorities),
+            ResolutionRunEscalationRecords(runs, transitions, escalations, followUps, authorities),
             ResolutionRetryPolicy.define(RETRY_REVISION, 2),
-            ResolutionRunEventIdentityGenerator { EVENT_ID },
+            ResolutionRunEscalationIdentityGenerators(
+                ResolutionRunEventIdentityGenerator { EVENT_ID },
+                HumanFollowUpWorkItemIdentityGenerator { WORK_ITEM_ID },
+            ),
             object : TransactionRunner {
                 override fun <T : Any> required(block: () -> T): T = block()
             },
@@ -144,6 +163,7 @@ class ResolutionRunEscalationServiceTest {
         val EVIDENCE_ID = ApprovalAuthorityEvidenceId(UUID.randomUUID())
         val RETRY_REVISION = ResolutionRetryPolicyRevision.of("ergon.dev/policy/resolution-retry/v1")
         val EVENT_ID = ResolutionRunEventId(UUID.randomUUID())
+        val WORK_ITEM_ID = HumanFollowUpWorkItemId(UUID.randomUUID())
         val NOW = Instant.parse("2026-09-15T10:00:00Z")
     }
 }

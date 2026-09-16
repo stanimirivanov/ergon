@@ -134,10 +134,12 @@ versioned retry policy may escalate; remaining budget returns
 `409 resolution-run-retry-budget-available` without writing state.
 
 The first call appends `ESCALATION_REQUESTED`, records the actor, attestation,
-denial reason, policy revision, source attempt, and ceiling, then advances the
-run to `ESCALATED`; it returns `201`. Replay returns the same event with `200`.
-The case remains open. This command does not assign a resolver, notify anyone,
-schedule work, invoke a capability, or compensate an earlier action.
+denial reason, policy revision, source attempt, and ceiling, advances the run to
+`ESCALATED`, and atomically opens one durable human follow-up item. It returns
+`201` with that item as `Location`. Replay returns the same event and work item
+with `200`. The case remains open. This command does not assign a resolver,
+notify anyone, invoke a capability, or compensate an earlier action. See
+[human follow-up](human-follow-up.md) for the work-item contract.
 
 For `WAITING_FOR_APPROVAL`, the separate [approval request](approvals.md) API
 can append a bounded human-authority request without granting that authority.

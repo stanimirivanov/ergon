@@ -14,6 +14,7 @@ beside each module.
   dependency direction.
 - [Delivery strategy](delivery.md) — vertical-slice and extraction policy.
 - [Resolution runs](runs.md) — current durable run and proof semantics.
+- [Human follow-up](human-follow-up.md) — durable work opened from escalation.
 - [Security policy](../SECURITY.md) — private reporting and change expectations;
   architecture documents the current technical trust boundaries.
 

@@ -2,7 +2,7 @@ package org.ergon.controlplane.resolution.adapter.inbound.http
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
-import org.ergon.controlplane.resolution.application.ResolutionRunEscalationRecording
+import org.ergon.controlplane.resolution.application.ResolutionRunEscalationResult
 import org.ergon.controlplane.resolution.application.ResolutionRunEscalationService
 import org.springframework.http.ResponseEntity
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
@@ -22,7 +22,7 @@ class ResolutionRunEscalationController(
     private val actors: AuthenticatedHumanActorResolver,
     private val service: ResolutionRunEscalationService,
 ) {
-    /** Requests or idempotently replays escalation without assigning or notifying anyone. */
+    /** Requests or replays escalation and its unassigned durable follow-up work. */
     @PostMapping
     fun escalate(
         @PathVariable tenantId: UUID,
@@ -30,12 +30,12 @@ class ResolutionRunEscalationController(
         authentication: JwtAuthenticationToken,
     ): ResponseEntity<ResolutionRunEscalationResponse> {
         val actor = actors.resolve(tenantId, authentication)
-        val recording = service.escalate(tenantId, runId, actor.actor.id.value)
-        val location = URI.create("/internal/v1/tenants/$tenantId/resolution-runs/$runId")
-        return if (recording.created) {
-            ResponseEntity.created(location).body(recording.toResponse())
+        val result = service.escalate(tenantId, runId, actor.actor.id.value)
+        val location = URI.create("/internal/v1/tenants/$tenantId/human-follow-ups/${result.followUp.item.id.value}")
+        return if (result.escalation.created) {
+            ResponseEntity.created(location).body(result.toResponse())
         } else {
-            ResponseEntity.ok().location(location).body(recording.toResponse())
+            ResponseEntity.ok().location(location).body(result.toResponse())
         }
     }
 }
@@ -52,24 +52,28 @@ data class ResolutionRunEscalationResponse(
     val retryMaximumAttempts: Int,
     val requestedByActorId: UUID,
     val authorityEvidenceId: UUID,
+    val followUpWorkItemId: UUID,
+    val followUpStatus: String,
     val requestedAt: Instant,
     val recordedAt: Instant,
 )
 
-private fun ResolutionRunEscalationRecording.toResponse(): ResolutionRunEscalationResponse {
-    val event = storedEvent.event
+private fun ResolutionRunEscalationResult.toResponse(): ResolutionRunEscalationResponse {
+    val event = escalation.storedEvent.event
     return ResolutionRunEscalationResponse(
         event.id.value,
         event.runId.value,
-        currentState.state.name,
-        currentState.version,
+        escalation.currentState.state.name,
+        escalation.currentState.version,
         event.reason.name,
         event.retryDenial.revision.value,
         event.retryDenial.sourceAttemptNumber,
         event.retryDenial.maximumAttempts,
         event.authorization.actorId.value,
         event.authorization.authorityEvidenceId.value,
+        followUp.item.id.value,
+        followUp.item.status.name,
         event.occurredAt,
-        storedEvent.recordedAt,
+        escalation.storedEvent.recordedAt,
     )
 }

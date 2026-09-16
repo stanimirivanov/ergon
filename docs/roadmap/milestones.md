@@ -83,7 +83,8 @@ transcripts.
 
 Candidate PR-sized outcomes:
 
-- Create one durable human follow-up work item from an escalated run.
+- Delivered: create and retrieve one durable human follow-up work item from an
+  escalated run.
 - Define queue, priority, ownership, and assignment semantics separately.
 - Add idempotent notification delivery after durable work exists.
 - Expose a resolver-focused case summary from existing evidence and run facts.

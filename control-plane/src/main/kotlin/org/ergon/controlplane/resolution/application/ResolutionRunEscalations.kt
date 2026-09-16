@@ -1,7 +1,12 @@
 package org.ergon.controlplane.resolution.application
 
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemIdentityGenerator
+import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemRepository
+import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
+import org.ergon.followup.domain.HumanFollowUpSource
+import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthority
@@ -33,6 +38,12 @@ data class ResolutionRunEscalationRecording(
     val created: Boolean,
 )
 
+/** Escalation recording and the durable human work it opens atomically. */
+data class ResolutionRunEscalationResult(
+    val escalation: ResolutionRunEscalationRecording,
+    val followUp: StoredHumanFollowUpWorkItem,
+)
+
 /** Durable append and replay boundary for exhausted-run escalations. */
 interface ResolutionRunEscalationRepository {
     /** @return the escalation recorded for [runId], or `null` before escalation. */
@@ -57,7 +68,14 @@ data class ResolutionRunEscalationRecords(
     val runs: ResolutionRunRepository,
     val transitions: ResolutionRunTransitionRepository,
     val escalations: ResolutionRunEscalationRepository,
+    val followUps: HumanFollowUpWorkItemRepository,
     val authorities: HumanAuthorityRepository,
+)
+
+/** Identity sources consumed only when first recording escalation and follow-up. */
+data class ResolutionRunEscalationIdentityGenerators(
+    val events: ResolutionRunEventIdentityGenerator,
+    val followUps: HumanFollowUpWorkItemIdentityGenerator,
 )
 
 /** Signals that the run is not an unhandled failed attempt. */
@@ -78,7 +96,7 @@ class ResolutionRunRetryBudgetAvailableException(
 class ResolutionRunEscalationService(
     private val records: ResolutionRunEscalationRecords,
     private val retryPolicy: ResolutionRetryPolicy,
-    private val eventIdentities: ResolutionRunEventIdentityGenerator,
+    private val identities: ResolutionRunEscalationIdentityGenerators,
     private val transactionRunner: TransactionRunner,
     private val clock: Clock,
 ) {
@@ -86,8 +104,9 @@ class ResolutionRunEscalationService(
      * Requests or replays escalation for one exhausted failed run.
      *
      * The authenticated [actorId] needs current tenant-wide resolver evidence.
-     * First recording changes only run state; the case remains open and no
-     * assignment, notification, compensation, or capability invocation occurs.
+     * First recording changes run state and atomically opens one durable human
+     * follow-up item. The case remains open and no assignment, notification,
+     * compensation, or capability invocation occurs.
      *
      * @throws ResolutionRunNotFoundException when [runId] is absent from [tenantId].
      * @throws ResolutionRunEscalationStateException unless the run is `ACTION_FAILED`.
@@ -100,7 +119,7 @@ class ResolutionRunEscalationService(
         tenantId: UUID,
         runId: UUID,
         actorId: UUID,
-    ): ResolutionRunEscalationRecording =
+    ): ResolutionRunEscalationResult =
         transactionRunner.required {
             val scopedTenantId = TenantId(tenantId)
             val scopedRunId = ResolutionRunId(runId)
@@ -116,14 +135,31 @@ class ResolutionRunEscalationService(
                 check(state.state == ResolutionRunState.ESCALATED && state.version == 2L) {
                     "resolution run escalation contradicts its current-state projection"
                 }
-                return@required ResolutionRunEscalationRecording(existing, state, created = false)
+                val followUp =
+                    checkNotNull(records.followUps.findByEscalation(scopedTenantId, existing.event.id)) {
+                        "escalated resolution run has no human follow-up work item"
+                    }
+                return@required ResolutionRunEscalationResult(
+                    ResolutionRunEscalationRecording(existing, state, created = false),
+                    followUp,
+                )
             }
             if (state.state != ResolutionRunState.ACTION_FAILED || state.version != 1L) {
                 throw ResolutionRunEscalationStateException(state.state.name)
             }
             val denial = retryPolicy.requireExhausted(run.attemptNumber)
             val event = createEscalation(run, state, authority, denial, now)
-            records.escalations.append(scopedTenantId, event)
+            val escalation = records.escalations.append(scopedTenantId, event)
+            val followUp =
+                records.followUps.create(
+                    scopedTenantId,
+                    HumanFollowUpWorkItem.open(
+                        identities.followUps.next(),
+                        HumanFollowUpSource(run.caseId, run.id, event.id, event.reason),
+                        event.occurredAt,
+                    ),
+                )
+            ResolutionRunEscalationResult(escalation, followUp)
         }
 
     private fun createEscalation(
@@ -135,7 +171,7 @@ class ResolutionRunEscalationService(
     ): ResolutionRunEscalationRequested =
         try {
             ResolutionRunEscalationRequested.request(
-                eventIdentities.next(),
+                identities.events.next(),
                 ResolutionRunEscalationBasis(run, state, authority, denial),
                 at,
             )
