@@ -1,7 +1,0 @@
-spring:
-  application:
-    name: ingestion-service-test
-app:
-  outbox:
-    publisher:
-      enabled: false
