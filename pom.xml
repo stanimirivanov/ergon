@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.raghc</groupId>
-    <artifactId>rag-help-center</artifactId>
+    <groupId>org.ergon</groupId>
+    <artifactId>ergon</artifactId>
     <version>${revision}</version>
     <name>Ergon</name>
     <description>Open-source resolution engineering platform</description>
@@ -21,7 +21,7 @@
     <properties>
         <revision>1.0.0-SNAPSHOT</revision>
         <docker.registry>fra.ocir.io</docker.registry>
-        <docker.namespace>${env.OCIR_NAMESPACE}/rag-help-center</docker.namespace>
+        <docker.namespace>${env.OCIR_NAMESPACE}/ergon</docker.namespace>
         <kotlin.version>2.4.10</kotlin.version>
         <spring-boot.version>4.1.0</spring-boot.version>
         <springdoc.version>3.0.3</springdoc.version>
@@ -45,7 +45,7 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
-                <groupId>org.raghc</groupId>
+                <groupId>org.ergon</groupId>
                 <artifactId>domain-kernel</artifactId>
                 <version>${project.version}</version>
             </dependency>
