@@ -1,6 +1,5 @@
-# Local infra only. The services themselves (ingestion-service, etc.) are expected to run
-# natively on the host for now (e.g. `./mvnw -pl ingestion-service spring-boot:run`), so Kafka
-# is set up with a dual-listener setup:
+# Local infrastructure only. Applications run natively on the host for now
+# (e.g. `./mvnw -pl ingestion-service spring-boot:run`), so Kafka uses two listeners:
 #   - PLAINTEXT       (container-network, port 19092) - for when services get containerized here later
 #   - PLAINTEXT_HOST  (host access, port 9092)         - what your locally-running services use today
 # The observability stack is deliberately deferred to milestone M08.
@@ -46,15 +45,6 @@ services:
       timeout: 10s
       retries: 10
 
-  ollama:
-    image: ollama/ollama:0.11.4
-    profiles: ["ai"]
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-
 volumes:
   postgres-data:
   kafka-data:
-  ollama-data:

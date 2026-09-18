@@ -133,7 +133,9 @@ incomplete predecessor Q&A coordinator and its exclusive MongoDB and Redis
 development dependencies were also retired without adopting its answer model
 as an Ergon contract. The now-unconsumed hybrid retrieval service was retired
 without adopting its article/chunk search contract; its superseded ranking ADR
-remains historical input for M06 evidence retrieval.
+remains historical input for M06 evidence retrieval. The resulting unconsumed
+embedding worker, Spring AI dependency, and Ollama development service were
+also retired without prematurely adopting article-specific chunks or vectors.
 
 Candidate outcomes include guarded MCP and help-desk integrations, connector and
 widget SDKs, production authentication/authorization, observability, durable

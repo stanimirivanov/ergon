@@ -24,7 +24,6 @@
         <docker.namespace>${env.OCIR_NAMESPACE}/rag-help-center</docker.namespace>
         <kotlin.version>2.4.10</kotlin.version>
         <spring-boot.version>4.1.0</spring-boot.version>
-        <spring-ai.version>2.0.0</spring-ai.version>
         <springdoc.version>3.0.3</springdoc.version>
         <testcontainers.version>2.0.5</testcontainers.version>
         <java.version>25</java.version>
@@ -34,7 +33,6 @@
     <modules>
         <module>control-plane</module>
         <module>domain-kernel</module>
-        <module>embedding-worker</module>
         <module>ingestion-service</module>
     </modules>
 
@@ -51,13 +49,6 @@
                 <groupId>org.raghc</groupId>
                 <artifactId>domain-kernel</artifactId>
                 <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.ai</groupId>
-                <artifactId>spring-ai-bom</artifactId>
-                <version>${spring-ai.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>org.testcontainers</groupId>
