@@ -73,10 +73,12 @@ application can still start for unprotected development behavior. See the
 
 ## Rewrite boundary
 
-`ingestion-service`, `embedding-worker`, `retrieval-service`, `qa-service`, and
-`gateway` retain the predecessor article/RAG behavior. They are not the target
-Ergon topology and receive no new product capability unless a migration slice
-needs a verified extraction.
+`ingestion-service`, `embedding-worker`, `retrieval-service`, and `qa-service`
+retain the predecessor article/RAG behavior. They are not the target Ergon
+topology and receive no new product capability unless a migration slice needs
+a verified extraction. The predecessor gateway and its unused Spring Cloud
+edge have been removed; future Ergon ingress requires an explicit security and
+deployment design.
 
 Reusable behavior includes append concurrency, separate occurrence/recording
 time, transactional outbox, idempotent consumers, deterministic chunking,

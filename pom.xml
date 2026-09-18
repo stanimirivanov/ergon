@@ -24,7 +24,6 @@
         <docker.namespace>${env.OCIR_NAMESPACE}/rag-help-center</docker.namespace>
         <kotlin.version>2.4.10</kotlin.version>
         <spring-boot.version>4.1.0</spring-boot.version>
-        <spring-cloud.version>2025.1.2</spring-cloud.version>
         <spring-ai.version>2.0.0</spring-ai.version>
         <springdoc.version>3.0.3</springdoc.version>
         <testcontainers.version>2.0.5</testcontainers.version>
@@ -36,7 +35,6 @@
         <module>control-plane</module>
         <module>domain-kernel</module>
         <module>embedding-worker</module>
-        <module>gateway</module>
         <module>ingestion-service</module>
         <module>qa-service</module>
         <module>retrieval-service</module>
@@ -55,13 +53,6 @@
                 <groupId>org.raghc</groupId>
                 <artifactId>domain-kernel</artifactId>
                 <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-dependencies</artifactId>
-                <version>${spring-cloud.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>org.springframework.ai</groupId>
@@ -92,7 +83,7 @@
         <!--
           kotlin-maven-plugin and flatten-maven-plugin are declared here (not just in
           pluginManagement) so every child module - and this parent - picks them up
-          automatically without re-declaring them 8 times. spring-boot-maven-plugin and
+          automatically without re-declaring them in every module. spring-boot-maven-plugin and
           jib-maven-plugin stay pluginManagement-only and are activated per-module below,
           since domain-kernel is a plain library: it must not be repackaged as an executable
           jar or containerized.
