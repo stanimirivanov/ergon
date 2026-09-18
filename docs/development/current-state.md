@@ -73,26 +73,32 @@ application can still start for unprotected development behavior. See the
 
 ## Rewrite boundary
 
-`ingestion-service` and `embedding-worker` retain the predecessor article
-ingestion and indexing behavior. They are not the target Ergon topology and
-receive no new product capability unless a migration slice needs a verified
-extraction. The predecessor gateway and its unused Spring Cloud edge have been
-removed; future Ergon ingress requires an explicit security and deployment
-design. The incomplete Q&A coordinator and its exclusive MongoDB and Redis
-development infrastructure have also been removed rather than migrated. It had
-no inbound API or production model adapter, and its question/answer model is
-not an Ergon compatibility boundary.
+`ingestion-service` retains the predecessor article ingestion behavior. It is
+not part of the target Ergon topology and receives no new product capability
+unless a migration slice needs a verified extraction. The predecessor gateway
+and its unused Spring Cloud edge have been removed; future Ergon ingress
+requires an explicit security and deployment design. The incomplete Q&A
+coordinator and its exclusive MongoDB and Redis development infrastructure
+have also been removed rather than migrated. It had no inbound API or
+production model adapter, and its question/answer model is not an Ergon
+compatibility boundary.
 
 The predecessor hybrid retrieval service was removed after its only runtime
 consumer was retired. Its article/chunk HTTP contract and ranking output were
 not migrated; superseded ADR 0005 remains historical input for a future
 evidence-bundle retrieval design.
 
+The unconsumed embedding worker, its Spring AI dependency, and its Ollama
+development service were removed without migrating article-specific chunking
+or vector projections. Superseded ADR 0004 remains historical input for M06.
+The pgvector-capable PostgreSQL image remains compatible with the target
+architecture and existing local predecessor vector objects.
+
 Reusable behavior still present in predecessor code includes append
 concurrency, separate occurrence/recording time, transactional outbox,
-idempotent consumers, and deterministic chunking. The old article aggregate,
-Q&A contract, MongoDB conversation model, predecessor service topology, and
-provisional tenant header are not compatibility requirements.
+and idempotent consumers. The old article aggregate, Q&A contract, MongoDB
+conversation model, predecessor service topology, and provisional tenant
+header are not compatibility requirements.
 
 ## Deliberate limitations
 

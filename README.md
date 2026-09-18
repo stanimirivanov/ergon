@@ -32,7 +32,6 @@ boundaries.
 | [`domain-kernel`](domain-kernel/README.md) | Framework-free Ergon domain model | Active |
 | [`control-plane`](control-plane/README.md) | Ergon case, contract, policy, and run APIs | Active |
 | [`ingestion-service`](ingestion-service/README.md) | Predecessor article ingestion service | Legacy; maintained while replaced |
-| [`embedding-worker`](embedding-worker/README.md) | Predecessor article embedding projection | Legacy; maintained while replaced |
 
 The moving inventory of implemented behavior belongs in
 [current state](docs/development/current-state.md), not in this entry point.

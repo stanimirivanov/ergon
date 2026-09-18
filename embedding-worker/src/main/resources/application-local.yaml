@@ -1,7 +1,0 @@
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/rag_help_center
-    username: rag
-    password: rag
-  kafka:
-    bootstrap-servers: localhost:9092
