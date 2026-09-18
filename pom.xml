@@ -33,7 +33,6 @@
     <modules>
         <module>control-plane</module>
         <module>domain-kernel</module>
-        <module>ingestion-service</module>
     </modules>
 
     <dependencyManagement>

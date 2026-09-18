@@ -1,9 +1,0 @@
-spring:
-  application:
-    name: ingestion-service
-server:
-  port: 8081
-app:
-  outbox:
-    publisher:
-      enabled: true

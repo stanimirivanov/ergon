@@ -136,6 +136,10 @@ without adopting its article/chunk search contract; its superseded ranking ADR
 remains historical input for M06 evidence retrieval. The resulting unconsumed
 embedding worker, Spring AI dependency, and Ollama development service were
 also retired without prematurely adopting article-specific chunks or vectors.
+Finally, the article ingestion service and the Kafka development broker used
+only by its outbox publisher were retired. All predecessor executable modules
+are now gone; their article APIs, storage model, and event contracts were not
+adopted as Ergon compatibility boundaries.
 
 Candidate outcomes include guarded MCP and help-desk integrations, connector and
 widget SDKs, production authentication/authorization, observability, durable

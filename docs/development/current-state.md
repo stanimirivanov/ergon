@@ -6,8 +6,8 @@
 - The first access-restoration vertical slice now reaches verified resolution,
   bounded retry, explicit escalation, and durable human follow-up using
   deterministic local adapters.
-- The other executable services implement the predecessor RAG Help Center and
-  remain buildable while capabilities are replaced incrementally.
+- All predecessor RAG Help Center executables have been retired; their APIs,
+  storage, and events are not Ergon compatibility boundaries.
 - Internal endpoints are development boundaries and must not be treated as a
   production authorization model.
 - The next human-work outcomes are explicit named queues, priority,
@@ -73,14 +73,19 @@ application can still start for unprotected development behavior. See the
 
 ## Rewrite boundary
 
-`ingestion-service` retains the predecessor article ingestion behavior. It is
-not part of the target Ergon topology and receives no new product capability
-unless a migration slice needs a verified extraction. The predecessor gateway
-and its unused Spring Cloud edge have been removed; future Ergon ingress
-requires an explicit security and deployment design. The incomplete Q&A
-coordinator and its exclusive MongoDB and Redis development infrastructure
-have also been removed rather than migrated. It had no inbound API or
-production model adapter, and its question/answer model is not an Ergon
+No predecessor executable applications remain. The final article ingestion
+service and the Kafka development broker used only by its outbox publisher were
+removed after every event consumer had been retired. Its article HTTP API,
+aggregate, projections, idempotency records, and integration events were not
+migrated. Superseded ADRs 0001 through 0003 remain historical input; a future
+compiler slice must define Ergon source and evidence contracts from its own
+requirements.
+
+The predecessor gateway and its unused Spring Cloud edge were removed; future
+Ergon ingress requires an explicit security and deployment design. The
+incomplete Q&A coordinator and its exclusive MongoDB and Redis development
+infrastructure were also removed rather than migrated. It had no inbound API
+or production model adapter, and its question/answer model is not an Ergon
 compatibility boundary.
 
 The predecessor hybrid retrieval service was removed after its only runtime
@@ -94,11 +99,13 @@ or vector projections. Superseded ADR 0004 remains historical input for M06.
 The pgvector-capable PostgreSQL image remains compatible with the target
 architecture and existing local predecessor vector objects.
 
-Reusable behavior still present in predecessor code includes append
-concurrency, separate occurrence/recording time, transactional outbox,
-and idempotent consumers. The old article aggregate, Q&A contract, MongoDB
-conversation model, predecessor service topology, and provisional tenant
-header are not compatibility requirements.
+Reusable predecessor principles recorded in superseded ADRs include append
+concurrency, separate occurrence and recording time, transactional outbox, and
+idempotent consumers. They must be justified by an active Ergon slice before
+reuse. The old article aggregate, Q&A contract, MongoDB conversation model,
+predecessor service topology, and provisional tenant header are not
+compatibility requirements. Existing local PostgreSQL volumes may retain
+predecessor objects; this retirement performs no destructive data cleanup.
 
 ## Deliberate limitations
 

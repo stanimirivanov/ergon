@@ -11,8 +11,9 @@ execute, then requires proof that the requested outcome was achieved.
   outcome proof.
 - Models may propose; deterministic policy and capability boundaries authorize.
 - A case is verified as resolved only after its pinned proof condition succeeds.
-- The active implementation is a Kotlin/JVM modular monolith being extracted
-  incrementally from the repository's predecessor services.
+- The active implementation is a Kotlin/JVM modular monolith; predecessor
+  executable services have been retired rather than retained as compatibility
+  boundaries.
 
 ## Product loop
 
@@ -31,7 +32,6 @@ boundaries.
 |:--|:--|:--|
 | [`domain-kernel`](domain-kernel/README.md) | Framework-free Ergon domain model | Active |
 | [`control-plane`](control-plane/README.md) | Ergon case, contract, policy, and run APIs | Active |
-| [`ingestion-service`](ingestion-service/README.md) | Predecessor article ingestion service | Legacy; maintained while replaced |
 
 The moving inventory of implemented behavior belongs in
 [current state](docs/development/current-state.md), not in this entry point.
