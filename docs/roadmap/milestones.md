@@ -140,6 +140,10 @@ Finally, the article ingestion service and the Kafka development broker used
 only by its outbox publisher were retired. All predecessor executable modules
 are now gone; their article APIs, storage model, and event contracts were not
 adopted as Ergon compatibility boundaries.
+The active Maven reactor and future container images now use Ergon coordinates
+under [ADR 0032](../decisions/0032-adopt-ergon-build-coordinates.md), without
+combining that compatibility change with repository or database identity
+migrations.
 
 Candidate outcomes include guarded MCP and help-desk integrations, connector and
 widget SDKs, production authentication/authorization, observability, durable

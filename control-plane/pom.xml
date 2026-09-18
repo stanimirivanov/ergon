@@ -5,8 +5,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.raghc</groupId>
-        <artifactId>rag-help-center</artifactId>
+        <groupId>org.ergon</groupId>
+        <artifactId>ergon</artifactId>
         <version>${revision}</version>
     </parent>
 
@@ -15,7 +15,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.raghc</groupId>
+            <groupId>org.ergon</groupId>
             <artifactId>domain-kernel</artifactId>
         </dependency>
         <dependency>

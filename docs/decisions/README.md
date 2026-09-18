@@ -88,3 +88,4 @@ benchmarks rather than duplicating them.
 | 0029 | [Open durable work from escalation](0029-open-durable-work-from-escalation.md) |
 | 0030 | [Expose an oldest-first resolver inbox](0030-expose-oldest-first-resolver-inbox.md) |
 | 0031 | [Claim human follow-up work immutably](0031-claim-human-follow-up-work.md) |
+| 0032 | [Adopt Ergon build coordinates](0032-adopt-ergon-build-coordinates.md) |

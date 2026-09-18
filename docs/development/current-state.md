@@ -107,6 +107,12 @@ predecessor service topology, and provisional tenant header are not
 compatibility requirements. Existing local PostgreSQL volumes may retain
 predecessor objects; this retirement performs no destructive data cleanup.
 
+The active Maven reactor uses the `org.ergon:ergon` parent and future container
+images use the `ergon` namespace. The GitHub SCM URL and local PostgreSQL
+identity retain their factual existing names until separate external and data
+migration decisions are made; see
+[ADR 0032](../decisions/0032-adopt-ergon-build-coordinates.md).
+
 ## Deliberate limitations
 
 - No named queues, routing, automatic assignment, reassignment, release,
