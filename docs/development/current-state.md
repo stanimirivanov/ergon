@@ -73,8 +73,8 @@ application can still start for unprotected development behavior. See the
 
 ## Rewrite boundary
 
-`ingestion-service`, `embedding-worker`, and `retrieval-service` retain the
-predecessor article/RAG behavior. They are not the target Ergon topology and
+`ingestion-service` and `embedding-worker` retain the predecessor article
+ingestion and indexing behavior. They are not the target Ergon topology and
 receive no new product capability unless a migration slice needs a verified
 extraction. The predecessor gateway and its unused Spring Cloud edge have been
 removed; future Ergon ingress requires an explicit security and deployment
@@ -83,10 +83,15 @@ development infrastructure have also been removed rather than migrated. It had
 no inbound API or production model adapter, and its question/answer model is
 not an Ergon compatibility boundary.
 
-Reusable behavior includes append concurrency, separate occurrence/recording
-time, transactional outbox, idempotent consumers, deterministic chunking,
-hybrid retrieval, and tenant-isolation tests. The old article aggregate, Q&A
-contract, MongoDB conversation model, predecessor service topology, and
+The predecessor hybrid retrieval service was removed after its only runtime
+consumer was retired. Its article/chunk HTTP contract and ranking output were
+not migrated; superseded ADR 0005 remains historical input for a future
+evidence-bundle retrieval design.
+
+Reusable behavior still present in predecessor code includes append
+concurrency, separate occurrence/recording time, transactional outbox,
+idempotent consumers, and deterministic chunking. The old article aggregate,
+Q&A contract, MongoDB conversation model, predecessor service topology, and
 provisional tenant header are not compatibility requirements.
 
 ## Deliberate limitations
