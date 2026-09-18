@@ -8,7 +8,7 @@
   foundations; their delivered work is already represented in repository
   history.
 - M04 completes guarded execution, outcome verification, retry, and escalation.
-- The next milestone begins the durable human follow-up and resolver experience.
+- M05 is building the durable human follow-up and resolver experience.
 - GitHub owns live issue state; this file owns intended sequence and boundaries.
 
 ## Milestone index
@@ -86,7 +86,8 @@ Candidate PR-sized outcomes:
 - Delivered: create and retrieve one durable human follow-up work item from an
   escalated run.
 - Delivered: expose a bounded oldest-first inbox for open human follow-up work.
-- Define named queue, priority, ownership, and assignment semantics separately.
+- Delivered: let one authorized resolver claim open work with immutable ownership.
+- Define named queue, priority, reassignment, release, and completion semantics separately.
 - Add idempotent notification delivery after durable work exists.
 - Expose a resolver-focused case summary from existing evidence and run facts.
 - Implement the minimum resolver console for evidence, approvals, execution,

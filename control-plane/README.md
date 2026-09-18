@@ -6,7 +6,8 @@
 evidence bindings, contract revisions, planning, authority, approvals,
 capability execution, outcome proof, retries, and escalation.
 Escalation atomically opens durable resolver follow-up work.
-Resolvers can discover that work through a bounded oldest-first inbox.
+Resolvers can discover unclaimed work through a bounded oldest-first inbox and
+acquire immutable, authority-attributed ownership.
 
 It is a modular monolith: capability packages contain application-owned ports
 and inbound/outbound adapters while `domain-kernel` remains framework-free.
