@@ -89,3 +89,4 @@ benchmarks rather than duplicating them.
 | 0030 | [Expose an oldest-first resolver inbox](0030-expose-oldest-first-resolver-inbox.md) |
 | 0031 | [Claim human follow-up work immutably](0031-claim-human-follow-up-work.md) |
 | 0032 | [Adopt Ergon build coordinates](0032-adopt-ergon-build-coordinates.md) |
+| 0033 | [Separate Ergon local PostgreSQL identity](0033-separate-ergon-local-postgresql-identity.md) |

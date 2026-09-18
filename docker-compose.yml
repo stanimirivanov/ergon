@@ -1,21 +1,24 @@
 # Local infrastructure for Ergon applications run natively on the host.
 # The observability stack is deliberately deferred to milestone M08.
+name: ergon
+
 services:
   postgres:
     image: pgvector/pgvector:pg18
     environment:
-      POSTGRES_DB: rag_help_center
-      POSTGRES_USER: rag
-      POSTGRES_PASSWORD: rag
+      POSTGRES_DB: ergon
+      POSTGRES_USER: ergon
+      POSTGRES_PASSWORD: ergon
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rag -d rag_help_center"]
+      test: ["CMD-SHELL", "pg_isready -U ergon -d ergon"]
       interval: 5s
       timeout: 5s
       retries: 10
 
 volumes:
   postgres-data:
+    name: ergon-postgres-data

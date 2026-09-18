@@ -144,6 +144,10 @@ The active Maven reactor and future container images now use Ergon coordinates
 under [ADR 0032](../decisions/0032-adopt-ergon-build-coordinates.md), without
 combining that compatibility change with repository or database identity
 migrations.
+Local PostgreSQL now uses a separate Ergon Compose project, database, role, and
+explicit volume under
+[ADR 0033](../decisions/0033-separate-ergon-local-postgresql-identity.md),
+preserving predecessor volumes rather than deleting or mutating them.
 
 Candidate outcomes include guarded MCP and help-desk integrations, connector and
 widget SDKs, production authentication/authorization, observability, durable
