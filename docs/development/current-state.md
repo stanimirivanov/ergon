@@ -33,13 +33,15 @@ The current slice can:
 11. assess and atomically accept post-action outcome proof, closing the case
     only as `VERIFIED_RESOLVED`;
 12. start one attributed successor for a failed run under a versioned retry
-    ceiling; and
+    ceiling;
 13. record explicit resolver escalation when that retry budget is exhausted,
-    leaving the case open; and
+    leaving the case open;
 14. atomically open and retrieve one immutable-source human follow-up work item
-    for that escalation; and
+    for that escalation;
 15. discover unclaimed work through a bounded, oldest-first resolver inbox;
-16. claim open work once with immutable resolver and authority attribution.
+16. claim open work once with immutable resolver and authority attribution;
+    and
+17. page through the authenticated resolver's active claimed work.
 
 Detailed HTTP semantics live with their capabilities:
 

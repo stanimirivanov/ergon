@@ -1,14 +1,24 @@
 package org.ergon.controlplane.followup.adapter.out.persistence
 
+import org.ergon.cases.domain.CaseId
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
+import org.ergon.controlplane.followup.application.ResolverOwnedHumanFollowUpCursor
+import org.ergon.controlplane.followup.application.ResolverOwnedHumanFollowUpWork
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpClaim
+import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
 import org.ergon.followup.domain.HumanFollowUpClaimSnapshot
+import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
+import org.ergon.followup.domain.HumanFollowUpWorkItemSnapshot
+import org.ergon.followup.domain.HumanFollowUpWorkItemStatus
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
+import org.ergon.resolution.domain.ResolutionRunEscalationReason
+import org.ergon.resolution.domain.ResolutionRunEventId
+import org.ergon.resolution.domain.ResolutionRunId
 import org.springframework.jdbc.core.DataClassRowMapper
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
@@ -120,6 +130,81 @@ class PostgresHumanFollowUpClaimRepository(
             .getOrNull()
             ?.toStoredClaim()
 
+    override fun listOwnedForResolver(
+        tenantId: TenantId,
+        actorId: HumanActorId,
+        at: Instant,
+        after: ResolverOwnedHumanFollowUpCursor?,
+        limit: Int,
+    ): List<ResolverOwnedHumanFollowUpWork> {
+        require(limit > 0) { "resolver-owned human follow-up limit must be positive" }
+        val cursorPredicate =
+            if (after == null) {
+                ""
+            } else {
+                "AND (claim.claimed_at, claim.claim_id) > (:afterClaimedAt, :afterClaimId)"
+            }
+        var statement =
+            ownedWorkQuery(cursorPredicate)
+                .param("tenantId", tenantId.value)
+                .param("actorId", actorId.value)
+                .param("at", at.atOffset(ZoneOffset.UTC))
+                .param("limit", limit)
+        if (after != null) {
+            statement =
+                statement
+                    .param("afterClaimedAt", after.claimedAt.atOffset(ZoneOffset.UTC))
+                    .param("afterClaimId", after.claimId.value)
+        }
+        return statement
+            .query(DataClassRowMapper(ResolverOwnedHumanFollowUpRow::class.java))
+            .list()
+            .map(ResolverOwnedHumanFollowUpRow::toOwnedWork)
+    }
+
+    private fun ownedWorkQuery(cursorPredicate: String): JdbcClient.StatementSpec =
+        jdbcClient.sql(
+            """
+            SELECT
+                item.work_item_id,
+                run.case_id,
+                item.run_id,
+                item.escalation_event_id,
+                item.reason,
+                item.status,
+                item.opened_at,
+                item.recorded_at AS work_item_recorded_at,
+                claim.claim_id,
+                claim.resolver_actor_id,
+                claim.authority_evidence_id,
+                claim.claimed_at,
+                claim.recorded_at AS claim_recorded_at
+            FROM human_follow_up_claims claim
+            JOIN human_follow_up_work_items item
+                ON item.tenant_id = claim.tenant_id
+                AND item.work_item_id = claim.work_item_id
+            JOIN resolution_runs run
+                ON run.tenant_id = item.tenant_id
+                AND run.run_id = item.run_id
+            WHERE claim.tenant_id = :tenantId
+                AND claim.resolver_actor_id = :actorId
+                AND item.status = 'OPEN'
+                AND EXISTS (
+                    SELECT 1
+                    FROM approval_authority_evidence authority
+                    WHERE authority.tenant_id = claim.tenant_id
+                        AND authority.actor_id = :actorId
+                        AND authority.authority = 'RESOLVER'
+                        AND authority.case_id IS NULL
+                        AND authority.attested_at <= :at
+                        AND authority.expires_at > :at
+                )
+                $cursorPredicate
+            ORDER BY claim.claimed_at, claim.claim_id
+            LIMIT :limit
+            """.trimIndent(),
+        )
+
     private fun queryBase(whereClause: String): JdbcClient.StatementSpec =
         jdbcClient.sql(
             """
@@ -157,4 +242,54 @@ private data class HumanFollowUpClaimRow(
     val authorityEvidenceId: UUID,
     val claimedAt: OffsetDateTime,
     val recordedAt: OffsetDateTime,
+)
+
+private fun ResolverOwnedHumanFollowUpRow.toOwnedWork(): ResolverOwnedHumanFollowUpWork =
+    try {
+        ResolverOwnedHumanFollowUpWork(
+            StoredHumanFollowUpWorkItem(
+                HumanFollowUpWorkItem.rehydrate(
+                    HumanFollowUpWorkItemSnapshot(
+                        HumanFollowUpWorkItemId(workItemId),
+                        CaseId(caseId),
+                        ResolutionRunId(runId),
+                        ResolutionRunEventId(escalationEventId),
+                        ResolutionRunEscalationReason.valueOf(reason),
+                        HumanFollowUpWorkItemStatus.valueOf(status),
+                        openedAt.toInstant(),
+                    ),
+                ),
+                workItemRecordedAt.toInstant(),
+            ),
+            StoredHumanFollowUpClaim(
+                HumanFollowUpClaim.rehydrate(
+                    HumanFollowUpClaimSnapshot(
+                        HumanFollowUpClaimId(claimId),
+                        HumanFollowUpWorkItemId(workItemId),
+                        HumanActorId(resolverActorId),
+                        ApprovalAuthorityEvidenceId(authorityEvidenceId),
+                        claimedAt.toInstant(),
+                    ),
+                ),
+                claimRecordedAt.toInstant(),
+            ),
+        )
+    } catch (exception: IllegalArgumentException) {
+        throw IllegalStateException("stored resolver-owned human follow-up work is invalid", exception)
+    }
+
+private data class ResolverOwnedHumanFollowUpRow(
+    val workItemId: UUID,
+    val caseId: UUID,
+    val runId: UUID,
+    val escalationEventId: UUID,
+    val reason: String,
+    val status: String,
+    val openedAt: OffsetDateTime,
+    val workItemRecordedAt: OffsetDateTime,
+    val claimId: UUID,
+    val resolverActorId: UUID,
+    val authorityEvidenceId: UUID,
+    val claimedAt: OffsetDateTime,
+    val claimRecordedAt: OffsetDateTime,
 )

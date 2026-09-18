@@ -6,6 +6,7 @@ import org.ergon.controlplane.followup.application.HumanFollowUpAlreadyClaimedEx
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimNotFoundException
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemNotFoundException
 import org.ergon.controlplane.followup.application.InvalidHumanFollowUpWorkItemPageException
+import org.ergon.controlplane.followup.application.InvalidResolverOwnedHumanFollowUpPageException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidAuthenticatedHumanIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.UntrustedHumanIdentityIssuerException
 import org.ergon.controlplane.identity.application.AuthenticatedHumanActorNotRegisteredException
@@ -37,6 +38,17 @@ class HumanFollowUpWorkItemExceptionHandler {
         ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.message.orEmpty()).apply {
             type = URI.create("urn:ergon:problem:invalid-human-follow-up-page")
             title = "Invalid human follow-up page"
+            instance = URI.create(request.requestURI)
+        }
+
+    @ExceptionHandler(InvalidResolverOwnedHumanFollowUpPageException::class)
+    fun invalidOwnedPage(
+        exception: InvalidResolverOwnedHumanFollowUpPageException,
+        request: HttpServletRequest,
+    ): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.message.orEmpty()).apply {
+            type = URI.create("urn:ergon:problem:invalid-resolver-owned-human-follow-up-page")
+            title = "Invalid resolver-owned human follow-up page"
             instance = URI.create(request.requestURI)
         }
 

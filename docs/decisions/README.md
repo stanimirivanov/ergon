@@ -90,3 +90,4 @@ benchmarks rather than duplicating them.
 | 0031 | [Claim human follow-up work immutably](0031-claim-human-follow-up-work.md) |
 | 0032 | [Adopt Ergon build coordinates](0032-adopt-ergon-build-coordinates.md) |
 | 0033 | [Separate Ergon local PostgreSQL identity](0033-separate-ergon-local-postgresql-identity.md) |
+| 0034 | [Expose resolver-owned follow-up work](0034-expose-resolver-owned-follow-up-work.md) |

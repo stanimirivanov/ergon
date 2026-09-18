@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRecording
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemQueryService
+import org.ergon.controlplane.followup.application.ResolverOwnedHumanFollowUpWork
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpClaim
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
@@ -45,6 +46,25 @@ class HumanFollowUpWorkItemController(
         return HumanFollowUpWorkItemPageResponse(
             page.items.map(StoredHumanFollowUpWorkItem::toResponse),
             page.nextCursor?.let { HumanFollowUpWorkItemCursorResponse(it.openedAt, it.workItemId.value) },
+        )
+    }
+
+    /** Lists active work owned by the current resolver in oldest-claimed-first order. */
+    @GetMapping("/owned")
+    fun listOwned(
+        @PathVariable tenantId: UUID,
+        @RequestParam(defaultValue = "50") limit: Int,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+        afterClaimedAt: Instant?,
+        @RequestParam(required = false) afterClaimId: UUID?,
+        authentication: JwtAuthenticationToken,
+    ): ResolverOwnedHumanFollowUpPageResponse {
+        val actor = actors.resolve(tenantId, authentication)
+        val page = claims.listOwned(tenantId, actor.actor.id.value, limit, afterClaimedAt, afterClaimId)
+        return ResolverOwnedHumanFollowUpPageResponse(
+            page.items.map(ResolverOwnedHumanFollowUpWork::toResponse),
+            page.nextCursor?.let { ResolverOwnedHumanFollowUpCursorResponse(it.claimedAt, it.claimId.value) },
         )
     }
 
@@ -101,6 +121,24 @@ data class HumanFollowUpWorkItemCursorResponse(
     val afterWorkItemId: UUID,
 )
 
+/** Active work owned by the authenticated resolver and its immutable ownership record. */
+data class ResolverOwnedHumanFollowUpResponse(
+    val workItem: HumanFollowUpWorkItemResponse,
+    val claim: HumanFollowUpClaimResponse,
+)
+
+/** Bounded oldest-claimed-first page of the authenticated resolver's active work. */
+data class ResolverOwnedHumanFollowUpPageResponse(
+    val items: List<ResolverOwnedHumanFollowUpResponse>,
+    val nextCursor: ResolverOwnedHumanFollowUpCursorResponse?,
+)
+
+/** Exact claim position to supply when requesting the next owned-work page. */
+data class ResolverOwnedHumanFollowUpCursorResponse(
+    val afterClaimedAt: Instant,
+    val afterClaimId: UUID,
+)
+
 /** Immutable source and current lifecycle facts for one human follow-up item. */
 data class HumanFollowUpWorkItemResponse(
     val workItemId: UUID,
@@ -133,6 +171,12 @@ private fun StoredHumanFollowUpWorkItem.toResponse() =
         item.status.name,
         item.openedAt,
         recordedAt,
+    )
+
+private fun ResolverOwnedHumanFollowUpWork.toResponse() =
+    ResolverOwnedHumanFollowUpResponse(
+        workItem.toResponse(),
+        claim.toResponse(),
     )
 
 private fun HumanFollowUpClaimRecording.toResponse() = storedClaim.toResponse()

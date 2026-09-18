@@ -6,8 +6,9 @@ Explicit exhausted-run escalation atomically opens one tenant-scoped `OPEN`
 work item. Its case, run, escalation source, reason, and timestamps are durable
 and immutable. Only an authenticated actor with current tenant-wide resolver
 evidence can retrieve it, list it in the oldest-first unclaimed inbox, and
-acquire immutable ownership. Named queues, priority, reassignment, release,
-notifications, and later lifecycle transitions are not implemented.
+acquire immutable ownership. A resolver can page through their active claimed
+work. Named queues, priority, reassignment, release, notifications, and later
+lifecycle transitions are not implemented.
 
 ## Creation and replay
 
@@ -83,10 +84,30 @@ Send `GET` to the claim location to retrieve its durable attribution. Missing,
 mismatched, and currently unauthorized coordinates all return
 `404 human-follow-up-claim-not-found`.
 
+## Resolver-owned work
+
+An authenticated resolver can recover their active claimed work with:
+
+```text
+GET /internal/v1/tenants/{tenantId}/human-follow-ups/owned?limit=50
+```
+
+Items are ordered by `claimedAt` and then `claimId`, oldest first. Each result
+contains separate nested `workItem` and `claim` values so creation and ownership
+facts retain their meanings. `limit` defaults to 50 and must be between 1 and
+100. Copy both `afterClaimedAt` and `afterClaimId` from `nextCursor` to request
+the next page; supplying only one returns
+`400 invalid-resolver-owned-human-follow-up-page`.
+
+Only `OPEN` work claimed by the authenticated actor appears. The actor must
+also have current tenant-wide resolver evidence. Another resolver, or an actor
+without current resolver evidence, receives an empty page. This view does not
+grant access to other resolvers' workload and provides no stable total count.
+
 ## Deliberate limits
 
 The creation row and first-owner claim are immutable. Later changes must define
 attributable lifecycle events and may add a current-state projection. This
 slice does not define named queues, routing, automatic assignment,
 reassignment, release, priority, due time, service levels, completion,
-cancellation, notification, summaries, a resolver-owned-work view, or a UI.
+cancellation, notification, summaries, supervisor workload views, or a UI.

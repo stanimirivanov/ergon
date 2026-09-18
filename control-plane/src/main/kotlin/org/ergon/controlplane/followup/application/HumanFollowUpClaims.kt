@@ -25,6 +25,24 @@ data class HumanFollowUpClaimRecording(
     val created: Boolean,
 )
 
+/** Active follow-up work paired with the immutable claim that gives one resolver ownership. */
+data class ResolverOwnedHumanFollowUpWork(
+    val workItem: StoredHumanFollowUpWorkItem,
+    val claim: StoredHumanFollowUpClaim,
+)
+
+/** Stable keyset position in a resolver's oldest-claimed-first work view. */
+data class ResolverOwnedHumanFollowUpCursor(
+    val claimedAt: Instant,
+    val claimId: HumanFollowUpClaimId,
+)
+
+/** A bounded page of active work owned by one resolver. */
+data class ResolverOwnedHumanFollowUpPage(
+    val items: List<ResolverOwnedHumanFollowUpWork>,
+    val nextCursor: ResolverOwnedHumanFollowUpCursor?,
+)
+
 /** Durable serialization and resolver-scoped lookup boundary for follow-up claims. */
 interface HumanFollowUpClaimRepository {
     /**
@@ -62,6 +80,21 @@ interface HumanFollowUpClaimRepository {
         actorId: HumanActorId,
         at: Instant,
     ): StoredHumanFollowUpClaim?
+
+    /**
+     * Lists the resolver's claimed `OPEN` work after [after] in ascending claim order.
+     *
+     * [limit] must be positive. Equal claim instants are ordered by claim identity.
+     * Implementations return no rows unless [actorId] has current tenant-wide
+     * resolver evidence at [at].
+     */
+    fun listOwnedForResolver(
+        tenantId: TenantId,
+        actorId: HumanActorId,
+        at: Instant,
+        after: ResolverOwnedHumanFollowUpCursor?,
+        limit: Int,
+    ): List<ResolverOwnedHumanFollowUpWork>
 }
 
 /** Supplies unpredictable identities without coupling claim use cases to UUID generation. */
@@ -79,6 +112,11 @@ class HumanFollowUpAlreadyClaimedException(
 class HumanFollowUpClaimNotFoundException(
     claimId: UUID,
 ) : RuntimeException("human follow-up claim $claimId was not found")
+
+/** Signals malformed or out-of-range resolver-owned work pagination input. */
+class InvalidResolverOwnedHumanFollowUpPageException(
+    message: String,
+) : RuntimeException(message)
 
 /** Establishes and retrieves immutable resolver ownership of open human follow-up work. */
 class HumanFollowUpClaimService(
@@ -151,6 +189,60 @@ class HumanFollowUpClaimService(
             HumanActorId(actorId),
             clock.instant(),
         ) ?: throw HumanFollowUpClaimNotFoundException(claimId)
+
+    /**
+     * Lists active work owned by the authenticated resolver, oldest claim first.
+     *
+     * [afterClaimedAt] and [afterClaimId] must either both be absent for the first
+     * page or both identify the final claim returned by an earlier page. A caller
+     * without current resolver authority receives an empty page.
+     *
+     * @throws InvalidResolverOwnedHumanFollowUpPageException when [limit] is
+     *   outside `1..100` or only one cursor component is supplied.
+     */
+    fun listOwned(
+        tenantId: UUID,
+        actorId: UUID,
+        limit: Int,
+        afterClaimedAt: Instant?,
+        afterClaimId: UUID?,
+    ): ResolverOwnedHumanFollowUpPage {
+        if (limit !in 1..MAX_PAGE_SIZE) {
+            throw InvalidResolverOwnedHumanFollowUpPageException(
+                "limit must be between 1 and $MAX_PAGE_SIZE",
+            )
+        }
+        if ((afterClaimedAt == null) != (afterClaimId == null)) {
+            throw InvalidResolverOwnedHumanFollowUpPageException(
+                "afterClaimedAt and afterClaimId must be supplied together",
+            )
+        }
+        val cursor =
+            afterClaimedAt?.let {
+                ResolverOwnedHumanFollowUpCursor(it, HumanFollowUpClaimId(requireNotNull(afterClaimId)))
+            }
+        val results =
+            claims.listOwnedForResolver(
+                TenantId(tenantId),
+                HumanActorId(actorId),
+                clock.instant(),
+                cursor,
+                limit + 1,
+            )
+        val items = results.take(limit)
+        val nextCursor =
+            if (results.size > limit) {
+                val finalClaim = items.last().claim.claim
+                ResolverOwnedHumanFollowUpCursor(finalClaim.claimedAt, finalClaim.id)
+            } else {
+                null
+            }
+        return ResolverOwnedHumanFollowUpPage(items, nextCursor)
+    }
+
+    private companion object {
+        const val MAX_PAGE_SIZE = 100
+    }
 }
 
 /** Signals that the authenticated actor cannot currently claim follow-up work. */
