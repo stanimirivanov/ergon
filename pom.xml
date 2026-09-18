@@ -36,7 +36,6 @@
         <module>domain-kernel</module>
         <module>embedding-worker</module>
         <module>ingestion-service</module>
-        <module>qa-service</module>
         <module>retrieval-service</module>
     </modules>
 

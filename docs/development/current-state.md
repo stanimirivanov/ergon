@@ -73,18 +73,21 @@ application can still start for unprotected development behavior. See the
 
 ## Rewrite boundary
 
-`ingestion-service`, `embedding-worker`, `retrieval-service`, and `qa-service`
-retain the predecessor article/RAG behavior. They are not the target Ergon
-topology and receive no new product capability unless a migration slice needs
-a verified extraction. The predecessor gateway and its unused Spring Cloud
-edge have been removed; future Ergon ingress requires an explicit security and
-deployment design.
+`ingestion-service`, `embedding-worker`, and `retrieval-service` retain the
+predecessor article/RAG behavior. They are not the target Ergon topology and
+receive no new product capability unless a migration slice needs a verified
+extraction. The predecessor gateway and its unused Spring Cloud edge have been
+removed; future Ergon ingress requires an explicit security and deployment
+design. The incomplete Q&A coordinator and its exclusive MongoDB and Redis
+development infrastructure have also been removed rather than migrated. It had
+no inbound API or production model adapter, and its question/answer model is
+not an Ergon compatibility boundary.
 
 Reusable behavior includes append concurrency, separate occurrence/recording
 time, transactional outbox, idempotent consumers, deterministic chunking,
-hybrid retrieval, tenant-isolation tests, and citation validation. The old
-article aggregate, Q&A contract, MongoDB conversation model, five-service
-topology, and provisional tenant header are not compatibility requirements.
+hybrid retrieval, and tenant-isolation tests. The old article aggregate, Q&A
+contract, MongoDB conversation model, predecessor service topology, and
+provisional tenant header are not compatibility requirements.
 
 ## Deliberate limitations
 

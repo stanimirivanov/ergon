@@ -3,7 +3,7 @@
 # is set up with a dual-listener setup:
 #   - PLAINTEXT       (container-network, port 19092) - for when services get containerized here later
 #   - PLAINTEXT_HOST  (host access, port 9092)         - what your locally-running services use today
-# Grafana stack (Prometheus/Loki/Tempo/Grafana) is deliberately not here yet - that's Phase 8.
+# The observability stack is deliberately deferred to milestone M08.
 services:
   postgres:
     image: pgvector/pgvector:pg18
@@ -17,34 +17,6 @@ services:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rag -d rag_help_center"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  mongodb:
-    image: mongo:8.0
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: rag
-      MONGO_INITDB_ROOT_PASSWORD: rag
-      MONGO_INITDB_DATABASE: rag_help_center
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -84,7 +56,5 @@ services:
 
 volumes:
   postgres-data:
-  redis-data:
-  mongodb-data:
   kafka-data:
   ollama-data:
