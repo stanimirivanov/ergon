@@ -55,7 +55,7 @@ interface HumanFollowUpWorkItemRepository {
     ): StoredHumanFollowUpWorkItem?
 
     /**
-     * Lists `OPEN` work after [after] in ascending opening order.
+     * Lists unclaimed `OPEN` work after [after] in ascending opening order.
      *
      * [limit] must be positive. Implementations must break equal opening times by
      * work-item identity and return no rows when [actorId] lacks current tenant-wide
@@ -110,7 +110,7 @@ class HumanFollowUpWorkItemQueryService(
         ) ?: throw HumanFollowUpWorkItemNotFoundException(workItemId)
 
     /**
-     * Lists the oldest currently open work visible to one resolver.
+     * Lists the oldest currently open and unclaimed work visible to one resolver.
      *
      * [afterOpenedAt] and [afterWorkItemId] must either both be absent for the
      * first page or both identify the final item returned by an earlier page.

@@ -10,8 +10,8 @@
   remain buildable while capabilities are replaced incrementally.
 - Internal endpoints are development boundaries and must not be treated as a
   production authorization model.
-- The next human-work outcome is explicit queue, priority, ownership, and
-  assignment semantics.
+- The next human-work outcomes are explicit named queues, priority,
+  reassignment, release, and completion semantics.
 
 ## Active Ergon slice
 
@@ -38,7 +38,8 @@ The current slice can:
     leaving the case open; and
 14. atomically open and retrieve one immutable-source human follow-up work item
     for that escalation; and
-15. discover open work through a bounded, oldest-first resolver inbox.
+15. discover unclaimed work through a bounded, oldest-first resolver inbox;
+16. claim open work once with immutable resolver and authority attribution.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -85,8 +86,8 @@ topology, and provisional tenant header are not compatibility requirements.
 
 ## Deliberate limitations
 
-- No named queues, routing, assignment, priority, due-time, lifecycle
-  transition, or notification.
+- No named queues, routing, automatic assignment, reassignment, release,
+  priority, due-time, lifecycle transition, or notification.
 - No automatic resolution-contract selection or multi-step interpreter.
 - No AI-assisted semantic binding or Ergon evidence compiler.
 - Only one built-in access-restoration vocabulary and deterministic connector.

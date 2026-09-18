@@ -1,28 +1,35 @@
 package org.ergon.controlplane.followup.adapter.inbound.http
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
+import org.ergon.controlplane.followup.application.HumanFollowUpClaimRecording
+import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemQueryService
+import org.ergon.controlplane.followup.application.StoredHumanFollowUpClaim
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.springframework.format.annotation.DateTimeFormat
+import org.springframework.http.ResponseEntity
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.net.URI
 import java.time.Instant
 import java.util.UUID
 
-/** Authenticated internal boundary for retrieving durable resolver follow-up work. */
+/** Authenticated internal boundary for discovering and claiming durable resolver work. */
 @RestController
 @RequestMapping("/internal/v1/tenants/{tenantId}/human-follow-ups")
 @SecurityRequirement(name = "bearerAuth")
 class HumanFollowUpWorkItemController(
     private val actors: AuthenticatedHumanActorResolver,
     private val service: HumanFollowUpWorkItemQueryService,
+    private val claims: HumanFollowUpClaimService,
 ) {
-    /** Lists the oldest open work visible under the caller's current resolver authority. */
+    /** Lists the oldest unclaimed work visible under the caller's current resolver authority. */
     @GetMapping
     fun listOpen(
         @PathVariable tenantId: UUID,
@@ -51,6 +58,35 @@ class HumanFollowUpWorkItemController(
         val actor = actors.resolve(tenantId, authentication)
         return service.get(tenantId, workItemId, actor.actor.id.value).toResponse()
     }
+
+    /** Claims open work for the current resolver or replays their existing claim. */
+    @PostMapping("/{workItemId}/claims")
+    fun claim(
+        @PathVariable tenantId: UUID,
+        @PathVariable workItemId: UUID,
+        authentication: JwtAuthenticationToken,
+    ): ResponseEntity<HumanFollowUpClaimResponse> {
+        val actor = actors.resolve(tenantId, authentication)
+        val recording = claims.claim(tenantId, workItemId, actor.actor.id.value)
+        val location = claimLocation(tenantId, workItemId, recording.storedClaim.claim.id.value)
+        return if (recording.created) {
+            ResponseEntity.created(location).body(recording.toResponse())
+        } else {
+            ResponseEntity.ok().location(location).body(recording.toResponse())
+        }
+    }
+
+    /** Returns one claim only while the caller has current resolver authority. */
+    @GetMapping("/{workItemId}/claims/{claimId}")
+    fun getClaim(
+        @PathVariable tenantId: UUID,
+        @PathVariable workItemId: UUID,
+        @PathVariable claimId: UUID,
+        authentication: JwtAuthenticationToken,
+    ): HumanFollowUpClaimResponse {
+        val actor = actors.resolve(tenantId, authentication)
+        return claims.get(tenantId, workItemId, claimId, actor.actor.id.value).toResponse()
+    }
 }
 
 /** Bounded oldest-first inbox page. */
@@ -77,6 +113,16 @@ data class HumanFollowUpWorkItemResponse(
     val recordedAt: Instant,
 )
 
+/** Immutable ownership and authority attribution for one resolver claim. */
+data class HumanFollowUpClaimResponse(
+    val claimId: UUID,
+    val workItemId: UUID,
+    val resolverActorId: UUID,
+    val authorityEvidenceId: UUID,
+    val claimedAt: Instant,
+    val recordedAt: Instant,
+)
+
 private fun StoredHumanFollowUpWorkItem.toResponse() =
     HumanFollowUpWorkItemResponse(
         item.id.value,
@@ -88,3 +134,21 @@ private fun StoredHumanFollowUpWorkItem.toResponse() =
         item.openedAt,
         recordedAt,
     )
+
+private fun HumanFollowUpClaimRecording.toResponse() = storedClaim.toResponse()
+
+private fun StoredHumanFollowUpClaim.toResponse() =
+    HumanFollowUpClaimResponse(
+        claim.id.value,
+        claim.workItemId.value,
+        claim.resolverActorId.value,
+        claim.authorityEvidenceId.value,
+        claim.claimedAt,
+        recordedAt,
+    )
+
+private fun claimLocation(
+    tenantId: UUID,
+    workItemId: UUID,
+    claimId: UUID,
+) = URI.create("/internal/v1/tenants/$tenantId/human-follow-ups/$workItemId/claims/$claimId")

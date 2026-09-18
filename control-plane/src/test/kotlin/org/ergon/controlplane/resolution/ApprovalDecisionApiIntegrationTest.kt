@@ -291,7 +291,14 @@ class ApprovalDecisionApiIntegrationTest(
         assertExhaustedRunEscalation(
             mockMvc,
             jdbcClient,
-            ExhaustedRunEscalationContext(tenantId, replacementRunId, caseId, subject),
+            ExhaustedRunEscalationContext(
+                tenantId,
+                replacementRunId,
+                caseId,
+                subject,
+                retry.actorId,
+                retry.authorityEvidenceId,
+            ),
         )
     }
 
@@ -1198,6 +1205,8 @@ private data class ExhaustedRunEscalationContext(
     val runId: UUID,
     val caseId: UUID,
     val subject: String,
+    val actorId: UUID,
+    val authorityEvidenceId: UUID,
 )
 
 private fun assertExhaustedRunEscalation(
@@ -1207,9 +1216,76 @@ private fun assertExhaustedRunEscalation(
 ) {
     val followUp = createExhaustedRunEscalation(mockMvc, context)
     assertFollowUpRetrieval(mockMvc, jdbcClient, context, followUp)
+    assertFollowUpClaim(mockMvc, jdbcClient, context, followUp)
     assertEscalationReplay(mockMvc, context, followUp)
     assertEscalationPersistence(jdbcClient, context, followUp.workItemId)
 }
+
+private fun assertFollowUpClaim(
+    mockMvc: MockMvc,
+    jdbcClient: JdbcClient,
+    context: ExhaustedRunEscalationContext,
+    followUp: CreatedFollowUp,
+) {
+    val claimsLocation = "${followUp.location}/claims"
+    mockMvc.perform(post(claimsLocation)).andExpect(status().isUnauthorized)
+    val creation =
+        mockMvc
+            .perform(post(claimsLocation).with(humanJwt(context.subject)))
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.claimId").isNotEmpty)
+            .andExpect(jsonPath("$.workItemId").value(followUp.workItemId.toString()))
+            .andExpect(jsonPath("$.resolverActorId").value(context.actorId.toString()))
+            .andExpect(jsonPath("$.authorityEvidenceId").value(context.authorityEvidenceId.toString()))
+            .andExpect(jsonPath("$.claimedAt").exists())
+            .andExpect(jsonPath("$.recordedAt").exists())
+            .andReturn()
+    val claimLocation = requireNotNull(creation.response.getHeader("Location"))
+    val claimId = UUID.fromString(claimLocation.substringAfterLast('/'))
+
+    mockMvc.perform(get(claimLocation)).andExpect(status().isUnauthorized)
+    mockMvc
+        .perform(get(claimLocation).with(humanJwt(context.subject)))
+        .andExpect(status().isOk)
+        .andExpect(jsonPath("$.claimId").value(claimId.toString()))
+        .andExpect(jsonPath("$.workItemId").value(followUp.workItemId.toString()))
+    mockMvc
+        .perform(post(claimsLocation).with(humanJwt(context.subject)))
+        .andExpect(status().isOk)
+        .andExpect(header().string("Location", claimLocation))
+        .andExpect(jsonPath("$.claimId").value(claimId.toString()))
+
+    val competingSubject = "follow-up-competitor-${UUID.randomUUID()}"
+    val competingActorId = registerActor(mockMvc, context.tenantId, competingSubject)
+    attestResolverAuthority(mockMvc, context.tenantId, competingActorId)
+    mockMvc
+        .perform(post(claimsLocation).with(humanJwt(competingSubject)))
+        .andExpect(status().isConflict)
+        .andExpect(jsonPath("$.type").value("urn:ergon:problem:human-follow-up-already-claimed"))
+
+    mockMvc
+        .perform(get(followUp.location.substringBeforeLast('/')).with(humanJwt(context.subject)))
+        .andExpect(status().isOk)
+        .andExpect(jsonPath("$.items").isEmpty)
+    assertThatThrownBy {
+        jdbcClient
+            .sql(
+                """
+                UPDATE human_follow_up_claims
+                SET resolver_actor_id = resolver_actor_id
+                WHERE tenant_id = :tenantId AND claim_id = :claimId
+                """.trimIndent(),
+            ).param("tenantId", context.tenantId)
+            .param("claimId", claimId)
+            .update()
+    }.isInstanceOf(DataAccessException::class.java)
+}
+
+private fun humanJwt(subject: String) =
+    jwt().jwt {
+        it.issuer(TRUSTED_ISSUER)
+        it.subject(subject)
+    }
 
 private data class CreatedFollowUp(
     val workItemId: UUID,
@@ -1375,6 +1451,13 @@ private fun assertUnauthorizedResolverSeesNoFollowUp(
         ).andExpect(status().isOk)
         .andExpect(jsonPath("$.items").isEmpty)
         .andExpect(jsonPath("$.nextCursor").doesNotExist())
+    mockMvc
+        .perform(post("${followUp.location}/claims").with(humanJwt(observerSubject)))
+        .andExpect(status().isForbidden)
+        .andExpect(
+            jsonPath("$.type")
+                .value("urn:ergon:problem:human-follow-up-resolver-authority-required"),
+        )
 }
 
 private fun assertEscalationReplay(

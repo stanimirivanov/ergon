@@ -126,6 +126,12 @@ class PostgresHumanFollowUpWorkItemRepository(
                 """
                 WHERE item.tenant_id = :tenantId
                     AND item.status = 'OPEN'
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM human_follow_up_claims claim
+                        WHERE claim.tenant_id = item.tenant_id
+                            AND claim.work_item_id = item.work_item_id
+                    )
                     AND EXISTS (
                         SELECT 1
                         FROM approval_authority_evidence authority
