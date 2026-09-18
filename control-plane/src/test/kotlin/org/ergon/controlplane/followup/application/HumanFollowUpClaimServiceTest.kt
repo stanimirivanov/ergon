@@ -2,11 +2,14 @@ package org.ergon.controlplane.followup.application
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.ergon.cases.domain.CaseId
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.identity.application.StoredApprovalAuthorityEvidence
 import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
+import org.ergon.followup.domain.HumanFollowUpSource
+import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
@@ -14,6 +17,9 @@ import org.ergon.resolution.domain.ApprovalAuthority
 import org.ergon.resolution.domain.ApprovalAuthorityEvidence
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceSource
+import org.ergon.resolution.domain.ResolutionRunEscalationReason
+import org.ergon.resolution.domain.ResolutionRunEventId
+import org.ergon.resolution.domain.ResolutionRunId
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
@@ -103,6 +109,40 @@ class HumanFollowUpClaimServiceTest {
         verifyNoInteractions(identities)
     }
 
+    @Test
+    fun `owned work returns a bounded page and cursor from the last visible claim`() {
+        val first = ownedWork(NOW.minusSeconds(30), randomClaimId(), randomWorkItemId())
+        val second = ownedWork(NOW.minusSeconds(20), randomClaimId(), randomWorkItemId())
+        val hiddenLookahead = ownedWork(NOW.minusSeconds(10), randomClaimId(), randomWorkItemId())
+        `when`(
+            claims.listOwnedForResolver(TENANT_ID, ACTOR_ID, NOW, null, 3),
+        ).thenReturn(listOf(first, second, hiddenLookahead))
+
+        val page = service.listOwned(TENANT_ID.value, ACTOR_ID.value, 2, null, null)
+
+        assertThat(page.items).containsExactly(first, second)
+        assertThat(page.nextCursor)
+            .isEqualTo(
+                ResolverOwnedHumanFollowUpCursor(
+                    second.claim.claim.claimedAt,
+                    second.claim.claim.id,
+                ),
+            )
+        verify(claims).listOwnedForResolver(TENANT_ID, ACTOR_ID, NOW, null, 3)
+    }
+
+    @Test
+    fun `owned work validates page size and complete cursor before querying storage`() {
+        assertThatThrownBy {
+            service.listOwned(TENANT_ID.value, ACTOR_ID.value, 0, null, null)
+        }.isInstanceOf(InvalidResolverOwnedHumanFollowUpPageException::class.java)
+        assertThatThrownBy {
+            service.listOwned(TENANT_ID.value, ACTOR_ID.value, 50, NOW, null)
+        }.isInstanceOf(InvalidResolverOwnedHumanFollowUpPageException::class.java)
+
+        verifyNoInteractions(claims)
+    }
+
     private fun authorize(actorId: HumanActorId) {
         `when`(authorities.findCurrent(TENANT_ID, actorId, ApprovalAuthority.RESOLVER, null, NOW))
             .thenReturn(StoredApprovalAuthorityEvidence(evidence(actorId), NOW))
@@ -119,6 +159,30 @@ class HumanFollowUpClaimServiceTest {
             NOW.plusSeconds(60),
         )
 
+    private fun ownedWork(
+        claimedAt: Instant,
+        claimId: HumanFollowUpClaimId,
+        workItemId: HumanFollowUpWorkItemId,
+    ): ResolverOwnedHumanFollowUpWork =
+        ResolverOwnedHumanFollowUpWork(
+            StoredHumanFollowUpWorkItem(
+                HumanFollowUpWorkItem.open(
+                    workItemId,
+                    HumanFollowUpSource(CASE_ID, RUN_ID, EVENT_ID, REASON),
+                    OPENED_AT,
+                ),
+                NOW,
+            ),
+            StoredHumanFollowUpClaim(
+                HumanFollowUpClaim.claim(claimId, workItemId, evidence(ACTOR_ID), claimedAt),
+                NOW,
+            ),
+        )
+
+    private fun randomClaimId() = HumanFollowUpClaimId(UUID.randomUUID())
+
+    private fun randomWorkItemId() = HumanFollowUpWorkItemId(UUID.randomUUID())
+
     private companion object {
         val TENANT_ID = TenantId(UUID.randomUUID())
         val WORK_ITEM_ID = HumanFollowUpWorkItemId(UUID.randomUUID())
@@ -126,6 +190,11 @@ class HumanFollowUpClaimServiceTest {
         val ACTOR_ID = HumanActorId(UUID.randomUUID())
         val OTHER_ACTOR_ID = HumanActorId(UUID.randomUUID())
         val EVIDENCE_ID = ApprovalAuthorityEvidenceId(UUID.randomUUID())
+        val CASE_ID = CaseId(UUID.randomUUID())
+        val RUN_ID = ResolutionRunId(UUID.randomUUID())
+        val EVENT_ID = ResolutionRunEventId(UUID.randomUUID())
+        val REASON = ResolutionRunEscalationReason.RETRY_ATTEMPT_LIMIT_REACHED
+        val OPENED_AT = Instant.parse("2026-09-18T11:00:00Z")
         val NOW = Instant.parse("2026-09-18T12:00:00Z")
     }
 }

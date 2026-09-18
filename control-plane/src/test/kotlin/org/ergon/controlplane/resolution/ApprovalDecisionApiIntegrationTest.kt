@@ -1255,13 +1255,7 @@ private fun assertFollowUpClaim(
         .andExpect(header().string("Location", claimLocation))
         .andExpect(jsonPath("$.claimId").value(claimId.toString()))
 
-    val competingSubject = "follow-up-competitor-${UUID.randomUUID()}"
-    val competingActorId = registerActor(mockMvc, context.tenantId, competingSubject)
-    attestResolverAuthority(mockMvc, context.tenantId, competingActorId)
-    mockMvc
-        .perform(post(claimsLocation).with(humanJwt(competingSubject)))
-        .andExpect(status().isConflict)
-        .andExpect(jsonPath("$.type").value("urn:ergon:problem:human-follow-up-already-claimed"))
+    assertExclusiveResolverOwnership(mockMvc, jdbcClient, context, followUp, claimId)
 
     mockMvc
         .perform(get(followUp.location.substringBeforeLast('/')).with(humanJwt(context.subject)))
@@ -1280,6 +1274,85 @@ private fun assertFollowUpClaim(
             .update()
     }.isInstanceOf(DataAccessException::class.java)
 }
+
+private fun assertExclusiveResolverOwnership(
+    mockMvc: MockMvc,
+    jdbcClient: JdbcClient,
+    context: ExhaustedRunEscalationContext,
+    followUp: CreatedFollowUp,
+    claimId: UUID,
+) {
+    val claimsLocation = "${followUp.location}/claims"
+    val competingSubject = "follow-up-competitor-${UUID.randomUUID()}"
+    val competingActorId = registerActor(mockMvc, context.tenantId, competingSubject)
+    attestResolverAuthority(mockMvc, context.tenantId, competingActorId)
+    mockMvc
+        .perform(post(claimsLocation).with(humanJwt(competingSubject)))
+        .andExpect(status().isConflict)
+        .andExpect(jsonPath("$.type").value("urn:ergon:problem:human-follow-up-already-claimed"))
+
+    val ownedLocation = "${followUp.location.substringBeforeLast('/')}/owned"
+    mockMvc.perform(get(ownedLocation)).andExpect(status().isUnauthorized)
+    mockMvc
+        .perform(get(ownedLocation).param("limit", "1").with(humanJwt(context.subject)))
+        .andExpect(status().isOk)
+        .andExpect(jsonPath("$.items.length()").value(1))
+        .andExpect(jsonPath("$.items[0].workItem.workItemId").value(followUp.workItemId.toString()))
+        .andExpect(jsonPath("$.items[0].workItem.caseId").value(context.caseId.toString()))
+        .andExpect(jsonPath("$.items[0].claim.claimId").value(claimId.toString()))
+        .andExpect(jsonPath("$.items[0].claim.resolverActorId").value(context.actorId.toString()))
+        .andExpect(jsonPath("$.nextCursor").doesNotExist())
+    mockMvc
+        .perform(get(ownedLocation).with(humanJwt(competingSubject)))
+        .andExpect(status().isOk)
+        .andExpect(jsonPath("$.items").isEmpty)
+
+    val observerSubject = "owned-follow-up-observer-${UUID.randomUUID()}"
+    registerActor(mockMvc, context.tenantId, observerSubject)
+    mockMvc
+        .perform(get(ownedLocation).with(humanJwt(observerSubject)))
+        .andExpect(status().isOk)
+        .andExpect(jsonPath("$.items").isEmpty)
+
+    val claimedAt = followUpClaimedAt(jdbcClient, context.tenantId, claimId)
+    mockMvc
+        .perform(
+            get(ownedLocation)
+                .param("afterClaimedAt", claimedAt.toString())
+                .param("afterClaimId", claimId.toString())
+                .with(humanJwt(context.subject)),
+        ).andExpect(status().isOk)
+        .andExpect(jsonPath("$.items").isEmpty)
+        .andExpect(jsonPath("$.nextCursor").doesNotExist())
+    mockMvc
+        .perform(
+            get(ownedLocation)
+                .param("afterClaimedAt", claimedAt.toString())
+                .with(humanJwt(context.subject)),
+        ).andExpect(status().isBadRequest)
+        .andExpect(
+            jsonPath("$.type")
+                .value("urn:ergon:problem:invalid-resolver-owned-human-follow-up-page"),
+        )
+}
+
+private fun followUpClaimedAt(
+    jdbcClient: JdbcClient,
+    tenantId: UUID,
+    claimId: UUID,
+): Instant =
+    jdbcClient
+        .sql(
+            """
+            SELECT claimed_at
+            FROM human_follow_up_claims
+            WHERE tenant_id = :tenantId AND claim_id = :claimId
+            """.trimIndent(),
+        ).param("tenantId", tenantId)
+        .param("claimId", claimId)
+        .query(OffsetDateTime::class.java)
+        .single()
+        .toInstant()
 
 private fun humanJwt(subject: String) =
     jwt().jwt {
