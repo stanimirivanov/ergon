@@ -37,7 +37,8 @@ The current slice can:
 13. record explicit resolver escalation when that retry budget is exhausted,
     leaving the case open; and
 14. atomically open and retrieve one immutable-source human follow-up work item
-    for that escalation.
+    for that escalation; and
+15. discover open work through a bounded, oldest-first resolver inbox.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -84,8 +85,8 @@ topology, and provisional tenant header are not compatibility requirements.
 
 ## Deliberate limitations
 
-- No follow-up assignment, queue, priority, due-time, lifecycle transition, or
-  notification.
+- No named queues, routing, assignment, priority, due-time, lifecycle
+  transition, or notification.
 - No automatic resolution-contract selection or multi-step interpreter.
 - No AI-assisted semantic binding or Ergon evidence compiler.
 - Only one built-in access-restoration vocabulary and deterministic connector.

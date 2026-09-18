@@ -41,17 +41,46 @@ class HumanFollowUpWorkItemQueryServiceTest {
             .isInstanceOf(HumanFollowUpWorkItemNotFoundException::class.java)
     }
 
-    private fun workItem() =
-        HumanFollowUpWorkItem.open(
-            WORK_ITEM_ID,
-            HumanFollowUpSource(
-                CaseId(UUID.randomUUID()),
-                ResolutionRunId(UUID.randomUUID()),
-                ResolutionRunEventId(UUID.randomUUID()),
-                ResolutionRunEscalationReason.RETRY_ATTEMPT_LIMIT_REACHED,
-            ),
-            NOW,
-        )
+    @Test
+    fun `open inbox returns a bounded page and cursor from the last visible item`() {
+        val first = StoredHumanFollowUpWorkItem(workItem(Instant.parse("2026-09-16T10:00:00Z"), randomId()), NOW)
+        val second = StoredHumanFollowUpWorkItem(workItem(Instant.parse("2026-09-16T11:00:00Z"), randomId()), NOW)
+        val hiddenLookahead = StoredHumanFollowUpWorkItem(workItem(NOW, randomId()), NOW)
+        `when`(
+            repository.listOpenForResolver(TENANT_ID, ACTOR_ID, NOW, null, 3),
+        ).thenReturn(listOf(first, second, hiddenLookahead))
+
+        val page = service.listOpen(TENANT_ID.value, ACTOR_ID.value, 2, null, null)
+
+        assertThat(page.items).containsExactly(first, second)
+        assertThat(page.nextCursor)
+            .isEqualTo(HumanFollowUpWorkItemCursor(second.item.openedAt, second.item.id))
+        verify(repository).listOpenForResolver(TENANT_ID, ACTOR_ID, NOW, null, 3)
+    }
+
+    @Test
+    fun `open inbox validates page size and complete cursor before querying storage`() {
+        assertThatThrownBy { service.listOpen(TENANT_ID.value, ACTOR_ID.value, 0, null, null) }
+            .isInstanceOf(InvalidHumanFollowUpWorkItemPageException::class.java)
+        assertThatThrownBy { service.listOpen(TENANT_ID.value, ACTOR_ID.value, 1, NOW, null) }
+            .isInstanceOf(InvalidHumanFollowUpWorkItemPageException::class.java)
+    }
+
+    private fun workItem(
+        openedAt: Instant = NOW,
+        id: HumanFollowUpWorkItemId = WORK_ITEM_ID,
+    ) = HumanFollowUpWorkItem.open(
+        id,
+        HumanFollowUpSource(
+            CaseId(UUID.randomUUID()),
+            ResolutionRunId(UUID.randomUUID()),
+            ResolutionRunEventId(UUID.randomUUID()),
+            ResolutionRunEscalationReason.RETRY_ATTEMPT_LIMIT_REACHED,
+        ),
+        openedAt,
+    )
+
+    private fun randomId() = HumanFollowUpWorkItemId(UUID.randomUUID())
 
     private companion object {
         val TENANT_ID = TenantId(UUID.randomUUID())

@@ -86,3 +86,4 @@ benchmarks rather than duplicating them.
 | 0027 | [Bound explicit retry attempts](0027-bound-explicit-retry-attempts.md) |
 | 0028 | [Record explicit exhausted-run escalation](0028-record-explicit-exhausted-run-escalation.md) |
 | 0029 | [Open durable work from escalation](0029-open-durable-work-from-escalation.md) |
+| 0030 | [Expose an oldest-first resolver inbox](0030-expose-oldest-first-resolver-inbox.md) |

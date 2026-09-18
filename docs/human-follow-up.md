@@ -5,8 +5,9 @@
 Explicit exhausted-run escalation atomically opens one tenant-scoped `OPEN`
 work item. Its case, run, escalation source, reason, and timestamps are durable
 and immutable. Only an authenticated actor with current tenant-wide resolver
-evidence can retrieve it. Assignment, queues, priority, notifications, and
-later lifecycle transitions are not implemented.
+evidence can retrieve it or list it in the oldest-first resolver inbox.
+Assignment, named queues, priority, notifications, and later lifecycle
+transitions are not implemented.
 
 ## Creation and replay
 
@@ -38,9 +39,29 @@ Missing or invalid authentication fails before controller dispatch.
 These are internal development endpoints, not a complete production resolver
 authorization or data-disclosure boundary.
 
+## Resolver inbox
+
+An authenticated resolver can discover open work with:
+
+```text
+GET /internal/v1/tenants/{tenantId}/human-follow-ups?limit=50
+```
+
+Items are ordered by `openedAt` and then `workItemId`, oldest first. `limit`
+defaults to 50 and must be between 1 and 100. When another page exists, copy
+both values from `nextCursor` into `afterOpenedAt` and `afterWorkItemId` on the
+next request. Supplying only one cursor value returns
+`400 invalid-human-follow-up-page`.
+
+The inbox uses current tenant-wide resolver evidence. A caller without that
+evidence receives an empty page so the response does not reveal whether the
+tenant contains work. The inbox is a read model over open work, not a named
+queue or assignment, and it provides no total count.
+
 ## Deliberate limits
 
 The creation row is immutable. Later changes must define attributable lifecycle
 events and may add a current-state projection. This slice does not define
-listing, queues, assignment, ownership, priority, due time, service levels,
-claiming, completion, cancellation, notification, summaries, or a resolver UI.
+named queues, routing, assignment, ownership, priority, due time, service
+levels, claiming, completion, cancellation, notification, summaries, or a
+resolver UI.
