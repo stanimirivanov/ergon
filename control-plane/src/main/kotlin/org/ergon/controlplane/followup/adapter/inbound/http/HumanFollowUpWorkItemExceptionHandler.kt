@@ -2,6 +2,7 @@ package org.ergon.controlplane.followup.adapter.inbound.http
 
 import jakarta.servlet.http.HttpServletRequest
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemNotFoundException
+import org.ergon.controlplane.followup.application.InvalidHumanFollowUpWorkItemPageException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidAuthenticatedHumanIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.UntrustedHumanIdentityIssuerException
 import org.ergon.controlplane.identity.application.AuthenticatedHumanActorNotRegisteredException
@@ -14,6 +15,17 @@ import java.net.URI
 /** Maps resolver-scoped follow-up lookup failures without exposing hidden work. */
 @RestControllerAdvice(assignableTypes = [HumanFollowUpWorkItemController::class])
 class HumanFollowUpWorkItemExceptionHandler {
+    @ExceptionHandler(InvalidHumanFollowUpWorkItemPageException::class)
+    fun invalidPage(
+        exception: InvalidHumanFollowUpWorkItemPageException,
+        request: HttpServletRequest,
+    ): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.message.orEmpty()).apply {
+            type = URI.create("urn:ergon:problem:invalid-human-follow-up-page")
+            title = "Invalid human follow-up page"
+            instance = URI.create(request.requestURI)
+        }
+
     @ExceptionHandler(HumanFollowUpWorkItemNotFoundException::class)
     fun notFound(
         exception: HumanFollowUpWorkItemNotFoundException,

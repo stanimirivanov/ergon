@@ -85,7 +85,8 @@ Candidate PR-sized outcomes:
 
 - Delivered: create and retrieve one durable human follow-up work item from an
   escalated run.
-- Define queue, priority, ownership, and assignment semantics separately.
+- Delivered: expose a bounded oldest-first inbox for open human follow-up work.
+- Define named queue, priority, ownership, and assignment semantics separately.
 - Add idempotent notification delivery after durable work exists.
 - Expose a resolver-focused case summary from existing evidence and run facts.
 - Implement the minimum resolver console for evidence, approvals, execution,

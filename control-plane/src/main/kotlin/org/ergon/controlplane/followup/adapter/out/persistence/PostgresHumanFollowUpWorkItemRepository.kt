@@ -1,6 +1,7 @@
 package org.ergon.controlplane.followup.adapter.out.persistence
 
 import org.ergon.cases.domain.CaseId
+import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemCursor
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemRepository
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItem
@@ -105,6 +106,55 @@ class PostgresHumanFollowUpWorkItemRepository(
             .optional()
             .getOrNull()
             ?.toStoredWorkItem()
+
+    override fun listOpenForResolver(
+        tenantId: TenantId,
+        actorId: HumanActorId,
+        at: Instant,
+        after: HumanFollowUpWorkItemCursor?,
+        limit: Int,
+    ): List<StoredHumanFollowUpWorkItem> {
+        require(limit > 0) { "human follow-up inbox limit must be positive" }
+        val cursorPredicate =
+            if (after == null) {
+                ""
+            } else {
+                "AND (item.opened_at, item.work_item_id) > (:afterOpenedAt, :afterWorkItemId)"
+            }
+        var statement =
+            queryBase(
+                """
+                WHERE item.tenant_id = :tenantId
+                    AND item.status = 'OPEN'
+                    AND EXISTS (
+                        SELECT 1
+                        FROM approval_authority_evidence authority
+                        WHERE authority.tenant_id = item.tenant_id
+                            AND authority.actor_id = :actorId
+                            AND authority.authority = 'RESOLVER'
+                            AND authority.case_id IS NULL
+                            AND authority.attested_at <= :at
+                            AND authority.expires_at > :at
+                    )
+                    $cursorPredicate
+                ORDER BY item.opened_at, item.work_item_id
+                LIMIT :limit
+                """.trimIndent(),
+            ).param("tenantId", tenantId.value)
+                .param("actorId", actorId.value)
+                .param("at", at.atOffset(ZoneOffset.UTC))
+                .param("limit", limit)
+        if (after != null) {
+            statement =
+                statement
+                    .param("afterOpenedAt", after.openedAt.atOffset(ZoneOffset.UTC))
+                    .param("afterWorkItemId", after.workItemId.value)
+        }
+        return statement
+            .query(DataClassRowMapper(HumanFollowUpWorkItemRow::class.java))
+            .list()
+            .map(HumanFollowUpWorkItemRow::toStoredWorkItem)
+    }
 
     private fun queryBase(whereClause: String): JdbcClient.StatementSpec =
         jdbcClient.sql(

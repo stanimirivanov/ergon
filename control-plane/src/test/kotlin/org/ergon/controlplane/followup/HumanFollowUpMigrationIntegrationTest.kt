@@ -22,6 +22,7 @@ class HumanFollowUpMigrationIntegrationTest {
         seedExistingEscalation(schema)
         flyway(schema).load().migrate()
         assertBackfilledWorkItem(schema)
+        assertInboxIndex(schema)
     }
 
     private fun seedExistingEscalation(schema: String) {
@@ -98,6 +99,29 @@ class HumanFollowUpMigrationIntegrationTest {
                         assertThat(result.next()).isFalse()
                     }
             }
+        }
+    }
+
+    private fun assertInboxIndex(schema: String) {
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.schema = schema
+            connection
+                .prepareStatement(
+                    """
+                    SELECT indexdef
+                    FROM pg_indexes
+                    WHERE schemaname = ? AND indexname = 'ix_human_follow_up_work_items_open_inbox'
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, schema)
+                    statement.executeQuery().use { result ->
+                        assertThat(result.next()).isTrue()
+                        assertThat(result.getString("indexdef"))
+                            .contains("tenant_id, opened_at, work_item_id")
+                            .contains("WHERE (status = 'OPEN'::text)")
+                        assertThat(result.next()).isFalse()
+                    }
+                }
         }
     }
 

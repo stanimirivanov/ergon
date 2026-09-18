@@ -1206,7 +1206,7 @@ private fun assertExhaustedRunEscalation(
     context: ExhaustedRunEscalationContext,
 ) {
     val followUp = createExhaustedRunEscalation(mockMvc, context)
-    assertFollowUpRetrieval(mockMvc, context, followUp)
+    assertFollowUpRetrieval(mockMvc, jdbcClient, context, followUp)
     assertEscalationReplay(mockMvc, context, followUp)
     assertEscalationPersistence(jdbcClient, context, followUp.workItemId)
 }
@@ -1242,10 +1242,23 @@ private fun createExhaustedRunEscalation(
 
 private fun assertFollowUpRetrieval(
     mockMvc: MockMvc,
+    jdbcClient: JdbcClient,
     context: ExhaustedRunEscalationContext,
     followUp: CreatedFollowUp,
 ) {
+    val inboxLocation = followUp.location.substringBeforeLast('/')
     mockMvc.perform(get(followUp.location)).andExpect(status().isUnauthorized)
+    mockMvc.perform(get(inboxLocation)).andExpect(status().isUnauthorized)
+    assertAuthorizedFollowUpRetrieval(mockMvc, context, followUp)
+    assertAuthorizedInboxRetrieval(mockMvc, context, followUp, inboxLocation, followUpOpenedAt(jdbcClient, context))
+    assertUnauthorizedResolverSeesNoFollowUp(mockMvc, context, followUp, inboxLocation)
+}
+
+private fun assertAuthorizedFollowUpRetrieval(
+    mockMvc: MockMvc,
+    context: ExhaustedRunEscalationContext,
+    followUp: CreatedFollowUp,
+) {
     mockMvc
         .perform(
             get(followUp.location).with(
@@ -1263,6 +1276,82 @@ private fun assertFollowUpRetrieval(
         .andExpect(jsonPath("$.status").value("OPEN"))
         .andExpect(jsonPath("$.openedAt").exists())
         .andExpect(jsonPath("$.recordedAt").exists())
+}
+
+private fun assertAuthorizedInboxRetrieval(
+    mockMvc: MockMvc,
+    context: ExhaustedRunEscalationContext,
+    followUp: CreatedFollowUp,
+    inboxLocation: String,
+    openedAt: Instant,
+) {
+    mockMvc
+        .perform(
+            get(inboxLocation)
+                .param("limit", "1")
+                .with(
+                    jwt().jwt {
+                        it.issuer(TRUSTED_ISSUER)
+                        it.subject(context.subject)
+                    },
+                ),
+        ).andExpect(status().isOk)
+        .andExpect(jsonPath("$.items.length()").value(1))
+        .andExpect(jsonPath("$.items[0].workItemId").value(followUp.workItemId.toString()))
+        .andExpect(jsonPath("$.items[0].caseId").value(context.caseId.toString()))
+        .andExpect(jsonPath("$.items[0].status").value("OPEN"))
+        .andExpect(jsonPath("$.nextCursor").doesNotExist())
+    mockMvc
+        .perform(
+            get(inboxLocation)
+                .param("limit", "0")
+                .with(
+                    jwt().jwt {
+                        it.issuer(TRUSTED_ISSUER)
+                        it.subject(context.subject)
+                    },
+                ),
+        ).andExpect(status().isBadRequest)
+        .andExpect(jsonPath("$.type").value("urn:ergon:problem:invalid-human-follow-up-page"))
+    mockMvc
+        .perform(
+            get(inboxLocation)
+                .param("afterOpenedAt", openedAt.toString())
+                .param("afterWorkItemId", followUp.workItemId.toString())
+                .with(
+                    jwt().jwt {
+                        it.issuer(TRUSTED_ISSUER)
+                        it.subject(context.subject)
+                    },
+                ),
+        ).andExpect(status().isOk)
+        .andExpect(jsonPath("$.items").isEmpty)
+        .andExpect(jsonPath("$.nextCursor").doesNotExist())
+}
+
+private fun followUpOpenedAt(
+    jdbcClient: JdbcClient,
+    context: ExhaustedRunEscalationContext,
+): Instant =
+    jdbcClient
+        .sql(
+            """
+            SELECT opened_at
+            FROM human_follow_up_work_items
+            WHERE tenant_id = :tenantId AND run_id = :runId
+            """.trimIndent(),
+        ).param("tenantId", context.tenantId)
+        .param("runId", context.runId)
+        .query(OffsetDateTime::class.java)
+        .single()
+        .toInstant()
+
+private fun assertUnauthorizedResolverSeesNoFollowUp(
+    mockMvc: MockMvc,
+    context: ExhaustedRunEscalationContext,
+    followUp: CreatedFollowUp,
+    inboxLocation: String,
+) {
     val observerSubject = "follow-up-observer-${UUID.randomUUID()}"
     registerActor(mockMvc, context.tenantId, observerSubject)
     mockMvc
@@ -1275,6 +1364,17 @@ private fun assertFollowUpRetrieval(
             ),
         ).andExpect(status().isNotFound)
         .andExpect(jsonPath("$.type").value("urn:ergon:problem:human-follow-up-work-item-not-found"))
+    mockMvc
+        .perform(
+            get(inboxLocation).with(
+                jwt().jwt {
+                    it.issuer(TRUSTED_ISSUER)
+                    it.subject(observerSubject)
+                },
+            ),
+        ).andExpect(status().isOk)
+        .andExpect(jsonPath("$.items").isEmpty)
+        .andExpect(jsonPath("$.nextCursor").doesNotExist())
 }
 
 private fun assertEscalationReplay(

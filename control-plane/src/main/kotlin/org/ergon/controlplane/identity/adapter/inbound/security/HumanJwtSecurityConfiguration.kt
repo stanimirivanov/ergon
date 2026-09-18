@@ -96,6 +96,7 @@ class HumanJwtSecurityConfiguration {
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.GET, CURRENT_HUMAN_ACTOR_PATH).authenticated()
+                it.requestMatchers(HttpMethod.GET, HUMAN_FOLLOW_UP_COLLECTION_PATH).authenticated()
                 it.requestMatchers(HttpMethod.GET, HUMAN_FOLLOW_UP_PATH).authenticated()
                 it.requestMatchers(HttpMethod.POST, APPROVAL_DECISION_PATH).authenticated()
                 it.requestMatchers(HttpMethod.POST, RESOLUTION_RUN_RETRY_PATH).authenticated()
@@ -111,6 +112,7 @@ class HumanJwtSecurityConfiguration {
     private companion object {
         const val APPROVAL_DECISION_PATH = "/api/v1/tenants/*/approval-requests/*/decision"
         const val CURRENT_HUMAN_ACTOR_PATH = "/api/v1/tenants/*/human-actor"
+        const val HUMAN_FOLLOW_UP_COLLECTION_PATH = "/internal/v1/tenants/*/human-follow-ups"
         const val HUMAN_FOLLOW_UP_PATH = "/internal/v1/tenants/*/human-follow-ups/*"
         const val RESOLUTION_RUN_RETRY_PATH = "/internal/v1/tenants/*/resolution-runs/*/retries"
         const val RESOLUTION_RUN_ESCALATION_PATH = "/internal/v1/tenants/*/resolution-runs/*/escalations"
