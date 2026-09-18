@@ -42,9 +42,10 @@ otherwise make behavior nondeterministic.
 ## Extraction policy
 
 Reuse predecessor behavior only when an active vertical slice requires it.
-Likely candidates are optimistic event append, separate event and recording
-time, transactional outbox behavior, idempotent consumers, deterministic
-chunking, hybrid retrieval, and tenant-isolation tests.
+Patterns available for reconsideration in repository code, history, and ADRs
+include optimistic event append, separate event and recording time,
+transactional outbox behavior, idempotent consumers, deterministic chunking,
+hybrid retrieval, and tenant-isolation tests.
 
 Do not preserve the predecessor service topology, article aggregate, public Q&A
 contract, MongoDB conversation model, or provisional tenant header merely to
