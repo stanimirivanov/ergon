@@ -126,6 +126,10 @@ evaluation, and production behavior never changes through silent learning.
 **Message:** Integrate channels and connectors and operate Ergon securely at
 scale.
 
+Delivered outcomes include removal of the predecessor API gateway, its
+standalone deployment assets, and the now-unused Spring Cloud edge. This does
+not establish an Ergon production ingress or authorization boundary.
+
 Candidate outcomes include guarded MCP and help-desk integrations, connector and
 widget SDKs, production authentication/authorization, observability, durable
 workers, rate and cost bounds, retention/deletion, backup/restore, staged
