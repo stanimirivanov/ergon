@@ -128,7 +128,10 @@ scale.
 
 Delivered outcomes include removal of the predecessor API gateway, its
 standalone deployment assets, and the now-unused Spring Cloud edge. This does
-not establish an Ergon production ingress or authorization boundary.
+not establish an Ergon production ingress or authorization boundary. The
+incomplete predecessor Q&A coordinator and its exclusive MongoDB and Redis
+development dependencies were also retired without adopting its answer model
+as an Ergon contract.
 
 Candidate outcomes include guarded MCP and help-desk integrations, connector and
 widget SDKs, production authentication/authorization, observability, durable

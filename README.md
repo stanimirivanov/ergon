@@ -34,7 +34,6 @@ boundaries.
 | [`ingestion-service`](ingestion-service/README.md) | Predecessor article ingestion service | Legacy; maintained while replaced |
 | [`embedding-worker`](embedding-worker/README.md) | Predecessor article embedding projection | Legacy; maintained while replaced |
 | [`retrieval-service`](retrieval-service/README.md) | Predecessor hybrid retrieval service | Legacy; maintained while replaced |
-| [`qa-service`](qa-service/README.md) | Predecessor question-answering service | Legacy; maintained while replaced |
 
 The moving inventory of implemented behavior belongs in
 [current state](docs/development/current-state.md), not in this entry point.
