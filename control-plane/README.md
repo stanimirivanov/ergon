@@ -28,14 +28,41 @@ The JWT variables are a pair. Protected human operations fail closed when the
 trust mapping is absent. The server listens on port `8090`.
 
 ```powershell
-$env:ERGON_DATABASE_URL = "jdbc:postgresql://localhost:5432/rag_help_center"
-$env:ERGON_DATABASE_USERNAME = "rag"
-$env:ERGON_DATABASE_PASSWORD = "rag"
+$env:ERGON_DATABASE_URL = "jdbc:postgresql://localhost:5432/ergon"
+$env:ERGON_DATABASE_USERNAME = "ergon"
+$env:ERGON_DATABASE_PASSWORD = "ergon"
 .\mvnw.cmd -pl control-plane -am spring-boot:run
 ```
 
 The credentials above match the development-only root `docker-compose.yml`.
 Never reuse them outside local development.
+
+### Local database identity cutover
+
+Compose uses the project name `ergon` and the explicit volume
+`ergon-postgres-data`. It does not attach or delete a predecessor
+`rag-help-center_postgres-data` volume. PostgreSQL initialization variables are
+applied only to an empty data directory, so silently reusing the old volume
+would not create the new database or role reliably.
+
+The development database publishes port `5432` on IPv4 loopback only. The
+control plane can therefore connect from the host, but a containerized client
+needs an explicit network and must not rely on this host-only topology.
+
+Before the first start after this change, stop a predecessor Compose project
+without deleting its volumes. Replace the project name when it was overridden
+locally:
+
+```powershell
+docker compose -p rag-help-center down
+docker compose up -d postgres
+```
+
+Export and import any local Ergon data that must move to the new database;
+there is no automatic cross-volume migration. To roll back, stop the new
+project without `--volumes`, restore the previous Compose definition, and
+restart the predecessor project so it reattaches its preserved volume. See
+[ADR 0033](../docs/decisions/0033-separate-ergon-local-postgresql-identity.md).
 
 ## Interfaces and limitations
 

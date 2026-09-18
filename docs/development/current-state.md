@@ -108,10 +108,13 @@ compatibility requirements. Existing local PostgreSQL volumes may retain
 predecessor objects; this retirement performs no destructive data cleanup.
 
 The active Maven reactor uses the `org.ergon:ergon` parent and future container
-images use the `ergon` namespace. The GitHub SCM URL and local PostgreSQL
-identity retain their factual existing names until separate external and data
-migration decisions are made; see
-[ADR 0032](../decisions/0032-adopt-ergon-build-coordinates.md).
+images use the `ergon` namespace; see
+[ADR 0032](../decisions/0032-adopt-ergon-build-coordinates.md). Local Compose
+initializes an `ergon` database and role in the explicit
+`ergon-postgres-data` volume while preserving predecessor volumes for manual
+recovery; see
+[ADR 0033](../decisions/0033-separate-ergon-local-postgresql-identity.md). The
+GitHub SCM URL retains its factual existing repository name.
 
 ## Deliberate limitations
 
