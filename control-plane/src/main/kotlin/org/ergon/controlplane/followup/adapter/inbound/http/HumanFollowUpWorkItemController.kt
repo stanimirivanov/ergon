@@ -3,6 +3,7 @@ package org.ergon.controlplane.followup.adapter.inbound.http
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRecording
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
+import org.ergon.controlplane.followup.application.HumanFollowUpInboxQuery
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemQueryService
 import org.ergon.controlplane.followup.application.ResolverOwnedHumanFollowUpWork
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpClaim
@@ -12,6 +13,7 @@ import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.ResponseEntity
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -30,19 +32,25 @@ class HumanFollowUpWorkItemController(
     private val service: HumanFollowUpWorkItemQueryService,
     private val claims: HumanFollowUpClaimService,
 ) {
-    /** Lists the oldest unclaimed work visible under the caller's current resolver authority. */
+    /** Lists the oldest unclaimed work, optionally from one queue, under current resolver authority. */
     @GetMapping
     fun listOpen(
         @PathVariable tenantId: UUID,
-        @RequestParam(defaultValue = "50") limit: Int,
-        @RequestParam(required = false)
-        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-        afterOpenedAt: Instant?,
-        @RequestParam(required = false) afterWorkItemId: UUID?,
+        @ModelAttribute request: HumanFollowUpInboxRequest,
         authentication: JwtAuthenticationToken,
     ): HumanFollowUpWorkItemPageResponse {
         val actor = actors.resolve(tenantId, authentication)
-        val page = service.listOpen(tenantId, actor.actor.id.value, limit, afterOpenedAt, afterWorkItemId)
+        val page =
+            service.listOpen(
+                HumanFollowUpInboxQuery(
+                    tenantId,
+                    actor.actor.id.value,
+                    request.queueKey,
+                    request.limit,
+                    request.afterOpenedAt,
+                    request.afterWorkItemId,
+                ),
+            )
         return HumanFollowUpWorkItemPageResponse(
             page.items.map(StoredHumanFollowUpWorkItem::toResponse),
             page.nextCursor?.let { HumanFollowUpWorkItemCursorResponse(it.openedAt, it.workItemId.value) },
@@ -109,6 +117,26 @@ class HumanFollowUpWorkItemController(
     }
 }
 
+/**
+ * Optional shared-inbox filter and keyset page supplied as query parameters.
+ *
+ * Mutable properties are confined to this HTTP binding type because Spring
+ * MVC populates model attributes through setters. The controller immediately
+ * copies them into an immutable application query.
+ */
+class HumanFollowUpInboxRequest {
+    var queueKey: String? = null
+    var limit: Int = DEFAULT_LIMIT
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+    var afterOpenedAt: Instant? = null
+    var afterWorkItemId: UUID? = null
+
+    private companion object {
+        const val DEFAULT_LIMIT = 50
+    }
+}
+
 /** Bounded oldest-first inbox page. */
 data class HumanFollowUpWorkItemPageResponse(
     val items: List<HumanFollowUpWorkItemResponse>,
@@ -146,6 +174,7 @@ data class HumanFollowUpWorkItemResponse(
     val runId: UUID,
     val escalationEventId: UUID,
     val reason: String,
+    val queueKey: String,
     val status: String,
     val openedAt: Instant,
     val recordedAt: Instant,
@@ -168,6 +197,7 @@ private fun StoredHumanFollowUpWorkItem.toResponse() =
         item.runId.value,
         item.escalationEventId.value,
         item.reason.name,
+        item.queueKey.value,
         item.status.name,
         item.openedAt,
         recordedAt,

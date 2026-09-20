@@ -8,6 +8,7 @@ import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.identity.application.StoredApprovalAuthorityEvidence
 import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
+import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
@@ -169,6 +170,7 @@ class HumanFollowUpClaimServiceTest {
                 HumanFollowUpWorkItem.open(
                     workItemId,
                     HumanFollowUpSource(CASE_ID, RUN_ID, EVENT_ID, REASON),
+                    HumanFollowUpQueueKey.ACCESS_RESTORATION,
                     OPENED_AT,
                 ),
                 NOW,

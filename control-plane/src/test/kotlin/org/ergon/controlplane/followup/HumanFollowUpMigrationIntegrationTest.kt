@@ -22,7 +22,8 @@ class HumanFollowUpMigrationIntegrationTest {
         seedExistingEscalation(schema)
         flyway(schema).load().migrate()
         assertBackfilledWorkItem(schema)
-        assertInboxIndex(schema)
+        assertQueueCompatibility(schema)
+        assertQueueInboxIndex(schema)
     }
 
     private fun seedExistingEscalation(schema: String) {
@@ -85,7 +86,7 @@ class HumanFollowUpMigrationIntegrationTest {
                 statement
                     .executeQuery(
                         """
-                        SELECT work_item_id, reason, status, opened_at
+                        SELECT work_item_id, reason, queue_key, status, opened_at
                         FROM human_follow_up_work_items
                         WHERE tenant_id = '$TENANT_ID' AND run_id = '$RUN_ID'
                         """.trimIndent(),
@@ -93,6 +94,7 @@ class HumanFollowUpMigrationIntegrationTest {
                         assertThat(result.next()).isTrue()
                         assertThat(result.getObject("work_item_id", UUID::class.java)).isNotNull()
                         assertThat(result.getString("reason")).isEqualTo("RETRY_ATTEMPT_LIMIT_REACHED")
+                        assertThat(result.getString("queue_key")).isEqualTo("access-restoration")
                         assertThat(result.getString("status")).isEqualTo("OPEN")
                         assertThat(result.getObject("opened_at", OffsetDateTime::class.java).toInstant())
                             .isEqualTo(Instant.parse("2026-09-16T12:00:00Z"))
@@ -102,7 +104,30 @@ class HumanFollowUpMigrationIntegrationTest {
         }
     }
 
-    private fun assertInboxIndex(schema: String) {
+    private fun assertQueueCompatibility(schema: String) {
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.schema = schema
+            connection
+                .prepareStatement(
+                    """
+                    SELECT column_default
+                    FROM information_schema.columns
+                    WHERE table_schema = ?
+                        AND table_name = 'human_follow_up_work_items'
+                        AND column_name = 'queue_key'
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, schema)
+                    statement.executeQuery().use { result ->
+                        assertThat(result.next()).isTrue()
+                        assertThat(result.getString("column_default")).contains("access-restoration")
+                        assertThat(result.next()).isFalse()
+                    }
+                }
+        }
+    }
+
+    private fun assertQueueInboxIndex(schema: String) {
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.schema = schema
             connection
@@ -110,14 +135,15 @@ class HumanFollowUpMigrationIntegrationTest {
                     """
                     SELECT indexdef
                     FROM pg_indexes
-                    WHERE schemaname = ? AND indexname = 'ix_human_follow_up_work_items_open_inbox'
+                    WHERE schemaname = ?
+                        AND indexname = 'ix_human_follow_up_work_items_open_queue_inbox'
                     """.trimIndent(),
                 ).use { statement ->
                     statement.setString(1, schema)
                     statement.executeQuery().use { result ->
                         assertThat(result.next()).isTrue()
                         assertThat(result.getString("indexdef"))
-                            .contains("tenant_id, opened_at, work_item_id")
+                            .contains("tenant_id, queue_key, opened_at, work_item_id")
                             .contains("WHERE (status = 'OPEN'::text)")
                         assertThat(result.next()).isFalse()
                     }

@@ -88,7 +88,9 @@ Candidate PR-sized outcomes:
 - Delivered: expose a bounded oldest-first inbox for open human follow-up work.
 - Delivered: let one authorized resolver claim open work with immutable ownership.
 - Delivered: expose a bounded active-work view for the authenticated owner.
-- Define named queue, priority, reassignment, release, and completion semantics separately.
+- Delivered: route follow-up creation to an immutable named queue and support
+  exact queue filtering in the shared inbox.
+- Define priority, reassignment, release, and completion semantics separately.
 - Add idempotent notification delivery after durable work exists.
 - Expose a resolver-focused case summary from existing evidence and run facts.
 - Implement the minimum resolver console for evidence, approvals, execution,

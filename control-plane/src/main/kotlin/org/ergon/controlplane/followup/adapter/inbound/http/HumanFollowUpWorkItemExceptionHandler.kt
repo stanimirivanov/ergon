@@ -5,6 +5,7 @@ import org.ergon.controlplane.followup.application.CurrentHumanFollowUpResolverA
 import org.ergon.controlplane.followup.application.HumanFollowUpAlreadyClaimedException
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimNotFoundException
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemNotFoundException
+import org.ergon.controlplane.followup.application.InvalidHumanFollowUpQueueException
 import org.ergon.controlplane.followup.application.InvalidHumanFollowUpWorkItemPageException
 import org.ergon.controlplane.followup.application.InvalidResolverOwnedHumanFollowUpPageException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidAuthenticatedHumanIdentityException
@@ -38,6 +39,17 @@ class HumanFollowUpWorkItemExceptionHandler {
         ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.message.orEmpty()).apply {
             type = URI.create("urn:ergon:problem:invalid-human-follow-up-page")
             title = "Invalid human follow-up page"
+            instance = URI.create(request.requestURI)
+        }
+
+    @ExceptionHandler(InvalidHumanFollowUpQueueException::class)
+    fun invalidQueue(
+        exception: InvalidHumanFollowUpQueueException,
+        request: HttpServletRequest,
+    ): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.message.orEmpty()).apply {
+            type = URI.create("urn:ergon:problem:invalid-human-follow-up-queue")
+            title = "Invalid human follow-up queue"
             instance = URI.create(request.requestURI)
         }
 

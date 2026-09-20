@@ -1,9 +1,10 @@
 package org.ergon.controlplane.followup.adapter.out.persistence
 
 import org.ergon.cases.domain.CaseId
-import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemCursor
+import org.ergon.controlplane.followup.application.HumanFollowUpInboxCriteria
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemRepository
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
+import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
 import org.ergon.followup.domain.HumanFollowUpWorkItemSnapshot
@@ -37,11 +38,11 @@ class PostgresHumanFollowUpWorkItemRepository(
                     """
                     INSERT INTO human_follow_up_work_items (
                         tenant_id, work_item_id, run_id, escalation_event_id,
-                        reason, status, opened_at
+                        reason, queue_key, status, opened_at
                     )
                     SELECT
                         :tenantId, :workItemId, run_id, :escalationEventId,
-                        :reason, :status, :openedAt
+                        :reason, :queueKey, :status, :openedAt
                     FROM resolution_runs
                     WHERE tenant_id = :tenantId AND run_id = :runId AND case_id = :caseId
                     RETURNING recorded_at
@@ -52,6 +53,7 @@ class PostgresHumanFollowUpWorkItemRepository(
                 .param("runId", item.runId.value)
                 .param("escalationEventId", item.escalationEventId.value)
                 .param("reason", item.reason.name)
+                .param("queueKey", item.queueKey.value)
                 .param("status", item.status.name)
                 .param("openedAt", item.openedAt.atOffset(ZoneOffset.UTC))
                 .query(OffsetDateTime::class.java)
@@ -107,20 +109,15 @@ class PostgresHumanFollowUpWorkItemRepository(
             .getOrNull()
             ?.toStoredWorkItem()
 
-    override fun listOpenForResolver(
-        tenantId: TenantId,
-        actorId: HumanActorId,
-        at: Instant,
-        after: HumanFollowUpWorkItemCursor?,
-        limit: Int,
-    ): List<StoredHumanFollowUpWorkItem> {
-        require(limit > 0) { "human follow-up inbox limit must be positive" }
+    override fun listOpenForResolver(criteria: HumanFollowUpInboxCriteria): List<StoredHumanFollowUpWorkItem> {
+        require(criteria.limit > 0) { "human follow-up inbox limit must be positive" }
         val cursorPredicate =
-            if (after == null) {
+            if (criteria.after == null) {
                 ""
             } else {
                 "AND (item.opened_at, item.work_item_id) > (:afterOpenedAt, :afterWorkItemId)"
             }
+        val queuePredicate = if (criteria.queueKey == null) "" else "AND item.queue_key = :queueKey"
         var statement =
             queryBase(
                 """
@@ -142,19 +139,23 @@ class PostgresHumanFollowUpWorkItemRepository(
                             AND authority.attested_at <= :at
                             AND authority.expires_at > :at
                     )
+                    $queuePredicate
                     $cursorPredicate
                 ORDER BY item.opened_at, item.work_item_id
                 LIMIT :limit
                 """.trimIndent(),
-            ).param("tenantId", tenantId.value)
-                .param("actorId", actorId.value)
-                .param("at", at.atOffset(ZoneOffset.UTC))
-                .param("limit", limit)
-        if (after != null) {
+            ).param("tenantId", criteria.tenantId.value)
+                .param("actorId", criteria.actorId.value)
+                .param("at", criteria.at.atOffset(ZoneOffset.UTC))
+                .param("limit", criteria.limit)
+        if (criteria.queueKey != null) {
+            statement = statement.param("queueKey", criteria.queueKey.value)
+        }
+        if (criteria.after != null) {
             statement =
                 statement
-                    .param("afterOpenedAt", after.openedAt.atOffset(ZoneOffset.UTC))
-                    .param("afterWorkItemId", after.workItemId.value)
+                    .param("afterOpenedAt", criteria.after.openedAt.atOffset(ZoneOffset.UTC))
+                    .param("afterWorkItemId", criteria.after.workItemId.value)
         }
         return statement
             .query(DataClassRowMapper(HumanFollowUpWorkItemRow::class.java))
@@ -171,6 +172,7 @@ class PostgresHumanFollowUpWorkItemRepository(
                 item.run_id,
                 item.escalation_event_id,
                 item.reason,
+                item.queue_key,
                 item.status,
                 item.opened_at,
                 item.recorded_at
@@ -192,6 +194,7 @@ private fun HumanFollowUpWorkItemRow.toStoredWorkItem(): StoredHumanFollowUpWork
                     ResolutionRunId(runId),
                     ResolutionRunEventId(escalationEventId),
                     ResolutionRunEscalationReason.valueOf(reason),
+                    HumanFollowUpQueueKey.of(queueKey),
                     HumanFollowUpWorkItemStatus.valueOf(status),
                     openedAt.toInstant(),
                 ),
@@ -208,6 +211,7 @@ private data class HumanFollowUpWorkItemRow(
     val runId: UUID,
     val escalationEventId: UUID,
     val reason: String,
+    val queueKey: String,
     val status: String,
     val openedAt: OffsetDateTime,
     val recordedAt: OffsetDateTime,

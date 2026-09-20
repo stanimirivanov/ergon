@@ -91,3 +91,4 @@ benchmarks rather than duplicating them.
 | 0032 | [Adopt Ergon build coordinates](0032-adopt-ergon-build-coordinates.md) |
 | 0033 | [Separate Ergon local PostgreSQL identity](0033-separate-ergon-local-postgresql-identity.md) |
 | 0034 | [Expose resolver-owned follow-up work](0034-expose-resolver-owned-follow-up-work.md) |
+| 0035 | [Route human follow-up to named queues](0035-route-human-follow-up-to-named-queues.md) |

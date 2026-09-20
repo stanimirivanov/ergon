@@ -10,8 +10,8 @@
   storage, and events are not Ergon compatibility boundaries.
 - Internal endpoints are development boundaries and must not be treated as a
   production authorization model.
-- The next human-work outcomes are explicit named queues, priority,
-  reassignment, release, and completion semantics.
+- The next human-work outcomes are priority, reassignment, release, and
+  completion semantics after establishing one explicit named queue.
 
 ## Active Ergon slice
 
@@ -41,7 +41,9 @@ The current slice can:
 15. discover unclaimed work through a bounded, oldest-first resolver inbox;
 16. claim open work once with immutable resolver and authority attribution;
     and
-17. page through the authenticated resolver's active claimed work.
+17. page through the authenticated resolver's active claimed work; and
+18. route creation to an immutable `access-restoration` queue and filter the
+    shared inbox by exact queue key.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -120,8 +122,9 @@ GitHub SCM URL retains its factual existing repository name.
 
 ## Deliberate limitations
 
-- No named queues, routing, automatic assignment, reassignment, release,
-  priority, due-time, lifecycle transition, or notification.
+- No queue administration, configurable routing, automatic assignment,
+  reassignment, release, priority, due-time, lifecycle transition, or
+  notification.
 - No automatic resolution-contract selection or multi-step interpreter.
 - No AI-assisted semantic binding or Ergon evidence compiler.
 - Only one built-in access-restoration vocabulary and deterministic connector.

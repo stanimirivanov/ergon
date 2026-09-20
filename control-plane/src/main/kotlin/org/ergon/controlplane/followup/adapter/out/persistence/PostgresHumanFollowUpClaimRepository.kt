@@ -9,6 +9,7 @@ import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
 import org.ergon.followup.domain.HumanFollowUpClaimSnapshot
+import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
 import org.ergon.followup.domain.HumanFollowUpWorkItemSnapshot
@@ -171,6 +172,7 @@ class PostgresHumanFollowUpClaimRepository(
                 item.run_id,
                 item.escalation_event_id,
                 item.reason,
+                item.queue_key,
                 item.status,
                 item.opened_at,
                 item.recorded_at AS work_item_recorded_at,
@@ -255,6 +257,7 @@ private fun ResolverOwnedHumanFollowUpRow.toOwnedWork(): ResolverOwnedHumanFollo
                         ResolutionRunId(runId),
                         ResolutionRunEventId(escalationEventId),
                         ResolutionRunEscalationReason.valueOf(reason),
+                        HumanFollowUpQueueKey.of(queueKey),
                         HumanFollowUpWorkItemStatus.valueOf(status),
                         openedAt.toInstant(),
                     ),
@@ -284,6 +287,7 @@ private data class ResolverOwnedHumanFollowUpRow(
     val runId: UUID,
     val escalationEventId: UUID,
     val reason: String,
+    val queueKey: String,
     val status: String,
     val openedAt: OffsetDateTime,
     val workItemRecordedAt: OffsetDateTime,
