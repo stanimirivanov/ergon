@@ -16,6 +16,7 @@ import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemReposito
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.identity.application.StoredApprovalAuthorityEvidence
+import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
@@ -93,6 +94,7 @@ class ResolutionRunEscalationServiceTest {
             HumanFollowUpWorkItem.open(
                 WORK_ITEM_ID,
                 HumanFollowUpSource(finalAttempt.caseId, finalAttempt.id, event.id, event.reason),
+                HumanFollowUpQueueKey.ACCESS_RESTORATION,
                 NOW,
             )
         `when`(followUps.create(TENANT, workItem)).thenReturn(StoredHumanFollowUpWorkItem(workItem, NOW))

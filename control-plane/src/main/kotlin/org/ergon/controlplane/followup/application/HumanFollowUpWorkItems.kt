@@ -1,5 +1,6 @@
 package org.ergon.controlplane.followup.application
 
+import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
 import org.ergon.identity.domain.HumanActorId
@@ -25,6 +26,16 @@ data class HumanFollowUpWorkItemCursor(
 data class HumanFollowUpWorkItemPage(
     val items: List<StoredHumanFollowUpWorkItem>,
     val nextCursor: HumanFollowUpWorkItemCursor?,
+)
+
+/** Validated resolver scope and page position for one shared-inbox read. */
+data class HumanFollowUpInboxCriteria(
+    val tenantId: TenantId,
+    val actorId: HumanActorId,
+    val at: Instant,
+    val queueKey: HumanFollowUpQueueKey?,
+    val after: HumanFollowUpWorkItemCursor?,
+    val limit: Int,
 )
 
 /** Durable storage and resolver-scoped lookup for human follow-up work. */
@@ -55,19 +66,15 @@ interface HumanFollowUpWorkItemRepository {
     ): StoredHumanFollowUpWorkItem?
 
     /**
-     * Lists unclaimed `OPEN` work after [after] in ascending opening order.
+     * Lists unclaimed `OPEN` work after the criteria cursor in ascending opening order.
      *
-     * [limit] must be positive. Implementations must break equal opening times by
-     * work-item identity and return no rows when [actorId] lacks current tenant-wide
-     * resolver evidence at [at].
+     * When [HumanFollowUpInboxCriteria.queueKey] is present, only work routed
+     * to that immutable queue is returned. The limit must be positive.
+     * Implementations must break equal opening times by work-item identity and
+     * return no rows when the actor lacks current tenant-wide resolver evidence
+     * at the query instant.
      */
-    fun listOpenForResolver(
-        tenantId: TenantId,
-        actorId: HumanActorId,
-        at: Instant,
-        after: HumanFollowUpWorkItemCursor?,
-        limit: Int,
-    ): List<StoredHumanFollowUpWorkItem>
+    fun listOpenForResolver(criteria: HumanFollowUpInboxCriteria): List<StoredHumanFollowUpWorkItem>
 }
 
 /** Supplies unpredictable identities without coupling follow-up use cases to UUID generation. */
@@ -85,6 +92,24 @@ class HumanFollowUpWorkItemNotFoundException(
 class InvalidHumanFollowUpWorkItemPageException(
     message: String,
 ) : RuntimeException(message)
+
+/** Signals a shared-inbox queue key that cannot identify a durable queue. */
+class InvalidHumanFollowUpQueueException(
+    cause: IllegalArgumentException,
+) : RuntimeException(
+        "queueKey must start with a lowercase letter and contain at most 63 lowercase letters, digits, or hyphens",
+        cause,
+    )
+
+/** Untrusted shared-inbox parameters before application validation and domain conversion. */
+data class HumanFollowUpInboxQuery(
+    val tenantId: UUID,
+    val actorId: UUID,
+    val queueKey: String?,
+    val limit: Int,
+    val afterOpenedAt: Instant?,
+    val afterWorkItemId: UUID?,
+)
 
 /** Retrieves durable follow-up work for an authenticated, currently authorized resolver. */
 class HumanFollowUpWorkItemQueryService(
@@ -112,50 +137,69 @@ class HumanFollowUpWorkItemQueryService(
     /**
      * Lists the oldest currently open and unclaimed work visible to one resolver.
      *
-     * [afterOpenedAt] and [afterWorkItemId] must either both be absent for the
+     * [HumanFollowUpInboxQuery.queueKey], when present, must be a lowercase
+     * URL-safe durable queue key. The cursor components must either both be absent for the
      * first page or both identify the final item returned by an earlier page.
+     * Clients must retain the same queue filter while following a cursor.
      * Unauthorized callers receive an empty page so the query does not disclose
      * whether the tenant has follow-up work.
      *
-     * @throws InvalidHumanFollowUpWorkItemPageException when [limit] is outside
+     * @throws InvalidHumanFollowUpWorkItemPageException when the limit is outside
      *   `1..100` or only one cursor component is supplied.
+     * @throws InvalidHumanFollowUpQueueException when the queue key is malformed.
      */
-    fun listOpen(
-        tenantId: UUID,
-        actorId: UUID,
-        limit: Int,
-        afterOpenedAt: Instant?,
-        afterWorkItemId: UUID?,
-    ): HumanFollowUpWorkItemPage {
-        if (limit !in 1..MAX_PAGE_SIZE) {
-            throw InvalidHumanFollowUpWorkItemPageException("limit must be between 1 and $MAX_PAGE_SIZE")
-        }
-        if ((afterOpenedAt == null) != (afterWorkItemId == null)) {
-            throw InvalidHumanFollowUpWorkItemPageException(
-                "afterOpenedAt and afterWorkItemId must be supplied together",
-            )
-        }
+    fun listOpen(query: HumanFollowUpInboxQuery): HumanFollowUpWorkItemPage {
+        validateLimit(query.limit)
+        validateCursor(query.afterOpenedAt, query.afterWorkItemId)
+        val parsedQueueKey = query.queueKey?.let(::parseQueueKey)
         val cursor =
-            afterOpenedAt?.let {
-                HumanFollowUpWorkItemCursor(it, HumanFollowUpWorkItemId(requireNotNull(afterWorkItemId)))
+            query.afterOpenedAt?.let {
+                HumanFollowUpWorkItemCursor(it, HumanFollowUpWorkItemId(requireNotNull(query.afterWorkItemId)))
             }
         val results =
             repository.listOpenForResolver(
-                TenantId(tenantId),
-                HumanActorId(actorId),
-                clock.instant(),
-                cursor,
-                limit + 1,
+                HumanFollowUpInboxCriteria(
+                    TenantId(query.tenantId),
+                    HumanActorId(query.actorId),
+                    clock.instant(),
+                    parsedQueueKey,
+                    cursor,
+                    query.limit + 1,
+                ),
             )
-        val items = results.take(limit)
+        val items = results.take(query.limit)
         val nextCursor =
-            if (results.size > limit) {
+            if (results.size > query.limit) {
                 items.last().let { HumanFollowUpWorkItemCursor(it.item.openedAt, it.item.id) }
             } else {
                 null
             }
         return HumanFollowUpWorkItemPage(items, nextCursor)
     }
+
+    private fun validateLimit(limit: Int) {
+        if (limit !in 1..MAX_PAGE_SIZE) {
+            throw InvalidHumanFollowUpWorkItemPageException("limit must be between 1 and $MAX_PAGE_SIZE")
+        }
+    }
+
+    private fun validateCursor(
+        afterOpenedAt: Instant?,
+        afterWorkItemId: UUID?,
+    ) {
+        if ((afterOpenedAt == null) != (afterWorkItemId == null)) {
+            throw InvalidHumanFollowUpWorkItemPageException(
+                "afterOpenedAt and afterWorkItemId must be supplied together",
+            )
+        }
+    }
+
+    private fun parseQueueKey(queueKey: String): HumanFollowUpQueueKey =
+        try {
+            HumanFollowUpQueueKey.of(queueKey)
+        } catch (exception: IllegalArgumentException) {
+            throw InvalidHumanFollowUpQueueException(exception)
+        }
 
     companion object {
         const val MAX_PAGE_SIZE = 100

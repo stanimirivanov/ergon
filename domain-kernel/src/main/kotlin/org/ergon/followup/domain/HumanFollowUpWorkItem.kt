@@ -13,6 +13,38 @@ value class HumanFollowUpWorkItemId(
     val value: UUID,
 )
 
+/**
+ * Stable routing identity for a human follow-up queue.
+ *
+ * Keys are lowercase, URL-safe values of at most 63 characters. They are
+ * persisted with work rather than inferred later so routing meaning cannot
+ * change when configuration evolves.
+ */
+@JvmInline
+value class HumanFollowUpQueueKey private constructor(
+    val value: String,
+) {
+    companion object {
+        private val VALID_KEY = Regex("[a-z][a-z0-9-]{0,62}")
+
+        /** Queue for work that needs a resolver to restore an exhausted automated run. */
+        val ACCESS_RESTORATION = of("access-restoration")
+
+        /**
+         * Creates a queue identity without normalizing its persisted spelling.
+         *
+         * @throws IllegalArgumentException unless [value] starts with a lowercase
+         *   letter and contains at most 63 lowercase letters, digits, or hyphens.
+         */
+        fun of(value: String): HumanFollowUpQueueKey {
+            require(VALID_KEY.matches(value)) {
+                "human follow-up queue key must match ${VALID_KEY.pattern}"
+            }
+            return HumanFollowUpQueueKey(value)
+        }
+    }
+}
+
 /** Current lifecycle state of a human follow-up work item. */
 enum class HumanFollowUpWorkItemStatus {
     OPEN,
@@ -33,6 +65,7 @@ data class HumanFollowUpWorkItemSnapshot(
     val runId: ResolutionRunId,
     val escalationEventId: ResolutionRunEventId,
     val reason: ResolutionRunEscalationReason,
+    val queueKey: HumanFollowUpQueueKey,
     val status: HumanFollowUpWorkItemStatus,
     val openedAt: Instant,
 )
@@ -40,9 +73,10 @@ data class HumanFollowUpWorkItemSnapshot(
 /**
  * Durable resolver work created from one explicit exhausted-run escalation.
  *
- * The source case, run, escalation, and reason are immutable. This first
- * lifecycle slice opens work without assigning, prioritizing, or notifying a
- * resolver; those decisions require their own attributable transitions.
+ * The source case, run, escalation, reason, and initial queue are immutable.
+ * Queue routing identifies where work can be discovered; it does not assign,
+ * prioritize, or notify a resolver. Those decisions require their own
+ * attributable transitions.
  */
 @ConsistentCopyVisibility
 data class HumanFollowUpWorkItem private constructor(
@@ -51,6 +85,7 @@ data class HumanFollowUpWorkItem private constructor(
     val runId: ResolutionRunId,
     val escalationEventId: ResolutionRunEventId,
     val reason: ResolutionRunEscalationReason,
+    val queueKey: HumanFollowUpQueueKey,
     val status: HumanFollowUpWorkItemStatus,
     val openedAt: Instant,
 ) {
@@ -59,6 +94,7 @@ data class HumanFollowUpWorkItem private constructor(
         fun open(
             id: HumanFollowUpWorkItemId,
             source: HumanFollowUpSource,
+            queueKey: HumanFollowUpQueueKey,
             openedAt: Instant,
         ): HumanFollowUpWorkItem =
             HumanFollowUpWorkItem(
@@ -67,6 +103,7 @@ data class HumanFollowUpWorkItem private constructor(
                 source.runId,
                 source.escalationEventId,
                 source.reason,
+                queueKey,
                 HumanFollowUpWorkItemStatus.OPEN,
                 openedAt,
             )
@@ -86,6 +123,7 @@ data class HumanFollowUpWorkItem private constructor(
                 snapshot.runId,
                 snapshot.escalationEventId,
                 snapshot.reason,
+                snapshot.queueKey,
                 snapshot.status,
                 snapshot.openedAt,
             )

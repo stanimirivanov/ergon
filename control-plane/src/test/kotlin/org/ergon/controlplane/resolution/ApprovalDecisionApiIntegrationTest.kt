@@ -995,6 +995,7 @@ private fun registerActor(
 }
 
 private const val RETRY_POLICY_REVISION = "ergon.dev/policy/resolution-retry/v1"
+private const val FOLLOW_UP_QUEUE_KEY = "access-restoration"
 
 private data class AuthorizationGrantTestContext(
     val tenantId: UUID,
@@ -1299,6 +1300,7 @@ private fun assertExclusiveResolverOwnership(
         .andExpect(jsonPath("$.items.length()").value(1))
         .andExpect(jsonPath("$.items[0].workItem.workItemId").value(followUp.workItemId.toString()))
         .andExpect(jsonPath("$.items[0].workItem.caseId").value(context.caseId.toString()))
+        .andExpect(jsonPath("$.items[0].workItem.queueKey").value(FOLLOW_UP_QUEUE_KEY))
         .andExpect(jsonPath("$.items[0].claim.claimId").value(claimId.toString()))
         .andExpect(jsonPath("$.items[0].claim.resolverActorId").value(context.actorId.toString()))
         .andExpect(jsonPath("$.nextCursor").doesNotExist())
@@ -1383,6 +1385,7 @@ private fun createExhaustedRunEscalation(
             .andExpect(jsonPath("$.retryMaximumAttempts").value(2))
             .andExpect(jsonPath("$.escalationEventId").isNotEmpty)
             .andExpect(jsonPath("$.followUpWorkItemId").isNotEmpty)
+            .andExpect(jsonPath("$.followUpQueueKey").value(FOLLOW_UP_QUEUE_KEY))
             .andExpect(jsonPath("$.followUpStatus").value("OPEN"))
             .andReturn()
     val location = requireNotNull(creation.response.getHeader("Location"))
@@ -1422,6 +1425,7 @@ private fun assertAuthorizedFollowUpRetrieval(
         .andExpect(jsonPath("$.runId").value(context.runId.toString()))
         .andExpect(jsonPath("$.escalationEventId").isNotEmpty)
         .andExpect(jsonPath("$.reason").value("RETRY_ATTEMPT_LIMIT_REACHED"))
+        .andExpect(jsonPath("$.queueKey").value(FOLLOW_UP_QUEUE_KEY))
         .andExpect(jsonPath("$.status").value("OPEN"))
         .andExpect(jsonPath("$.openedAt").exists())
         .andExpect(jsonPath("$.recordedAt").exists())
@@ -1448,8 +1452,10 @@ private fun assertAuthorizedInboxRetrieval(
         .andExpect(jsonPath("$.items.length()").value(1))
         .andExpect(jsonPath("$.items[0].workItemId").value(followUp.workItemId.toString()))
         .andExpect(jsonPath("$.items[0].caseId").value(context.caseId.toString()))
+        .andExpect(jsonPath("$.items[0].queueKey").value(FOLLOW_UP_QUEUE_KEY))
         .andExpect(jsonPath("$.items[0].status").value("OPEN"))
         .andExpect(jsonPath("$.nextCursor").doesNotExist())
+    assertQueueFilteredInbox(mockMvc, context, followUp, inboxLocation)
     mockMvc
         .perform(
             get(inboxLocation)
@@ -1476,6 +1482,36 @@ private fun assertAuthorizedInboxRetrieval(
         ).andExpect(status().isOk)
         .andExpect(jsonPath("$.items").isEmpty)
         .andExpect(jsonPath("$.nextCursor").doesNotExist())
+}
+
+private fun assertQueueFilteredInbox(
+    mockMvc: MockMvc,
+    context: ExhaustedRunEscalationContext,
+    followUp: CreatedFollowUp,
+    inboxLocation: String,
+) {
+    mockMvc
+        .perform(
+            get(inboxLocation)
+                .param("queueKey", FOLLOW_UP_QUEUE_KEY)
+                .with(humanJwt(context.subject)),
+        ).andExpect(status().isOk)
+        .andExpect(jsonPath("$.items.length()").value(1))
+        .andExpect(jsonPath("$.items[0].workItemId").value(followUp.workItemId.toString()))
+    mockMvc
+        .perform(
+            get(inboxLocation)
+                .param("queueKey", "different-queue")
+                .with(humanJwt(context.subject)),
+        ).andExpect(status().isOk)
+        .andExpect(jsonPath("$.items").isEmpty)
+    mockMvc
+        .perform(
+            get(inboxLocation)
+                .param("queueKey", "Invalid Queue")
+                .with(humanJwt(context.subject)),
+        ).andExpect(status().isBadRequest)
+        .andExpect(jsonPath("$.type").value("urn:ergon:problem:invalid-human-follow-up-queue"))
 }
 
 private fun followUpOpenedAt(
@@ -1576,8 +1612,21 @@ private fun assertEscalationPersistence(
             .param("runId", context.runId)
             .query(Int::class.java)
             .single()
+    val queueKey =
+        jdbcClient
+            .sql(
+                """
+                SELECT queue_key
+                FROM human_follow_up_work_items
+                WHERE tenant_id = :tenantId AND work_item_id = :workItemId
+                """.trimIndent(),
+            ).param("tenantId", context.tenantId)
+            .param("workItemId", workItemId)
+            .query(String::class.java)
+            .single()
     assertThat(escalationCount).isEqualTo(1)
     assertThat(followUpCount).isEqualTo(1)
+    assertThat(queueKey).isEqualTo(FOLLOW_UP_QUEUE_KEY)
     assertThatThrownBy {
         jdbcClient
             .sql(

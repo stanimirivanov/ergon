@@ -3,6 +3,7 @@ package org.ergon.controlplane.followup.application
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.ergon.cases.domain.CaseId
+import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
@@ -47,24 +48,62 @@ class HumanFollowUpWorkItemQueryServiceTest {
         val second = StoredHumanFollowUpWorkItem(workItem(Instant.parse("2026-09-16T11:00:00Z"), randomId()), NOW)
         val hiddenLookahead = StoredHumanFollowUpWorkItem(workItem(NOW, randomId()), NOW)
         `when`(
-            repository.listOpenForResolver(TENANT_ID, ACTOR_ID, NOW, null, 3),
+            repository.listOpenForResolver(criteria(limit = 3)),
         ).thenReturn(listOf(first, second, hiddenLookahead))
 
-        val page = service.listOpen(TENANT_ID.value, ACTOR_ID.value, 2, null, null)
+        val page = service.listOpen(query(limit = 2))
 
         assertThat(page.items).containsExactly(first, second)
         assertThat(page.nextCursor)
             .isEqualTo(HumanFollowUpWorkItemCursor(second.item.openedAt, second.item.id))
-        verify(repository).listOpenForResolver(TENANT_ID, ACTOR_ID, NOW, null, 3)
+        verify(repository).listOpenForResolver(criteria(limit = 3))
     }
 
     @Test
     fun `open inbox validates page size and complete cursor before querying storage`() {
-        assertThatThrownBy { service.listOpen(TENANT_ID.value, ACTOR_ID.value, 0, null, null) }
+        assertThatThrownBy { service.listOpen(query(limit = 0)) }
             .isInstanceOf(InvalidHumanFollowUpWorkItemPageException::class.java)
-        assertThatThrownBy { service.listOpen(TENANT_ID.value, ACTOR_ID.value, 1, NOW, null) }
+        assertThatThrownBy { service.listOpen(query(afterOpenedAt = NOW)) }
             .isInstanceOf(InvalidHumanFollowUpWorkItemPageException::class.java)
     }
+
+    @Test
+    fun `open inbox passes a validated queue filter to storage`() {
+        `when`(
+            repository.listOpenForResolver(criteria(queueKey = QUEUE_KEY, limit = 2)),
+        ).thenReturn(emptyList())
+
+        val page = service.listOpen(query(queueKey = QUEUE_KEY.value))
+
+        assertThat(page.items).isEmpty()
+        verify(repository).listOpenForResolver(criteria(queueKey = QUEUE_KEY, limit = 2))
+    }
+
+    @Test
+    fun `open inbox rejects a malformed queue key`() {
+        assertThatThrownBy {
+            service.listOpen(query(queueKey = "Access Restoration"))
+        }.isInstanceOf(InvalidHumanFollowUpQueueException::class.java)
+    }
+
+    private fun query(
+        queueKey: String? = null,
+        limit: Int = 1,
+        afterOpenedAt: Instant? = null,
+        afterWorkItemId: UUID? = null,
+    ) = HumanFollowUpInboxQuery(
+        TENANT_ID.value,
+        ACTOR_ID.value,
+        queueKey,
+        limit,
+        afterOpenedAt,
+        afterWorkItemId,
+    )
+
+    private fun criteria(
+        queueKey: HumanFollowUpQueueKey? = null,
+        limit: Int,
+    ) = HumanFollowUpInboxCriteria(TENANT_ID, ACTOR_ID, NOW, queueKey, null, limit)
 
     private fun workItem(
         openedAt: Instant = NOW,
@@ -77,6 +116,7 @@ class HumanFollowUpWorkItemQueryServiceTest {
             ResolutionRunEventId(UUID.randomUUID()),
             ResolutionRunEscalationReason.RETRY_ATTEMPT_LIMIT_REACHED,
         ),
+        QUEUE_KEY,
         openedAt,
     )
 
@@ -86,6 +126,7 @@ class HumanFollowUpWorkItemQueryServiceTest {
         val TENANT_ID = TenantId(UUID.randomUUID())
         val WORK_ITEM_ID = HumanFollowUpWorkItemId(UUID.randomUUID())
         val ACTOR_ID = HumanActorId(UUID.randomUUID())
+        val QUEUE_KEY = HumanFollowUpQueueKey.ACCESS_RESTORATION
         val NOW = Instant.parse("2026-09-16T12:00:00Z")
     }
 }

@@ -5,6 +5,7 @@ import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemIdentity
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemRepository
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
+import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.identity.domain.HumanActorId
@@ -156,6 +157,7 @@ class ResolutionRunEscalationService(
                     HumanFollowUpWorkItem.open(
                         identities.followUps.next(),
                         HumanFollowUpSource(run.caseId, run.id, event.id, event.reason),
+                        HumanFollowUpQueueKey.ACCESS_RESTORATION,
                         event.occurredAt,
                     ),
                 )

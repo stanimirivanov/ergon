@@ -135,8 +135,9 @@ versioned retry policy may escalate; remaining budget returns
 
 The first call appends `ESCALATION_REQUESTED`, records the actor, attestation,
 denial reason, policy revision, source attempt, and ceiling, advances the run to
-`ESCALATED`, and atomically opens one durable human follow-up item. It returns
-`201` with that item as `Location`. Replay returns the same event and work item
+`ESCALATED`, and atomically opens one durable human follow-up item in the
+`access-restoration` queue. It returns `201` with that item as `Location` and
+includes its immutable queue key. Replay returns the same event and work item
 with `200`. The case remains open. This command does not assign a resolver,
 notify anyone, invoke a capability, or compensate an earlier action. See
 [human follow-up](human-follow-up.md) for the work-item contract.
