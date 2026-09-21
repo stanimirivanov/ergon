@@ -5,9 +5,10 @@ import org.ergon.controlplane.identity.application.StoredHumanActor
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.stereotype.Component
+import java.net.URI
 import java.util.UUID
 
-/** Converts verified bearer claims into the tenant-scoped actor used by application commands. */
+/** Converts verified protocol identities into tenant-scoped actors used by application commands. */
 @Component
 class AuthenticatedHumanActorResolver(
     private val service: HumanActorAuthenticationService,
@@ -25,12 +26,36 @@ class AuthenticatedHumanActorResolver(
     fun resolve(
         tenantId: UUID,
         authentication: JwtAuthenticationToken,
+    ): StoredHumanActor =
+        resolve(
+            tenantId,
+            authentication.token.requiredIssuer().toURI(),
+            authentication.token.requiredSubject(),
+        )
+
+    /**
+     * Resolves a protocol-verified issuer and opaque subject inside [tenantId].
+     *
+     * Callers must supply claims only after their authentication mechanism has
+     * verified token integrity, issuer, time constraints, and OIDC state/nonce as
+     * applicable. Client-controlled identity attributes are not accepted.
+     *
+     * @throws UntrustedHumanIdentityIssuerException when [verifiedIssuer] has no
+     *   configured provider mapping.
+     * @throws InvalidAuthenticatedHumanIdentityException when [verifiedSubject] is blank.
+     * @throws org.ergon.controlplane.identity.application.AuthenticatedHumanActorNotRegisteredException
+     *   when the mapped provider and subject are not registered in [tenantId].
+     */
+    fun resolve(
+        tenantId: UUID,
+        verifiedIssuer: URI,
+        verifiedSubject: String,
     ): StoredHumanActor {
-        val token = authentication.token
         val identityProvider =
-            trust.identityProviderFor(token.requiredIssuer().toURI())
+            trust.identityProviderFor(verifiedIssuer)
                 ?: throw UntrustedHumanIdentityIssuerException()
-        return service.resolve(tenantId, identityProvider, token.requiredSubject())
+        val subject = verifiedSubject.ifBlank { throw InvalidAuthenticatedHumanIdentityException() }
+        return service.resolve(tenantId, identityProvider, subject)
     }
 
     private fun Jwt.requiredIssuer() = issuer ?: throw UntrustedHumanIdentityIssuerException()

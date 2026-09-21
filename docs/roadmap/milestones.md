@@ -90,6 +90,8 @@ Candidate PR-sized outcomes:
 - Delivered: expose a bounded active-work view for the authenticated owner.
 - Delivered: route follow-up creation to an immutable named queue and support
   exact queue filtering in the shared inbox.
+- Delivered: establish a confidential OIDC BFF session boundary without
+  exposing provider tokens to browser code.
 - Define priority, reassignment, release, and completion semantics separately.
 - Add idempotent notification delivery after durable work exists.
 - Expose a resolver-focused case summary from existing evidence and run facts.

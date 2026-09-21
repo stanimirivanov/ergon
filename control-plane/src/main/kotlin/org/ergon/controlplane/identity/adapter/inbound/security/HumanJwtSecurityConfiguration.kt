@@ -8,6 +8,7 @@ import org.ergon.identity.domain.HumanActor
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
@@ -85,6 +86,7 @@ class HumanJwtSecurityConfiguration {
         }
 
     @Bean
+    @Order(2)
     fun humanJwtSecurityFilterChain(
         http: HttpSecurity,
         jwtDecoder: JwtDecoder,
