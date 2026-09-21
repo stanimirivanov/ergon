@@ -92,3 +92,4 @@ benchmarks rather than duplicating them.
 | 0033 | [Separate Ergon local PostgreSQL identity](0033-separate-ergon-local-postgresql-identity.md) |
 | 0034 | [Expose resolver-owned follow-up work](0034-expose-resolver-owned-follow-up-work.md) |
 | 0035 | [Route human follow-up to named queues](0035-route-human-follow-up-to-named-queues.md) |
+| 0036 | [Establish a confidential browser session boundary](0036-establish-confidential-browser-session-boundary.md) |

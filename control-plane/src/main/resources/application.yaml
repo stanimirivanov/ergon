@@ -15,8 +15,20 @@ spring:
 
 ergon:
   security:
+    browser-session:
+      enabled: ${ERGON_BROWSER_SESSION_ENABLED:false}
     human-jwt:
       identity-provider: ${ERGON_HUMAN_IDENTITY_PROVIDER:}
 
 server:
   port: 8090
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        name: __Host-Http-Ergon-Session
+        http-only: true
+        secure: true
+        # OAuth redirects are cross-site top-level navigations; Strict would drop the initiating session.
+        same-site: lax
+        path: /

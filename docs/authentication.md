@@ -1,9 +1,11 @@
 # Human authentication
 
-> **TL;DR:** `GET /api/v1/tenants/{tenantId}/human-actor` validates a signed
-> bearer JWT, maps its exact issuer to an Ergon identity-provider name, and
-> resolves its opaque subject inside the requested tenant. It accepts no actor
-> identity from the request body.
+> **TL;DR:** API callers can resolve a human actor from a verified bearer JWT.
+> An optional confidential OIDC BFF gives the workbench an opaque server
+> session instead of browser-visible provider tokens. Both paths map the exact
+> trusted issuer and opaque subject to an actor inside the requested tenant.
+
+## Bearer API authentication
 
 Set `ERGON_HUMAN_JWT_ISSUER_URI` to an OpenID Connect issuer that publishes
 discovery metadata and signing keys. Set `ERGON_HUMAN_IDENTITY_PROVIDER` to the
@@ -23,3 +25,55 @@ ingestion APIs retain their current exposure until their caller and service
 authentication models are designed. Authentication does not confer approval
 authority: a later decision must still match current, scoped authority evidence
 to the authenticated actor and approval request.
+
+## Browser session boundary
+
+Set `ERGON_BROWSER_SESSION_ENABLED=true` only after configuring Spring
+Security's OAuth client registration named `ergon-workbench`. The registration
+must use the authorization-code grant, `client_secret_basic`, PKCE, and the
+`openid` scope. Its provider issuer must exactly equal
+`ERGON_HUMAN_JWT_ISSUER_URI`; its client secret belongs in deployment secret
+management.
+
+The equivalent Spring configuration shape is:
+
+```yaml
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          ergon-workbench:
+            provider: ergon-identity
+            client-id: ${ERGON_OIDC_CLIENT_ID}
+            client-secret: ${ERGON_OIDC_CLIENT_SECRET}
+            client-authentication-method: client_secret_basic
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope: openid
+        provider:
+          ergon-identity:
+            issuer-uri: ${ERGON_HUMAN_JWT_ISSUER_URI}
+```
+
+The login sequence is:
+
+1. Probe `GET /bff/v1/tenants/{tenantId}/session` with same-origin cookies.
+2. On its `401` problem, append a canonical `/tenants/{tenantId}` return path
+   to the supplied `/bff/login` sign-in path.
+3. Follow the local redirect into the OIDC authorization flow.
+4. After callback, probe the session resource again. It returns the Ergon actor
+   view and never a provider subject or token.
+
+The cookie is HttpOnly, Secure, host-only, `SameSite=Lax`, and expires with the
+30-minute server session. Lax is deliberate: the OIDC callback is a top-level
+cross-site navigation and needs the initiating session. Production must expose
+the UI and BFF through one HTTPS origin. The Secure setting is not configurable;
+local development should use `localhost`, which browsers treat as a secure
+cookie context, or local HTTPS.
+
+When browser sessions are disabled, the login and session routes return a
+stable `503`. The initial session store is process-local, so restarts sign users
+out and multi-instance deployment is not supported yet. Logout, provider
+revocation, and mutating BFF routes are deferred. See
+[ADR 0036](decisions/0036-establish-confidential-browser-session-boundary.md).

@@ -43,7 +43,9 @@ The current slice can:
     and
 17. page through the authenticated resolver's active claimed work; and
 18. route creation to an immutable `access-restoration` queue and filter the
-    shared inbox by exact queue key.
+    shared inbox by exact queue key; and
+19. establish an optional confidential OIDC BFF that resolves a browser session
+    to a tenant actor without exposing provider tokens.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -70,6 +72,11 @@ Human-authenticated endpoints also use:
 
 - `ERGON_HUMAN_JWT_ISSUER_URI`
 - `ERGON_HUMAN_IDENTITY_PROVIDER`
+
+The browser session boundary additionally uses:
+
+- `ERGON_BROWSER_SESSION_ENABLED` (disabled by default)
+- a Spring OAuth client registration named `ergon-workbench`
 
 When the JWT pair is absent, protected operations fail closed while the
 application can still start for unprotected development behavior. See the
@@ -132,6 +139,8 @@ GitHub SCM URL retains its factual existing repository name.
 - No compensation engine, failure classification/backoff, autonomous retries,
   simulation lab, or improvement proposal generator.
 - No resolver console, adaptive canvas, or public SDK.
+- Browser sessions are process-local and have no logout or provider-revocation
+  flow; the workbench does not consume the BFF contract yet.
 
 The intended sequence is maintained in
 [implementation milestones](../roadmap/milestones.md). Update this document

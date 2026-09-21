@@ -25,9 +25,13 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_DATABASE_PASSWORD` | Database password |
 | `ERGON_HUMAN_JWT_ISSUER_URI` | Trusted human JWT issuer; optional only for unprotected development paths |
 | `ERGON_HUMAN_IDENTITY_PROVIDER` | Stable provider name paired with the issuer |
+| `ERGON_BROWSER_SESSION_ENABLED` | Enables the confidential OIDC BFF; defaults to `false` |
 
 The JWT variables are a pair. Protected human operations fail closed when the
-trust mapping is absent. The server listens on port `8090`.
+trust mapping is absent. Enabling browser sessions additionally requires the
+Spring OAuth client registration `ergon-workbench`, including a secret supplied
+by deployment configuration. See [authentication](../docs/authentication.md)
+for the exact registration contract. The server listens on port `8090`.
 
 ```powershell
 $env:ERGON_DATABASE_URL = "jdbc:postgresql://localhost:5432/ergon"
@@ -72,6 +76,11 @@ Capability contracts are documented under [`docs`](../docs), especially
 [runs](../docs/runs.md), [contracts](../docs/contracts.md),
 [policy](../docs/policy.md), and [authentication](../docs/authentication.md).
 The current inventory is in [current state](../docs/development/current-state.md).
+
+Browser endpoints under `/bff` use an optional confidential OIDC session and
+never return provider tokens to browser code. They fail with `503` while the
+feature is disabled. The current server-side session store is process-local and
+is not suitable for a multi-instance deployment.
 
 Endpoints under `/internal` are not public or production-ready authorization
 boundaries. Tenant IDs in paths are scope selectors, not credentials.
