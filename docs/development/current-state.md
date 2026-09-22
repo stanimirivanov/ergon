@@ -10,8 +10,8 @@
   storage, and events are not Ergon compatibility boundaries.
 - Internal endpoints are development boundaries and must not be treated as a
   production authorization model.
-- The next human-work outcomes are priority, reassignment, release, and
-  completion semantics after establishing one explicit named queue.
+- The next UI slice can render the shared resolver inbox over the browser
+  contract; item detail and mutations remain separate follow-up capabilities.
 
 ## Active Ergon slice
 
@@ -45,7 +45,9 @@ The current slice can:
 18. route creation to an immutable `access-restoration` queue and filter the
     shared inbox by exact queue key; and
 19. establish an optional confidential OIDC BFF that resolves a browser session
-    to a tenant actor without exposing provider tokens.
+    to a tenant actor without exposing provider tokens; and
+20. expose the resolver's shared inbox through that session with an independent,
+    read-only browser contract.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -140,7 +142,8 @@ GitHub SCM URL retains its factual existing repository name.
   simulation lab, or improvement proposal generator.
 - No resolver console, adaptive canvas, or public SDK.
 - Browser sessions are process-local and have no logout or provider-revocation
-  flow; the workbench does not consume the BFF contract yet.
+  flow; the BFF has no item-detail, owned-work, claim, or other mutation
+  contract yet.
 
 The intended sequence is maintained in
 [implementation milestones](../roadmap/milestones.md). Update this document

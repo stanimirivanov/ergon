@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.identity.adapter.inbound.security.BROWSER_REGISTRATION_ID
 import org.ergon.controlplane.identity.adapter.inbound.security.BROWSER_RETURN_TO_SESSION_ATTRIBUTE
+import org.ergon.controlplane.identity.adapter.inbound.security.InvalidBrowserOidcIdentityException
 import org.ergon.controlplane.identity.application.StoredHumanActor
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
@@ -35,11 +36,7 @@ class BrowserSessionController(
     fun currentSession(
         @PathVariable tenantId: UUID,
         @AuthenticationPrincipal principal: OidcUser,
-    ): BrowserActorSessionResponse {
-        val issuer = principal.issuer ?: throw InvalidBrowserOidcIdentityException()
-        val subject = principal.subject?.ifBlank { null } ?: throw InvalidBrowserOidcIdentityException()
-        return actors.resolve(tenantId, issuer.toURI(), subject).toBrowserSessionResponse()
-    }
+    ): BrowserActorSessionResponse = actors.resolve(tenantId, principal).toBrowserSessionResponse()
 
     /** Starts login only for a canonical tenant workbench path kept in the server session. */
     @GetMapping("/bff/login")
@@ -64,7 +61,7 @@ data class BrowserActorSessionResponse(
     val recordedAt: Instant,
 )
 
-/** Exposes a stable fail-closed response when browser OIDC is not configured. */
+/** Exposes stable fail-closed responses for browser routes when OIDC is not configured. */
 @RestController
 @RequestMapping("/bff")
 @ConditionalOnProperty(
@@ -81,6 +78,12 @@ class BrowserSessionUnavailableController {
     /** Reports that no tenant session can be resolved without browser OIDC configuration. */
     @GetMapping("/v1/tenants/{tenantId}/session")
     fun sessionUnavailable(
+        @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
+    ): ProblemDetail = unavailableProblem()
+
+    /** Reports that the resolver inbox cannot be read without browser OIDC configuration. */
+    @GetMapping("/v1/tenants/{tenantId}/human-follow-ups")
+    fun humanFollowUpInboxUnavailable(
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
     ): ProblemDetail = unavailableProblem()
 
@@ -119,5 +122,3 @@ private fun StoredHumanActor.toBrowserSessionResponse() =
     )
 
 class InvalidBrowserReturnPathException : RuntimeException("returnTo must be a canonical tenant workbench path")
-
-class InvalidBrowserOidcIdentityException : RuntimeException("verified OIDC identity is incomplete")

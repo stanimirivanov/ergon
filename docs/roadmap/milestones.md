@@ -92,6 +92,8 @@ Candidate PR-sized outcomes:
   exact queue filtering in the shared inbox.
 - Delivered: establish a confidential OIDC BFF session boundary without
   exposing provider tokens to browser code.
+- Delivered: expose the shared resolver inbox through a read-only browser
+  session contract without promoting internal bearer routes.
 - Define priority, reassignment, release, and completion semantics separately.
 - Add idempotent notification delivery after durable work exists.
 - Expose a resolver-focused case summary from existing evidence and run facts.
