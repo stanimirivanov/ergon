@@ -65,6 +65,12 @@ The login sequence is:
 4. After callback, probe the session resource again. It returns the Ergon actor
    view and never a provider subject or token.
 
+An authenticated workbench can then read the shared resolver inbox from
+`GET /bff/v1/tenants/{tenantId}/human-follow-ups`. The BFF resolves the same
+verified session to the tenant actor; JavaScript does not supply an actor or
+provider identity. See [human follow-up](human-follow-up.md#browser-resolver-inbox)
+for the response, filtering, and pagination contract.
+
 The cookie is HttpOnly, Secure, host-only, `SameSite=Lax`, and expires with the
 30-minute server session. Lax is deliberate: the OIDC callback is a top-level
 cross-site navigation and needs the initiating session. Production must expose
@@ -72,8 +78,9 @@ the UI and BFF through one HTTPS origin. The Secure setting is not configurable;
 local development should use `localhost`, which browsers treat as a secure
 cookie context, or local HTTPS.
 
-When browser sessions are disabled, the login and session routes return a
-stable `503`. The initial session store is process-local, so restarts sign users
-out and multi-instance deployment is not supported yet. Logout, provider
-revocation, and mutating BFF routes are deferred. See
-[ADR 0036](decisions/0036-establish-confidential-browser-session-boundary.md).
+When browser sessions are disabled, the login, session, and browser inbox
+routes return a stable `503`. The initial session store is process-local, so
+restarts sign users out and multi-instance deployment is not supported yet.
+Logout, provider revocation, and mutating BFF routes are deferred. See
+[ADR 0036](decisions/0036-establish-confidential-browser-session-boundary.md)
+and [ADR 0037](decisions/0037-expose-resolver-inbox-through-browser-session.md).

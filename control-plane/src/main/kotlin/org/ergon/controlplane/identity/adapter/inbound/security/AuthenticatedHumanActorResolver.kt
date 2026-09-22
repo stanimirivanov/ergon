@@ -2,6 +2,7 @@ package org.ergon.controlplane.identity.adapter.inbound.security
 
 import org.ergon.controlplane.identity.application.HumanActorAuthenticationService
 import org.ergon.controlplane.identity.application.StoredHumanActor
+import org.springframework.security.oauth2.core.oidc.user.OidcUser
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.stereotype.Component
@@ -14,6 +15,23 @@ class AuthenticatedHumanActorResolver(
     private val service: HumanActorAuthenticationService,
     private val trust: HumanJwtTrust,
 ) {
+    /**
+     * Resolves a protocol-verified OIDC principal without accepting browser-supplied identity attributes.
+     *
+     * @throws InvalidBrowserOidcIdentityException when the verified principal has no issuer or subject.
+     * @throws UntrustedHumanIdentityIssuerException when its verified issuer has no provider mapping.
+     * @throws org.ergon.controlplane.identity.application.AuthenticatedHumanActorNotRegisteredException
+     *   when its provider and subject are not registered in [tenantId].
+     */
+    fun resolve(
+        tenantId: UUID,
+        principal: OidcUser,
+    ): StoredHumanActor {
+        val issuer = principal.issuer ?: throw InvalidBrowserOidcIdentityException()
+        val subject = principal.subject?.ifBlank { null } ?: throw InvalidBrowserOidcIdentityException()
+        return resolve(tenantId, issuer.toURI(), subject)
+    }
+
     /**
      * Resolves [authentication] without accepting identity attributes from client input.
      *
@@ -68,3 +86,6 @@ class UntrustedHumanIdentityIssuerException : RuntimeException("token issuer is 
 
 /** Signals that a verified token lacks the stable subject needed for identity binding. */
 class InvalidAuthenticatedHumanIdentityException : RuntimeException("authenticated token has no subject")
+
+/** Signals that a verified browser principal lacks claims required for tenant actor resolution. */
+class InvalidBrowserOidcIdentityException : RuntimeException("verified OIDC identity is incomplete")

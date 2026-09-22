@@ -12,7 +12,7 @@ class BrowserSessionUnavailableControllerTest {
     private val mockMvc = MockMvcBuilders.standaloneSetup(BrowserSessionUnavailableController()).build()
 
     @Test
-    fun `returns a stable unavailable problem for login and session routes`() {
+    fun `returns a stable unavailable problem for defined browser routes`() {
         val expectedType = "urn:ergon:problem:browser-authentication-unavailable"
 
         mockMvc
@@ -22,6 +22,11 @@ class BrowserSessionUnavailableControllerTest {
 
         mockMvc
             .perform(get("/bff/v1/tenants/{tenantId}/session", UUID.randomUUID()))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.type").value(expectedType))
+
+        mockMvc
+            .perform(get("/bff/v1/tenants/{tenantId}/human-follow-ups", UUID.randomUUID()))
             .andExpect(status().isServiceUnavailable)
             .andExpect(jsonPath("$.type").value(expectedType))
     }

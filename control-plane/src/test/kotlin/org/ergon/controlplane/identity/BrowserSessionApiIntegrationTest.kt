@@ -162,7 +162,7 @@ class BrowserSessionApiIntegrationTest(
 }
 
 @TestConfiguration(proxyBeanMethods = false)
-private class BrowserSessionTestClientConfiguration {
+internal class BrowserSessionTestClientConfiguration {
     @Bean
     fun browserClientRegistrationRepository(): ClientRegistrationRepository =
         InMemoryClientRegistrationRepository(

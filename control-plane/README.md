@@ -79,8 +79,10 @@ The current inventory is in [current state](../docs/development/current-state.md
 
 Browser endpoints under `/bff` use an optional confidential OIDC session and
 never return provider tokens to browser code. They fail with `503` while the
-feature is disabled. The current server-side session store is process-local and
-is not suitable for a multi-instance deployment.
+feature is disabled. The BFF currently exposes the tenant actor session and a
+read-only shared resolver inbox; item details and mutations remain internal.
+The current server-side session store is process-local and is not suitable for
+a multi-instance deployment.
 
 Endpoints under `/internal` are not public or production-ready authorization
 boundaries. Tenant IDs in paths are scope selectors, not credentials.

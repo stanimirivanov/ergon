@@ -71,6 +71,28 @@ evidence receives an empty page so the response does not reveal whether the
 tenant contains work. A named queue is a shared discovery route, not resolver
 assignment or authorization, and the inbox provides no total count.
 
+## Browser resolver inbox
+
+The confidential browser session exposes the same application query at:
+
+```text
+GET /bff/v1/tenants/{tenantId}/human-follow-ups?limit=50
+```
+
+It accepts the same `queueKey`, `limit`, `afterOpenedAt`, and `afterWorkItemId`
+parameters and preserves the internal inbox's filtering, validation, authority,
+ordering, and non-disclosure semantics. Its browser-specific response contains
+the immutable work source, queue, status, and timestamps plus an optional exact
+next cursor. It contains no provider subject, token, authority evidence, or
+total count.
+
+Unauthenticated requests return `401 browser-authentication-required` with the
+local BFF sign-in path. A verified identity not registered in the requested
+tenant returns `403`; missing current resolver authority returns an empty page.
+When browser sessions are disabled, the route returns
+`503 browser-authentication-unavailable`. See
+[ADR 0037](decisions/0037-expose-resolver-inbox-through-browser-session.md).
+
 ## Claim and replay
 
 An authenticated resolver acquires ownership with:
@@ -123,4 +145,4 @@ changes must define attributable lifecycle events and may add a current-state
 projection. This slice does not define queue administration, configurable
 routing, automatic assignment, reassignment, release, priority, due time,
 service levels, completion, cancellation, notification, summaries, supervisor
-workload views, or a UI.
+workload views, item detail, or browser mutations.
