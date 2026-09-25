@@ -12,8 +12,10 @@ import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.core.oidc.user.OidcUser
+import org.springframework.security.web.csrf.CsrfToken
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -31,6 +33,14 @@ import java.util.UUID
 class BrowserSessionController(
     private val actors: AuthenticatedHumanActorResolver,
 ) {
+    /** Returns the opaque session-bound token and header name required for browser mutations. */
+    @GetMapping("/bff/v1/csrf")
+    fun csrf(csrfToken: CsrfToken) =
+        BrowserCsrfTokenResponse(
+            headerName = csrfToken.headerName,
+            token = csrfToken.token,
+        )
+
     /** Resolves the verified OIDC session to one actor without returning its provider subject. */
     @GetMapping("/bff/v1/tenants/{tenantId}/session")
     fun currentSession(
@@ -61,6 +71,12 @@ data class BrowserActorSessionResponse(
     val recordedAt: Instant,
 )
 
+/** Session-bound anti-forgery value that browser code must keep in memory only. */
+data class BrowserCsrfTokenResponse(
+    val headerName: String,
+    val token: String,
+)
+
 /** Exposes stable fail-closed responses for browser routes when OIDC is not configured. */
 @RestController
 @RequestMapping("/bff")
@@ -81,10 +97,21 @@ class BrowserSessionUnavailableController {
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
     ): ProblemDetail = unavailableProblem()
 
+    /** Reports that mutation protection is unavailable without browser OIDC configuration. */
+    @GetMapping("/v1/csrf")
+    fun csrfUnavailable(): ProblemDetail = unavailableProblem()
+
     /** Reports that the resolver inbox cannot be read without browser OIDC configuration. */
     @GetMapping("/v1/tenants/{tenantId}/human-follow-ups")
     fun humanFollowUpInboxUnavailable(
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
+    ): ProblemDetail = unavailableProblem()
+
+    /** Reports that browser claiming is unavailable without browser OIDC configuration. */
+    @PostMapping("/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claims")
+    fun humanFollowUpClaimUnavailable(
+        @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
+        @Suppress("UNUSED_PARAMETER") @PathVariable workItemId: UUID,
     ): ProblemDetail = unavailableProblem()
 
     private fun unavailableProblem(): ProblemDetail =

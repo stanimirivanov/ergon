@@ -71,6 +71,15 @@ verified session to the tenant actor; JavaScript does not supply an actor or
 provider identity. See [human follow-up](human-follow-up.md#browser-resolver-inbox)
 for the response, filtering, and pagination contract.
 
+Before an unsafe BFF request, fetch authenticated `GET /bff/v1/csrf`. Keep its
+opaque `token` in memory and send it using the returned `headerName`. Never put
+the token in a URL, persistent browser storage, logs, or a request to another
+origin. Fetch a replacement after login, session replacement, or
+`403 invalid-browser-csrf-token`. Missing authentication continues to return
+the normal `401 browser-authentication-required` problem even when the CSRF
+token is missing, while an authenticated invalid token fails before controller
+dispatch. See [ADR 0038](decisions/0038-protect-browser-commands-with-session-csrf-tokens.md).
+
 The cookie is HttpOnly, Secure, host-only, `SameSite=Lax`, and expires with the
 30-minute server session. Lax is deliberate: the OIDC callback is a top-level
 cross-site navigation and needs the initiating session. Production must expose
@@ -78,9 +87,10 @@ the UI and BFF through one HTTPS origin. The Secure setting is not configurable;
 local development should use `localhost`, which browsers treat as a secure
 cookie context, or local HTTPS.
 
-When browser sessions are disabled, the login, session, and browser inbox
-routes return a stable `503`. The initial session store is process-local, so
-restarts sign users out and multi-instance deployment is not supported yet.
-Logout, provider revocation, and mutating BFF routes are deferred. See
+When browser sessions are disabled, the login, session, CSRF, browser inbox,
+and browser claim routes return a stable `503`. The initial session store is
+process-local, so restarts sign users out and multi-instance deployment is not
+supported yet. Logout, provider revocation, and other mutating BFF routes are
+deferred. See
 [ADR 0036](decisions/0036-establish-confidential-browser-session-boundary.md)
 and [ADR 0037](decisions/0037-expose-resolver-inbox-through-browser-session.md).

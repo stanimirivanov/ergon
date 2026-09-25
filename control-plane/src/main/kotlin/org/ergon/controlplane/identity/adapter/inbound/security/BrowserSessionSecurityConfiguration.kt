@@ -7,9 +7,13 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
 import org.springframework.http.MediaType
+import org.springframework.security.access.AccessDeniedException
+import org.springframework.security.authentication.AnonymousAuthenticationToken
+import org.springframework.security.authentication.InsufficientAuthenticationException
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.core.Authentication
 import org.springframework.security.core.AuthenticationException
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.oauth2.client.registration.ClientRegistration
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver
@@ -18,9 +22,13 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod
 import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.access.AccessDeniedHandler
+import org.springframework.security.web.access.AccessDeniedHandlerImpl
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler
+import org.springframework.security.web.csrf.CsrfException
 import org.springframework.security.web.savedrequest.NullRequestCache
 import tools.jackson.databind.ObjectMapper
+import java.net.URI
 
 internal const val BROWSER_REGISTRATION_ID = "ergon-workbench"
 internal const val BROWSER_RETURN_TO_SESSION_ATTRIBUTE = "ergon.browser.return-to"
@@ -37,12 +45,19 @@ class BrowserSessionSecurityConfiguration {
     fun browserSessionEntryPoint(objectMapper: ObjectMapper) = BrowserSessionAuthenticationEntryPoint(objectMapper)
 
     @Bean
+    fun browserSessionAccessDeniedHandler(
+        objectMapper: ObjectMapper,
+        authenticationEntryPoint: BrowserSessionAuthenticationEntryPoint,
+    ) = BrowserSessionAccessDeniedHandler(objectMapper, authenticationEntryPoint)
+
+    @Bean
     @Order(1)
     fun browserSessionSecurityFilterChain(
         http: HttpSecurity,
         registrations: ClientRegistrationRepository,
         trust: HumanJwtTrust,
         authenticationEntryPoint: BrowserSessionAuthenticationEntryPoint,
+        accessDeniedHandler: BrowserSessionAccessDeniedHandler,
     ): SecurityFilterChain {
         val registration = registrations.requiredBrowserRegistration()
         registration.validateForBrowserSession(trust)
@@ -63,6 +78,7 @@ class BrowserSessionSecurityConfiguration {
                 it.requestCache(NullRequestCache())
             }.exceptionHandling {
                 it.authenticationEntryPoint(authenticationEntryPoint)
+                it.accessDeniedHandler(accessDeniedHandler)
             }.oauth2Login { login ->
                 login.authorizationEndpoint { endpoint ->
                     endpoint.authorizationRequestResolver(authorizationRequests)
@@ -70,6 +86,52 @@ class BrowserSessionSecurityConfiguration {
                 login.successHandler(BrowserAuthenticationSuccessHandler())
             }
         return http.build()
+    }
+}
+
+/** Produces stable browser problems for CSRF rejection without masking an expired session. */
+class BrowserSessionAccessDeniedHandler(
+    private val objectMapper: ObjectMapper,
+    private val authenticationEntryPoint: BrowserSessionAuthenticationEntryPoint,
+) : AccessDeniedHandler {
+    private val defaultHandler = AccessDeniedHandlerImpl()
+
+    override fun handle(
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+        accessDeniedException: AccessDeniedException,
+    ) {
+        if (accessDeniedException !is CsrfException) {
+            defaultHandler.handle(request, response, accessDeniedException)
+            return
+        }
+
+        val authentication = SecurityContextHolder.getContext().authentication
+        val requiresAuthentication =
+            authentication == null ||
+                authentication is AnonymousAuthenticationToken ||
+                !authentication.isAuthenticated
+        if (requiresAuthentication) {
+            authenticationEntryPoint.commence(
+                request,
+                response,
+                InsufficientAuthenticationException("An authenticated browser session is required"),
+            )
+            return
+        }
+
+        response.status = HttpServletResponse.SC_FORBIDDEN
+        response.contentType = MediaType.APPLICATION_PROBLEM_JSON_VALUE
+        objectMapper.writeValue(
+            response.outputStream,
+            mapOf(
+                "type" to "urn:ergon:problem:invalid-browser-csrf-token",
+                "title" to "Invalid browser CSRF token",
+                "status" to HttpServletResponse.SC_FORBIDDEN,
+                "detail" to "A valid browser CSRF token is required",
+                "instance" to URI.create(request.requestURI),
+            ),
+        )
     }
 }
 
