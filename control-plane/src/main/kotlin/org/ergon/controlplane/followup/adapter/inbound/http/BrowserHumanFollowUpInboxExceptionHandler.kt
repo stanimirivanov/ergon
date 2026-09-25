@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest
 import org.ergon.controlplane.followup.application.InvalidHumanFollowUpQueueException
 import org.ergon.controlplane.followup.application.InvalidHumanFollowUpWorkItemPageException
 import org.ergon.controlplane.followup.application.InvalidResolverOwnedHumanFollowUpPageException
+import org.ergon.controlplane.followup.application.ResolverFollowUpCaseSummaryNotFoundException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidAuthenticatedHumanIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidBrowserOidcIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.UntrustedHumanIdentityIssuerException
@@ -15,7 +16,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.net.URI
 
 /** Maps browser follow-up query failures without exposing provider bindings or hidden work. */
-@RestControllerAdvice(assignableTypes = [BrowserHumanFollowUpInboxController::class])
+@RestControllerAdvice(
+    assignableTypes =
+        [
+            BrowserHumanFollowUpInboxController::class,
+            BrowserResolverFollowUpCaseSummaryController::class,
+        ],
+)
 class BrowserHumanFollowUpInboxExceptionHandler {
     @ExceptionHandler(InvalidHumanFollowUpWorkItemPageException::class)
     fun invalidPage(
@@ -39,6 +46,19 @@ class BrowserHumanFollowUpInboxExceptionHandler {
             HttpStatus.BAD_REQUEST,
             "urn:ergon:problem:invalid-resolver-owned-human-follow-up-page",
             "Invalid resolver-owned human follow-up page",
+            exception.message.orEmpty(),
+            request,
+        )
+
+    @ExceptionHandler(ResolverFollowUpCaseSummaryNotFoundException::class)
+    fun summaryNotFound(
+        exception: ResolverFollowUpCaseSummaryNotFoundException,
+        request: HttpServletRequest,
+    ): ProblemDetail =
+        problem(
+            HttpStatus.NOT_FOUND,
+            "urn:ergon:problem:resolver-follow-up-case-summary-not-found",
+            "Resolver follow-up case summary not found",
             exception.message.orEmpty(),
             request,
         )

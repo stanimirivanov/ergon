@@ -144,6 +144,33 @@ are omitted. Invalid pagination returns
 disabled, the route returns `503 browser-authentication-unavailable`. See
 [ADR 0039](decisions/0039-expose-resolver-owned-work-through-browser-session.md).
 
+## Browser owned-work case summary
+
+An authenticated resolver can inspect one active item they own with:
+
+```text
+GET /bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/case-summary
+```
+
+The response combines the work item's queue, reason, and timing with the case
+header, pinned contract revision, attributable source observations, immutable
+resolution-run inputs, and current `ESCALATED` run state. Observation content
+is untrusted source data and clients must render it as text, never executable
+markup. Resolver identity, authority-evidence IDs, provider subjects, and
+tokens are excluded.
+
+The server resolves the actor from the verified OIDC session. The item must be
+`OPEN`, claimed by that actor, and visible under current tenant-wide resolver
+authority. Absence, closure, different ownership, and lost authority all return
+the same `404 resolver-follow-up-case-summary-not-found`; case and run records
+are not read until this ownership check succeeds. The multi-query read runs in
+one transaction so its case and run projections form one database view.
+
+The route is read-only, requires no CSRF token, uses no-store response headers,
+and returns `503 browser-authentication-unavailable` when browser sessions are
+disabled. See
+[ADR 0040](decisions/0040-expose-owned-follow-up-case-summary-through-browser-session.md).
+
 ## Claim and replay
 
 An authenticated resolver acquires ownership with:
@@ -195,5 +222,6 @@ The creation row, its initial queue, and first-owner claim are immutable. Later
 changes must define attributable lifecycle events and may add a current-state
 projection. This slice does not define queue administration, configurable
 routing, automatic assignment, reassignment, release, priority, due time,
-service levels, completion, cancellation, notification, summaries, supervisor
-workload views, item detail, or other browser mutations.
+service levels, completion, cancellation, notification, semantic summaries,
+supervisor workload views, general case search/detail, or other browser
+mutations.

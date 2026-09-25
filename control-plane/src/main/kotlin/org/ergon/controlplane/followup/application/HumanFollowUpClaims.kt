@@ -82,6 +82,20 @@ interface HumanFollowUpClaimRepository {
     ): StoredHumanFollowUpClaim?
 
     /**
+     * Returns one active work item only when it is owned by [actorId] under
+     * current resolver authority.
+     *
+     * Absence, closed work, ownership by another actor, and insufficient
+     * authority all return `null` so callers cannot distinguish hidden work.
+     */
+    fun findOwnedWorkForResolver(
+        tenantId: TenantId,
+        workItemId: HumanFollowUpWorkItemId,
+        actorId: HumanActorId,
+        at: Instant,
+    ): ResolverOwnedHumanFollowUpWork?
+
+    /**
      * Lists the resolver's claimed `OPEN` work after [after] in ascending claim order.
      *
      * [limit] must be positive. Equal claim instants are ordered by claim identity.

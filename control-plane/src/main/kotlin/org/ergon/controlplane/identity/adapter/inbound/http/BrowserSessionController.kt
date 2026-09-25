@@ -113,6 +113,13 @@ class BrowserSessionUnavailableController {
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
     ): ProblemDetail = unavailableProblem()
 
+    /** Reports that owned-work case context cannot be read without browser OIDC configuration. */
+    @GetMapping("/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/case-summary")
+    fun resolverFollowUpCaseSummaryUnavailable(
+        @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
+        @Suppress("UNUSED_PARAMETER") @PathVariable workItemId: UUID,
+    ): ProblemDetail = unavailableProblem()
+
     /** Reports that browser claiming is unavailable without browser OIDC configuration. */
     @PostMapping("/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claims")
     fun humanFollowUpClaimUnavailable(

@@ -163,6 +163,23 @@ class PostgresHumanFollowUpClaimRepository(
             .map(ResolverOwnedHumanFollowUpRow::toOwnedWork)
     }
 
+    override fun findOwnedWorkForResolver(
+        tenantId: TenantId,
+        workItemId: HumanFollowUpWorkItemId,
+        actorId: HumanActorId,
+        at: Instant,
+    ): ResolverOwnedHumanFollowUpWork? =
+        ownedWorkQuery("AND claim.work_item_id = :workItemId")
+            .param("tenantId", tenantId.value)
+            .param("workItemId", workItemId.value)
+            .param("actorId", actorId.value)
+            .param("at", at.atOffset(ZoneOffset.UTC))
+            .param("limit", 1)
+            .query(DataClassRowMapper(ResolverOwnedHumanFollowUpRow::class.java))
+            .optional()
+            .getOrNull()
+            ?.toOwnedWork()
+
     private fun ownedWorkQuery(cursorPredicate: String): JdbcClient.StatementSpec =
         jdbcClient.sql(
             """

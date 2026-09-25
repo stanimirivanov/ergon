@@ -96,3 +96,4 @@ benchmarks rather than duplicating them.
 | 0037 | [Expose the resolver inbox through the browser session](0037-expose-resolver-inbox-through-browser-session.md) |
 | 0038 | [Protect browser commands with session CSRF tokens](0038-protect-browser-commands-with-session-csrf-tokens.md) |
 | 0039 | [Expose resolver-owned work through the browser session](0039-expose-resolver-owned-work-through-browser-session.md) |
+| 0040 | [Expose an owned follow-up case summary through the browser session](0040-expose-owned-follow-up-case-summary-through-browser-session.md) |
