@@ -3,6 +3,7 @@ package org.ergon.controlplane.followup.adapter.inbound.http
 import jakarta.servlet.http.HttpServletRequest
 import org.ergon.controlplane.followup.application.InvalidHumanFollowUpQueueException
 import org.ergon.controlplane.followup.application.InvalidHumanFollowUpWorkItemPageException
+import org.ergon.controlplane.followup.application.InvalidResolverOwnedHumanFollowUpPageException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidAuthenticatedHumanIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidBrowserOidcIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.UntrustedHumanIdentityIssuerException
@@ -13,7 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.net.URI
 
-/** Maps browser inbox validation and identity failures without exposing provider bindings or hidden work. */
+/** Maps browser follow-up query failures without exposing provider bindings or hidden work. */
 @RestControllerAdvice(assignableTypes = [BrowserHumanFollowUpInboxController::class])
 class BrowserHumanFollowUpInboxExceptionHandler {
     @ExceptionHandler(InvalidHumanFollowUpWorkItemPageException::class)
@@ -25,6 +26,19 @@ class BrowserHumanFollowUpInboxExceptionHandler {
             HttpStatus.BAD_REQUEST,
             "urn:ergon:problem:invalid-human-follow-up-page",
             "Invalid human follow-up page",
+            exception.message.orEmpty(),
+            request,
+        )
+
+    @ExceptionHandler(InvalidResolverOwnedHumanFollowUpPageException::class)
+    fun invalidOwnedPage(
+        exception: InvalidResolverOwnedHumanFollowUpPageException,
+        request: HttpServletRequest,
+    ): ProblemDetail =
+        problem(
+            HttpStatus.BAD_REQUEST,
+            "urn:ergon:problem:invalid-resolver-owned-human-follow-up-page",
+            "Invalid resolver-owned human follow-up page",
             exception.message.orEmpty(),
             request,
         )

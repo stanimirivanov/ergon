@@ -80,8 +80,8 @@ The current inventory is in [current state](../docs/development/current-state.md
 Browser endpoints under `/bff` use an optional confidential OIDC session and
 never return provider tokens to browser code. They fail with `503` while the
 feature is disabled. The BFF exposes the tenant actor session, shared resolver
-inbox, and CSRF-protected idempotent claim command; item details, owned work,
-and other mutations remain internal.
+inbox, resolver-owned active work, and CSRF-protected idempotent claim command;
+item details and other mutations remain internal.
 The current server-side session store is process-local and is not suitable for
 a multi-instance deployment.
 
