@@ -93,6 +93,35 @@ When browser sessions are disabled, the route returns
 `503 browser-authentication-unavailable`. See
 [ADR 0037](decisions/0037-expose-resolver-inbox-through-browser-session.md).
 
+## Browser claim
+
+After obtaining the authenticated session CSRF token described in
+[authentication](authentication.md#browser-session-boundary), claim visible
+work with:
+
+```text
+POST /bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claims
+X-CSRF-TOKEN: {opaque session token}
+```
+
+The server resolves the OIDC session to the tenant actor; the browser never
+supplies an actor ID. The first claim returns `201`; a retry by the same resolver
+returns `200` with the original immutable claim. The response contains
+`claimId`, `workItemId`, `claimedAt`, and `recordedAt`. It excludes provider
+identity, resolver actor identity, authority-evidence attribution, and tokens.
+
+An authenticated request without the correct session token returns
+`403 invalid-browser-csrf-token` before claim application code runs. An expired
+or absent session returns `401 browser-authentication-required`. Missing current
+resolver authority returns `403 human-follow-up-resolver-authority-required`,
+absent work returns `404 human-follow-up-work-item-not-found`, and a competing
+resolver returns `409 human-follow-up-already-claimed`.
+
+Same-resolver replay makes this specific command safe to repeat after an
+ambiguous response. It does not establish a blanket automatic-retry policy for
+other mutations. See
+[ADR 0038](decisions/0038-protect-browser-commands-with-session-csrf-tokens.md).
+
 ## Claim and replay
 
 An authenticated resolver acquires ownership with:
@@ -145,4 +174,5 @@ changes must define attributable lifecycle events and may add a current-state
 projection. This slice does not define queue administration, configurable
 routing, automatic assignment, reassignment, release, priority, due time,
 service levels, completion, cancellation, notification, summaries, supervisor
-workload views, item detail, or browser mutations.
+workload views, item detail, browser owned-work views, or other browser
+mutations.

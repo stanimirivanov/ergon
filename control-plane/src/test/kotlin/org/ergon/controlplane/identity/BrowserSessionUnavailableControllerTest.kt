@@ -3,6 +3,7 @@ package org.ergon.controlplane.identity
 import org.ergon.controlplane.identity.adapter.inbound.http.BrowserSessionUnavailableController
 import org.junit.jupiter.api.Test
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
@@ -28,6 +29,21 @@ class BrowserSessionUnavailableControllerTest {
         mockMvc
             .perform(get("/bff/v1/tenants/{tenantId}/human-follow-ups", UUID.randomUUID()))
             .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.type").value(expectedType))
+
+        mockMvc
+            .perform(get("/bff/v1/csrf"))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.type").value(expectedType))
+
+        mockMvc
+            .perform(
+                post(
+                    "/bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claims",
+                    UUID.randomUUID(),
+                    UUID.randomUUID(),
+                ),
+            ).andExpect(status().isServiceUnavailable)
             .andExpect(jsonPath("$.type").value(expectedType))
     }
 }

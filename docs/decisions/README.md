@@ -94,3 +94,4 @@ benchmarks rather than duplicating them.
 | 0035 | [Route human follow-up to named queues](0035-route-human-follow-up-to-named-queues.md) |
 | 0036 | [Establish a confidential browser session boundary](0036-establish-confidential-browser-session-boundary.md) |
 | 0037 | [Expose the resolver inbox through the browser session](0037-expose-resolver-inbox-through-browser-session.md) |
+| 0038 | [Protect browser commands with session CSRF tokens](0038-protect-browser-commands-with-session-csrf-tokens.md) |
