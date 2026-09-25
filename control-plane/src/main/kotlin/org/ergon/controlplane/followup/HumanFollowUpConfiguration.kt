@@ -1,5 +1,6 @@
 package org.ergon.controlplane.followup
 
+import org.ergon.controlplane.cases.application.CaseTimelineRepository
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimIdentityGenerator
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
@@ -7,7 +8,10 @@ import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemIdentityGenerator
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemQueryService
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemRepository
+import org.ergon.controlplane.followup.application.ResolverFollowUpCaseSummaryService
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
+import org.ergon.controlplane.resolution.application.ResolutionRunRepository
+import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
 import org.ergon.followup.domain.HumanFollowUpClaimId
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
 import org.springframework.context.annotation.Bean
@@ -44,4 +48,15 @@ class HumanFollowUpConfiguration {
         transactionRunner: TransactionRunner,
         clock: Clock,
     ) = HumanFollowUpClaimService(claims, authorities, identities, transactionRunner, clock)
+
+    @Bean
+    @Suppress("LongParameterList") // Composition roots make dependencies explicit for Spring wiring.
+    fun resolverFollowUpCaseSummaryService(
+        claims: HumanFollowUpClaimRepository,
+        cases: CaseTimelineRepository,
+        runs: ResolutionRunRepository,
+        transitions: ResolutionRunTransitionRepository,
+        transactionRunner: TransactionRunner,
+        clock: Clock,
+    ) = ResolverFollowUpCaseSummaryService(claims, cases, runs, transitions, transactionRunner, clock)
 }

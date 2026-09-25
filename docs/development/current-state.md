@@ -10,8 +10,8 @@
   storage, and events are not Ergon compatibility boundaries.
 - Internal endpoints are development boundaries and must not be treated as a
   production authorization model.
-- The BFF exposes shared discovery, CSRF-protected claiming, and the
-  resolver-owned active-work query needed by the workbench.
+- The BFF exposes shared discovery, CSRF-protected claiming, resolver-owned
+  active work, and owner-scoped case context needed by the workbench.
 
 ## Active Ergon slice
 
@@ -51,7 +51,9 @@ The current slice can:
 21. issue session-bound CSRF tokens and claim follow-up work through a
     browser-specific command contract; and
 22. expose active work owned by the browser-session resolver without returning
-    provider identity or authority attribution.
+    provider identity or authority attribution; and
+23. expose one owned escalation's case observations, pinned contract, and
+    immutable run snapshot without disclosing claim or authority attribution.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -146,7 +148,7 @@ GitHub SCM URL retains its factual existing repository name.
   simulation lab, or improvement proposal generator.
 - No resolver console, adaptive canvas, or public SDK.
 - Browser sessions are process-local and have no logout or provider-revocation
-  flow; the BFF has no item-detail, release, reassignment, completion, or other
+  flow; the BFF has no release, reassignment, completion, or other lifecycle
   mutation contract yet.
 
 The intended sequence is maintained in

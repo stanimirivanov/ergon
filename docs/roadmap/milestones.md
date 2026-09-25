@@ -98,9 +98,10 @@ Candidate PR-sized outcomes:
   idempotent resolver claiming through the confidential BFF.
 - Delivered: expose the authenticated resolver's active claimed work through a
   browser-specific, token-free session contract.
+- Delivered: expose an owner-scoped case summary from existing observations,
+  pinned contract identity, and immutable resolution-run facts.
 - Define priority, reassignment, release, and completion semantics separately.
 - Add idempotent notification delivery after durable work exists.
-- Expose a resolver-focused case summary from existing evidence and run facts.
 - Implement the minimum resolver console for evidence, approvals, execution,
   verification, and handoff.
 - Implement the adaptive requester canvas over the same case API.

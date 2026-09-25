@@ -9,7 +9,8 @@ Escalation atomically opens durable resolver follow-up work.
 Resolvers can discover unclaimed work through a bounded oldest-first inbox and
 filter it by immutable named queue before acquiring authority-attributed
 ownership. They can recover their active claimed work through a separately
-paginated resolver-owned view.
+paginated resolver-owned view and retrieve the case evidence plus immutable
+run facts needed to continue one owned escalation.
 
 It is a modular monolith: capability packages contain application-owned ports
 and inbound/outbound adapters while `domain-kernel` remains framework-free.
@@ -80,8 +81,8 @@ The current inventory is in [current state](../docs/development/current-state.md
 Browser endpoints under `/bff` use an optional confidential OIDC session and
 never return provider tokens to browser code. They fail with `503` while the
 feature is disabled. The BFF exposes the tenant actor session, shared resolver
-inbox, resolver-owned active work, and CSRF-protected idempotent claim command;
-item details and other mutations remain internal.
+inbox, resolver-owned active work, an owner-scoped case summary, and the
+CSRF-protected idempotent claim command; lifecycle mutations remain internal.
 The current server-side session store is process-local and is not suitable for
 a multi-instance deployment.
 
