@@ -1,7 +1,9 @@
 package org.ergon.controlplane.followup.adapter.inbound.http
 
+import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
 import org.ergon.controlplane.followup.application.HumanFollowUpInboxQuery
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemQueryService
+import org.ergon.controlplane.followup.application.ResolverOwnedHumanFollowUpWork
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -16,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController
 import java.time.Instant
 import java.util.UUID
 
-/** Browser-session boundary for the resolver's shared human follow-up inbox. */
+/** Browser-session query boundary for shared and resolver-owned human follow-up work. */
 @RestController
 @RequestMapping("/bff/v1/tenants/{tenantId}/human-follow-ups")
 @ConditionalOnProperty(
@@ -27,6 +29,7 @@ import java.util.UUID
 class BrowserHumanFollowUpInboxController(
     private val actors: AuthenticatedHumanActorResolver,
     private val service: HumanFollowUpWorkItemQueryService,
+    private val claims: HumanFollowUpClaimService,
 ) {
     /**
      * Lists the oldest unclaimed work visible under the authenticated actor's current resolver authority.
@@ -58,6 +61,36 @@ class BrowserHumanFollowUpInboxController(
             page.nextCursor?.let { BrowserHumanFollowUpCursorResponse(it.openedAt, it.workItemId.value) },
         )
     }
+
+    /**
+     * Lists active work owned by the authenticated resolver in oldest-claim-first order.
+     *
+     * Identity is resolved from the verified session. The response omits resolver and
+     * authority-evidence identifiers because ownership is already scoped to that actor.
+     * A caller without current resolver authority receives an empty page.
+     */
+    @GetMapping("/owned")
+    fun listOwned(
+        @PathVariable tenantId: UUID,
+        @ModelAttribute request: BrowserResolverOwnedHumanFollowUpRequest,
+        @AuthenticationPrincipal principal: OidcUser,
+    ): BrowserResolverOwnedHumanFollowUpPageResponse {
+        val actor = actors.resolve(tenantId, principal)
+        val page =
+            claims.listOwned(
+                tenantId,
+                actor.actor.id.value,
+                request.limit,
+                request.afterClaimedAt,
+                request.afterClaimId,
+            )
+        return BrowserResolverOwnedHumanFollowUpPageResponse(
+            page.items.map(ResolverOwnedHumanFollowUpWork::toBrowserResponse),
+            page.nextCursor?.let {
+                BrowserResolverOwnedHumanFollowUpCursorResponse(it.claimedAt, it.claimId.value)
+            },
+        )
+    }
 }
 
 /**
@@ -73,6 +106,24 @@ class BrowserHumanFollowUpInboxRequest {
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
     var afterOpenedAt: Instant? = null
     var afterWorkItemId: UUID? = null
+
+    private companion object {
+        const val DEFAULT_LIMIT = 50
+    }
+}
+
+/**
+ * Exact keyset page supplied for the authenticated resolver's owned work.
+ *
+ * Mutable properties are confined to Spring MVC binding and copied immediately.
+ * Cursor components must be supplied together; `limit` must be in `1..100`.
+ */
+class BrowserResolverOwnedHumanFollowUpRequest {
+    var limit: Int = DEFAULT_LIMIT
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+    var afterClaimedAt: Instant? = null
+    var afterClaimId: UUID? = null
 
     private companion object {
         const val DEFAULT_LIMIT = 50
@@ -104,6 +155,24 @@ data class BrowserHumanFollowUpWorkItemResponse(
     val recordedAt: Instant,
 )
 
+/** Active browser-visible work paired with its token-free immutable claim. */
+data class BrowserResolverOwnedHumanFollowUpResponse(
+    val workItem: BrowserHumanFollowUpWorkItemResponse,
+    val claim: BrowserHumanFollowUpClaimResponse,
+)
+
+/** Bounded oldest-claim-first page belonging only to the authenticated resolver. */
+data class BrowserResolverOwnedHumanFollowUpPageResponse(
+    val items: List<BrowserResolverOwnedHumanFollowUpResponse>,
+    val nextCursor: BrowserResolverOwnedHumanFollowUpCursorResponse?,
+)
+
+/** Exact claim position the browser must retain together for the next owned-work page. */
+data class BrowserResolverOwnedHumanFollowUpCursorResponse(
+    val afterClaimedAt: Instant,
+    val afterClaimId: UUID,
+)
+
 private fun StoredHumanFollowUpWorkItem.toBrowserResponse() =
     BrowserHumanFollowUpWorkItemResponse(
         item.id.value,
@@ -115,4 +184,15 @@ private fun StoredHumanFollowUpWorkItem.toBrowserResponse() =
         item.status.name,
         item.openedAt,
         recordedAt,
+    )
+
+private fun ResolverOwnedHumanFollowUpWork.toBrowserResponse() =
+    BrowserResolverOwnedHumanFollowUpResponse(
+        workItem.toBrowserResponse(),
+        BrowserHumanFollowUpClaimResponse(
+            claim.claim.id.value,
+            claim.claim.workItemId.value,
+            claim.claim.claimedAt,
+            claim.recordedAt,
+        ),
     )

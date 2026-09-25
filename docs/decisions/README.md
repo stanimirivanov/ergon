@@ -95,3 +95,4 @@ benchmarks rather than duplicating them.
 | 0036 | [Establish a confidential browser session boundary](0036-establish-confidential-browser-session-boundary.md) |
 | 0037 | [Expose the resolver inbox through the browser session](0037-expose-resolver-inbox-through-browser-session.md) |
 | 0038 | [Protect browser commands with session CSRF tokens](0038-protect-browser-commands-with-session-csrf-tokens.md) |
+| 0039 | [Expose resolver-owned work through the browser session](0039-expose-resolver-owned-work-through-browser-session.md) |

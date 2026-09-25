@@ -122,6 +122,28 @@ ambiguous response. It does not establish a blanket automatic-retry policy for
 other mutations. See
 [ADR 0038](decisions/0038-protect-browser-commands-with-session-csrf-tokens.md).
 
+## Browser resolver-owned work
+
+An authenticated browser-session resolver can recover active claims with:
+
+```text
+GET /bff/v1/tenants/{tenantId}/human-follow-ups/owned?limit=50
+```
+
+The route preserves the internal owned-work query's current-authority,
+oldest-claim-first ordering, `1..100` limit, and paired `afterClaimedAt` plus
+`afterClaimId` cursor semantics. A resolver without current authority receives
+an empty page; the response provides no total count and never reveals another
+resolver's work.
+
+Each row retains separate `workItem` and `claim` objects. The browser claim
+contains only `claimId`, `workItemId`, `claimedAt`, and `recordedAt`; resolver
+actor identity, authority-evidence attribution, provider identity, and tokens
+are omitted. Invalid pagination returns
+`400 invalid-resolver-owned-human-follow-up-page`. When browser sessions are
+disabled, the route returns `503 browser-authentication-unavailable`. See
+[ADR 0039](decisions/0039-expose-resolver-owned-work-through-browser-session.md).
+
 ## Claim and replay
 
 An authenticated resolver acquires ownership with:
@@ -174,5 +196,4 @@ changes must define attributable lifecycle events and may add a current-state
 projection. This slice does not define queue administration, configurable
 routing, automatic assignment, reassignment, release, priority, due time,
 service levels, completion, cancellation, notification, summaries, supervisor
-workload views, item detail, browser owned-work views, or other browser
-mutations.
+workload views, item detail, or other browser mutations.

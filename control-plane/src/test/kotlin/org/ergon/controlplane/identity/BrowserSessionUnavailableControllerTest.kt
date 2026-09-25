@@ -32,6 +32,11 @@ class BrowserSessionUnavailableControllerTest {
             .andExpect(jsonPath("$.type").value(expectedType))
 
         mockMvc
+            .perform(get("/bff/v1/tenants/{tenantId}/human-follow-ups/owned", UUID.randomUUID()))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.type").value(expectedType))
+
+        mockMvc
             .perform(get("/bff/v1/csrf"))
             .andExpect(status().isServiceUnavailable)
             .andExpect(jsonPath("$.type").value(expectedType))

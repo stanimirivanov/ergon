@@ -96,6 +96,8 @@ Candidate PR-sized outcomes:
   session contract without promoting internal bearer routes.
 - Delivered: protect browser commands with session CSRF tokens and expose
   idempotent resolver claiming through the confidential BFF.
+- Delivered: expose the authenticated resolver's active claimed work through a
+  browser-specific, token-free session contract.
 - Define priority, reassignment, release, and completion semantics separately.
 - Add idempotent notification delivery after durable work exists.
 - Expose a resolver-focused case summary from existing evidence and run facts.
