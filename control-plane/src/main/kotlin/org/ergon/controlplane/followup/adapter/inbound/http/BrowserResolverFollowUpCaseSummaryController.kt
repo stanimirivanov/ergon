@@ -99,69 +99,116 @@ data class BrowserResolverRunSummaryResponse(
     val recordedAt: Instant,
 )
 
+/** Failed connector execution relevant to the human handoff, without provider-operation identity. */
+data class BrowserResolverFailedExecutionResponse(
+    val connector: String,
+    val outcome: String,
+    val completedAt: Instant,
+    val recordedAt: Instant,
+)
+
+/** Exhausted retry decision that transferred the run to human follow-up. */
+data class BrowserResolverEscalationResponse(
+    val retryPolicyRevision: String,
+    val sourceAttemptNumber: Int,
+    val maximumAttempts: Int,
+    val occurredAt: Instant,
+    val recordedAt: Instant,
+)
+
 /** Resolver-safe context for continuing one claimed follow-up. */
 data class BrowserResolverFollowUpCaseSummaryResponse(
     val followUp: BrowserResolverFollowUpSummaryResponse,
     val case: BrowserResolverCaseSummaryResponse,
     val observations: List<BrowserResolverCaseObservationResponse>,
     val resolutionRun: BrowserResolverRunSummaryResponse,
+    val failedExecution: BrowserResolverFailedExecutionResponse,
+    val escalation: BrowserResolverEscalationResponse,
 )
 
-private fun ResolverFollowUpCaseSummary.toBrowserResponse(): BrowserResolverFollowUpCaseSummaryResponse {
+private fun ResolverFollowUpCaseSummary.toBrowserResponse() =
+    BrowserResolverFollowUpCaseSummaryResponse(
+        followUp = toFollowUpResponse(),
+        case = toCaseResponse(),
+        observations = toObservationResponses(),
+        resolutionRun = toRunResponse(),
+        failedExecution = toFailedExecutionResponse(),
+        escalation = toEscalationResponse(),
+    )
+
+private fun ResolverFollowUpCaseSummary.toFollowUpResponse(): BrowserResolverFollowUpSummaryResponse {
     val item = ownedWork.workItem.item
-    val runSnapshot = run.run
-    return BrowserResolverFollowUpCaseSummaryResponse(
-        followUp =
-            BrowserResolverFollowUpSummaryResponse(
-                workItemId = item.id.value,
-                queueKey = item.queueKey.value,
-                escalationReason = item.reason.name,
-                openedAt = item.openedAt,
-                claimedAt = ownedWork.claim.claim.claimedAt,
-            ),
-        case =
-            BrowserResolverCaseSummaryResponse(
-                caseId = caseTimeline.caseId,
-                goal = caseTimeline.goal,
-                status = caseTimeline.status,
-                streamVersion = caseTimeline.streamVersion,
-                resolutionContract =
-                    caseTimeline.resolutionContract?.let {
-                        BrowserResolverCaseContractResponse(it.key, it.revision)
-                    },
-            ),
-        observations =
-            caseTimeline.entries.map { entry ->
-                BrowserResolverCaseObservationResponse(
-                    streamVersion = entry.streamVersion,
-                    eventType = entry.eventType,
-                    summary = entry.summary,
-                    observationId = entry.observation.id,
-                    originType = entry.observation.originType,
-                    provider = entry.observation.provider,
-                    reference = entry.observation.reference,
-                    content = entry.observation.content,
-                    occurredAt = entry.occurredAt,
-                    recordedAt = entry.recordedAt,
-                )
-            },
-        resolutionRun =
-            BrowserResolverRunSummaryResponse(
-                runId = runSnapshot.id.value,
-                caseEvidenceStreamVersion = runSnapshot.caseStreamVersion,
-                contractKey = runSnapshot.contract.key.value,
-                contractRevision = runSnapshot.contract.revision.value,
-                policyRevision = runSnapshot.policyRevision.value,
-                stepId = runSnapshot.stepId.value,
-                capability = runSnapshot.capability.value,
-                effectiveRisk = runSnapshot.effectiveRisk.name,
-                requiredApproval = runSnapshot.requiredApproval.name,
-                attemptNumber = runSnapshot.attemptNumber,
-                predecessorRunId = runSnapshot.predecessorRunId?.value,
-                state = runState.state.name,
-                stateVersion = runState.version,
-                stateUpdatedAt = runState.updatedAt,
-                recordedAt = run.recordedAt,
-            ),
+    return BrowserResolverFollowUpSummaryResponse(
+        workItemId = item.id.value,
+        queueKey = item.queueKey.value,
+        escalationReason = item.reason.name,
+        openedAt = item.openedAt,
+        claimedAt = ownedWork.claim.claim.claimedAt,
     )
 }
+
+private fun ResolverFollowUpCaseSummary.toCaseResponse() =
+    BrowserResolverCaseSummaryResponse(
+        caseId = caseTimeline.caseId,
+        goal = caseTimeline.goal,
+        status = caseTimeline.status,
+        streamVersion = caseTimeline.streamVersion,
+        resolutionContract =
+            caseTimeline.resolutionContract?.let {
+                BrowserResolverCaseContractResponse(it.key, it.revision)
+            },
+    )
+
+private fun ResolverFollowUpCaseSummary.toObservationResponses() =
+    caseTimeline.entries.map { entry ->
+        BrowserResolverCaseObservationResponse(
+            streamVersion = entry.streamVersion,
+            eventType = entry.eventType,
+            summary = entry.summary,
+            observationId = entry.observation.id,
+            originType = entry.observation.originType,
+            provider = entry.observation.provider,
+            reference = entry.observation.reference,
+            content = entry.observation.content,
+            occurredAt = entry.occurredAt,
+            recordedAt = entry.recordedAt,
+        )
+    }
+
+private fun ResolverFollowUpCaseSummary.toRunResponse(): BrowserResolverRunSummaryResponse {
+    val runSnapshot = run.run
+    return BrowserResolverRunSummaryResponse(
+        runId = runSnapshot.id.value,
+        caseEvidenceStreamVersion = runSnapshot.caseStreamVersion,
+        contractKey = runSnapshot.contract.key.value,
+        contractRevision = runSnapshot.contract.revision.value,
+        policyRevision = runSnapshot.policyRevision.value,
+        stepId = runSnapshot.stepId.value,
+        capability = runSnapshot.capability.value,
+        effectiveRisk = runSnapshot.effectiveRisk.name,
+        requiredApproval = runSnapshot.requiredApproval.name,
+        attemptNumber = runSnapshot.attemptNumber,
+        predecessorRunId = runSnapshot.predecessorRunId?.value,
+        state = runState.state.name,
+        stateVersion = runState.version,
+        stateUpdatedAt = runState.updatedAt,
+        recordedAt = run.recordedAt,
+    )
+}
+
+private fun ResolverFollowUpCaseSummary.toFailedExecutionResponse() =
+    BrowserResolverFailedExecutionResponse(
+        connector = executionReceipt.receipt.connector.value,
+        outcome = executionReceipt.receipt.outcome.name,
+        completedAt = executionReceipt.receipt.completedAt,
+        recordedAt = executionReceipt.recordedAt,
+    )
+
+private fun ResolverFollowUpCaseSummary.toEscalationResponse() =
+    BrowserResolverEscalationResponse(
+        retryPolicyRevision = escalation.event.retryDenial.revision.value,
+        sourceAttemptNumber = escalation.event.retryDenial.sourceAttemptNumber,
+        maximumAttempts = escalation.event.retryDenial.maximumAttempts,
+        occurredAt = escalation.event.occurredAt,
+        recordedAt = escalation.recordedAt,
+    )

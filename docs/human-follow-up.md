@@ -154,10 +154,13 @@ GET /bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/case-summary
 
 The response combines the work item's queue, reason, and timing with the case
 header, pinned contract revision, attributable source observations, immutable
-resolution-run inputs, and current `ESCALATED` run state. Observation content
-is untrusted source data and clients must render it as text, never executable
-markup. Resolver identity, authority-evidence IDs, provider subjects, and
-tokens are excluded.
+resolution-run inputs, current `ESCALATED` run state, failed connector outcome,
+and exhausted-retry decision. The execution view contains connector and timing
+but omits provider-operation, authorization-consumption, grant, and idempotency
+identifiers. The escalation view contains the retry-policy revision and exact
+attempt ceiling but omits resolver and authority-evidence attribution.
+Observation content is untrusted source data and clients must render it as text,
+never executable markup. Provider subjects and tokens are excluded.
 
 The server resolves the actor from the verified OIDC session. The item must be
 `OPEN`, claimed by that actor, and visible under current tenant-wide resolver
@@ -166,10 +169,17 @@ the same `404 resolver-follow-up-case-summary-not-found`; case and run records
 are not read until this ownership check succeeds. The multi-query read runs in
 one transaction so its case and run projections form one database view.
 
+The failed receipt must match the run's case, policy, step, and capability. The
+escalation must match the work item's source event, reason, attempt, and opening
+instant and cannot predate connector completion. Contradictory durable records
+fail as internal invariant violations rather than being shown to the resolver.
+
 The route is read-only, requires no CSRF token, uses no-store response headers,
 and returns `503 browser-authentication-unavailable` when browser sessions are
 disabled. See
 [ADR 0040](decisions/0040-expose-owned-follow-up-case-summary-through-browser-session.md).
+The failed-execution and retry-handoff extension is recorded in
+[ADR 0041](decisions/0041-expose-failed-execution-and-escalation-context.md).
 
 ## Claim and replay
 
