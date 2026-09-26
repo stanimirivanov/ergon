@@ -52,8 +52,9 @@ The current slice can:
     browser-specific command contract; and
 22. expose active work owned by the browser-session resolver without returning
     provider identity or authority attribution; and
-23. expose one owned escalation's case observations, pinned contract, and
-    immutable run snapshot without disclosing claim or authority attribution.
+23. expose one owned escalation's case observations, pinned contract, immutable
+    run snapshot, failed connector outcome, and exhausted-retry decision without
+    disclosing claim, provider-operation, or authority attribution.
 
 Detailed HTTP semantics live with their capabilities:
 

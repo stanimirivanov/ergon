@@ -21,6 +21,8 @@ import org.ergon.controlplane.followup.application.ResolverOwnedHumanFollowUpWor
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpClaim
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
+import org.ergon.controlplane.resolution.application.StoredCapabilityInvocationReceipt
+import org.ergon.controlplane.resolution.application.StoredResolutionRunEscalation
 import org.ergon.controlplane.resolution.application.StoredResolutionRunStart
 import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
@@ -34,9 +36,23 @@ import org.ergon.resolution.domain.ApprovalAuthority
 import org.ergon.resolution.domain.ApprovalAuthorityEvidence
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceSource
+import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionId
+import org.ergon.resolution.domain.CapabilityAuthorizationGrantId
+import org.ergon.resolution.domain.CapabilityInvocationOutcome
+import org.ergon.resolution.domain.CapabilityInvocationReceipt
+import org.ergon.resolution.domain.CapabilityInvocationReceiptSnapshot
+import org.ergon.resolution.domain.ConnectorName
+import org.ergon.resolution.domain.ProviderOperationReference
 import org.ergon.resolution.domain.ResolutionPolicyRevision
+import org.ergon.resolution.domain.ResolutionRetryDenialReason
+import org.ergon.resolution.domain.ResolutionRetryEligibility
+import org.ergon.resolution.domain.ResolutionRetryPolicyRevision
+import org.ergon.resolution.domain.ResolutionRunEscalationAuthorization
 import org.ergon.resolution.domain.ResolutionRunEscalationReason
+import org.ergon.resolution.domain.ResolutionRunEscalationRequested
+import org.ergon.resolution.domain.ResolutionRunEscalationSnapshot
 import org.ergon.resolution.domain.ResolutionRunEventId
+import org.ergon.resolution.domain.ResolutionRunEventType
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunPlan
 import org.ergon.resolution.domain.ResolutionRunStart
@@ -116,8 +132,19 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
             .andExpect(jsonPath("$.resolutionRun.runId").value(RUN_ID.value.toString()))
             .andExpect(jsonPath("$.resolutionRun.state").value("ESCALATED"))
             .andExpect(jsonPath("$.resolutionRun.requiredApproval").value("RESOLVER"))
+            .andExpect(jsonPath("$.failedExecution.connector").value("identity-stub"))
+            .andExpect(jsonPath("$.failedExecution.outcome").value("FAILED"))
+            .andExpect(jsonPath("$.failedExecution.completedAt").value("2026-09-25T11:59:10Z"))
+            .andExpect(
+                jsonPath("$.escalation.retryPolicyRevision")
+                    .value("ergon.dev/policy/resolution-retry/v1"),
+            ).andExpect(jsonPath("$.escalation.sourceAttemptNumber").value(1))
+            .andExpect(jsonPath("$.escalation.maximumAttempts").value(1))
             .andExpect(jsonPath("$.followUp.resolverActorId").doesNotExist())
             .andExpect(jsonPath("$.followUp.authorityEvidenceId").doesNotExist())
+            .andExpect(jsonPath("$.failedExecution.providerOperationReference").doesNotExist())
+            .andExpect(jsonPath("$.escalation.actorId").doesNotExist())
+            .andExpect(jsonPath("$.escalation.authorityEvidenceId").doesNotExist())
             .andExpect(jsonPath("$.subject").doesNotExist())
             .andExpect(jsonPath("$.accessToken").doesNotExist())
             .andExpect(jsonPath("$.idToken").doesNotExist())
@@ -320,7 +347,9 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
             ownedWork(actorId),
             caseTimeline(),
             storedRun(),
-            ResolutionRunStateSnapshot(RUN_ID, ResolutionRunState.ESCALATED, 2, NOW),
+            ResolutionRunStateSnapshot(RUN_ID, ResolutionRunState.ESCALATED, 2, ESCALATED_AT),
+            storedReceipt(),
+            storedEscalation(actorId),
         )
 
     private fun ownedWork(actorId: UUID): ResolverOwnedHumanFollowUpWork {
@@ -339,7 +368,7 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
                 WORK_ITEM_ID,
                 HumanFollowUpSource(CASE_ID, RUN_ID, ESCALATION_EVENT_ID, REASON),
                 HumanFollowUpQueueKey.ACCESS_RESTORATION,
-                NOW.minusSeconds(30),
+                ESCALATED_AT,
             )
         val claim =
             HumanFollowUpClaim.claim(
@@ -402,6 +431,58 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
         )
     }
 
+    private fun storedReceipt(): StoredCapabilityInvocationReceipt {
+        val consumptionId = CapabilityAuthorizationConsumptionId(CONSUMPTION_ID)
+        val receipt =
+            CapabilityInvocationReceipt.rehydrate(
+                CapabilityInvocationReceiptSnapshot(
+                    authorizationConsumptionId = consumptionId,
+                    authorizationGrantId = CapabilityAuthorizationGrantId(UUID.randomUUID()),
+                    runId = RUN_ID,
+                    caseId = CASE_ID,
+                    policyRevision = ResolutionPolicyRevision.of("ergon.dev/policy/access-restoration/v1"),
+                    stepId = ResolutionStepId.of("unlock-account"),
+                    capability = CapabilityName.of("identity.account.unlock"),
+                    connector = ConnectorName.of("identity-stub"),
+                    idempotencyKey = consumptionId.value,
+                    outcome = CapabilityInvocationOutcome.FAILED,
+                    providerOperationReference = ProviderOperationReference.of("identity-stub/operations/failed"),
+                    consumptionConsumedAt = NOW.minusSeconds(60),
+                    completedAt = NOW.minusSeconds(50),
+                ),
+            )
+        return StoredCapabilityInvocationReceipt(receipt, NOW.minusSeconds(49))
+    }
+
+    private fun storedEscalation(actorId: UUID): StoredResolutionRunEscalation {
+        val event =
+            ResolutionRunEscalationRequested.rehydrate(
+                ResolutionRunEscalationSnapshot(
+                    id = ESCALATION_EVENT_ID,
+                    runId = RUN_ID,
+                    sequence = 2,
+                    type = ResolutionRunEventType.ESCALATION_REQUESTED,
+                    fromState = ResolutionRunState.ACTION_FAILED,
+                    toState = ResolutionRunState.ESCALATED,
+                    reason = REASON,
+                    authorization =
+                        ResolutionRunEscalationAuthorization(
+                            HumanActorId(actorId),
+                            ApprovalAuthorityEvidenceId(UUID.randomUUID()),
+                        ),
+                    retryDenial =
+                        ResolutionRetryEligibility.Denied(
+                            ResolutionRetryPolicyRevision.of("ergon.dev/policy/resolution-retry/v1"),
+                            1,
+                            1,
+                            ResolutionRetryDenialReason.ATTEMPT_LIMIT_REACHED,
+                        ),
+                    occurredAt = ESCALATED_AT,
+                ),
+            )
+        return StoredResolutionRunEscalation(event, ESCALATED_AT.plusSeconds(1))
+    }
+
     companion object {
         private const val ACTORS_PATH = "/internal/v1/tenants/{tenantId}/human-actors"
         private const val SUMMARY_PATH =
@@ -417,6 +498,8 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
         private val OBSERVATION_ID = UUID.randomUUID()
         private val REASON = ResolutionRunEscalationReason.RETRY_ATTEMPT_LIMIT_REACHED
         private val NOW = Instant.parse("2026-09-25T12:00:00Z")
+        private val ESCALATED_AT = NOW.minusSeconds(30)
+        private val CONSUMPTION_ID = UUID.randomUUID()
 
         @Container
         @JvmStatic

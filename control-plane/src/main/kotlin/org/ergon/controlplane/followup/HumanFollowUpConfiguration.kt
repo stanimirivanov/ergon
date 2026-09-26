@@ -10,6 +10,8 @@ import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemQuerySer
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemRepository
 import org.ergon.controlplane.followup.application.ResolverFollowUpCaseSummaryService
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
+import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
+import org.ergon.controlplane.resolution.application.ResolutionRunEscalationRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
 import org.ergon.followup.domain.HumanFollowUpClaimId
@@ -56,7 +58,18 @@ class HumanFollowUpConfiguration {
         cases: CaseTimelineRepository,
         runs: ResolutionRunRepository,
         transitions: ResolutionRunTransitionRepository,
+        receipts: CapabilityInvocationReceiptRepository,
+        escalations: ResolutionRunEscalationRepository,
         transactionRunner: TransactionRunner,
         clock: Clock,
-    ) = ResolverFollowUpCaseSummaryService(claims, cases, runs, transitions, transactionRunner, clock)
+    ) = ResolverFollowUpCaseSummaryService(
+        claims,
+        cases,
+        runs,
+        transitions,
+        receipts,
+        escalations,
+        transactionRunner,
+        clock,
+    )
 }

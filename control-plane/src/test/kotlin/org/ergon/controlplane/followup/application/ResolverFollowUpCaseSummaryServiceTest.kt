@@ -14,8 +14,12 @@ import org.ergon.controlplane.cases.application.CaseTimeline
 import org.ergon.controlplane.cases.application.CaseTimelineRepository
 import org.ergon.controlplane.cases.application.PinnedResolutionContract
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
+import org.ergon.controlplane.resolution.application.ResolutionRunEscalationRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
+import org.ergon.controlplane.resolution.application.StoredCapabilityInvocationReceipt
+import org.ergon.controlplane.resolution.application.StoredResolutionRunEscalation
 import org.ergon.controlplane.resolution.application.StoredResolutionRunStart
 import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
@@ -29,9 +33,23 @@ import org.ergon.resolution.domain.ApprovalAuthority
 import org.ergon.resolution.domain.ApprovalAuthorityEvidence
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceSource
+import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionId
+import org.ergon.resolution.domain.CapabilityAuthorizationGrantId
+import org.ergon.resolution.domain.CapabilityInvocationOutcome
+import org.ergon.resolution.domain.CapabilityInvocationReceipt
+import org.ergon.resolution.domain.CapabilityInvocationReceiptSnapshot
+import org.ergon.resolution.domain.ConnectorName
+import org.ergon.resolution.domain.ProviderOperationReference
 import org.ergon.resolution.domain.ResolutionPolicyRevision
+import org.ergon.resolution.domain.ResolutionRetryDenialReason
+import org.ergon.resolution.domain.ResolutionRetryEligibility
+import org.ergon.resolution.domain.ResolutionRetryPolicyRevision
+import org.ergon.resolution.domain.ResolutionRunEscalationAuthorization
 import org.ergon.resolution.domain.ResolutionRunEscalationReason
+import org.ergon.resolution.domain.ResolutionRunEscalationRequested
+import org.ergon.resolution.domain.ResolutionRunEscalationSnapshot
 import org.ergon.resolution.domain.ResolutionRunEventId
+import org.ergon.resolution.domain.ResolutionRunEventType
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunPlan
 import org.ergon.resolution.domain.ResolutionRunStart
@@ -53,6 +71,8 @@ class ResolverFollowUpCaseSummaryServiceTest {
     private val cases = mock(CaseTimelineRepository::class.java)
     private val runs = mock(ResolutionRunRepository::class.java)
     private val transitions = mock(ResolutionRunTransitionRepository::class.java)
+    private val receipts = mock(CapabilityInvocationReceiptRepository::class.java)
+    private val escalations = mock(ResolutionRunEscalationRepository::class.java)
     private val transactions = RecordingTransactionRunner()
     private val service =
         ResolverFollowUpCaseSummaryService(
@@ -60,30 +80,40 @@ class ResolverFollowUpCaseSummaryServiceTest {
             cases,
             runs,
             transitions,
+            receipts,
+            escalations,
             transactions,
             Clock.fixed(NOW, ZoneOffset.UTC),
         )
 
     @Test
-    fun `returns case and run context after proving current ownership`() {
+    fun `returns failed execution and escalation context after proving current ownership`() {
         val ownedWork = ownedWork()
         val timeline = timeline()
         val run = storedRun()
-        val state = ResolutionRunStateSnapshot(RUN_ID, ResolutionRunState.ESCALATED, 2, NOW)
+        val state = ResolutionRunStateSnapshot(RUN_ID, ResolutionRunState.ESCALATED, 2, ESCALATED_AT)
+        val executionReceipt = storedReceipt()
+        val escalation = storedEscalation()
         `when`(claims.findOwnedWorkForResolver(TENANT_ID, WORK_ITEM_ID, ACTOR_ID, NOW)).thenReturn(ownedWork)
         `when`(cases.find(TENANT_ID, CASE_ID)).thenReturn(timeline)
         `when`(runs.find(TENANT_ID, RUN_ID)).thenReturn(run)
         `when`(transitions.findState(TENANT_ID, RUN_ID)).thenReturn(state)
+        `when`(receipts.findByRun(TENANT_ID, RUN_ID)).thenReturn(executionReceipt)
+        `when`(escalations.find(TENANT_ID, RUN_ID)).thenReturn(escalation)
 
         val result = service.get(TENANT_ID.value, WORK_ITEM_ID.value, ACTOR_ID.value)
 
-        assertThat(result).isEqualTo(ResolverFollowUpCaseSummary(ownedWork, timeline, run, state))
+        assertThat(result).isEqualTo(
+            ResolverFollowUpCaseSummary(ownedWork, timeline, run, state, executionReceipt, escalation),
+        )
         assertThat(transactions.calls).isEqualTo(1)
-        inOrder(claims, cases, runs, transitions).apply {
+        inOrder(claims, cases, runs, transitions, receipts, escalations).apply {
             verify(claims).findOwnedWorkForResolver(TENANT_ID, WORK_ITEM_ID, ACTOR_ID, NOW)
             verify(cases).find(TENANT_ID, CASE_ID)
             verify(runs).find(TENANT_ID, RUN_ID)
             verify(transitions).findState(TENANT_ID, RUN_ID)
+            verify(receipts).findByRun(TENANT_ID, RUN_ID)
+            verify(escalations).find(TENANT_ID, RUN_ID)
         }
     }
 
@@ -92,7 +122,7 @@ class ResolverFollowUpCaseSummaryServiceTest {
         assertThatThrownBy { service.get(TENANT_ID.value, WORK_ITEM_ID.value, ACTOR_ID.value) }
             .isInstanceOf(ResolverFollowUpCaseSummaryNotFoundException::class.java)
 
-        verifyNoInteractions(cases, runs, transitions)
+        verifyNoInteractions(cases, runs, transitions, receipts, escalations)
         assertThat(transactions.calls).isEqualTo(1)
     }
 
@@ -108,6 +138,43 @@ class ResolverFollowUpCaseSummaryServiceTest {
         assertThatThrownBy { service.get(TENANT_ID.value, WORK_ITEM_ID.value, ACTOR_ID.value) }
             .isInstanceOf(IllegalStateException::class.java)
             .hasMessage("owned follow-up resolution run is not escalated")
+
+        verifyNoInteractions(receipts, escalations)
+    }
+
+    @Test
+    fun `rejects an escalated handoff backed by a successful connector receipt`() {
+        prepareConsistentBase()
+        `when`(receipts.findByRun(TENANT_ID, RUN_ID)).thenReturn(
+            storedReceipt(CapabilityInvocationOutcome.SUCCEEDED),
+        )
+        `when`(escalations.find(TENANT_ID, RUN_ID)).thenReturn(storedEscalation())
+
+        assertThatThrownBy { service.get(TENANT_ID.value, WORK_ITEM_ID.value, ACTOR_ID.value) }
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessage("owned follow-up capability receipt is not failed")
+    }
+
+    @Test
+    fun `rejects an escalation event that did not open the owned work`() {
+        prepareConsistentBase()
+        `when`(receipts.findByRun(TENANT_ID, RUN_ID)).thenReturn(storedReceipt())
+        `when`(escalations.find(TENANT_ID, RUN_ID)).thenReturn(
+            storedEscalation(ResolutionRunEventId(UUID.randomUUID())),
+        )
+
+        assertThatThrownBy { service.get(TENANT_ID.value, WORK_ITEM_ID.value, ACTOR_ID.value) }
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessage("owned follow-up escalation event identity is inconsistent")
+    }
+
+    private fun prepareConsistentBase() {
+        `when`(claims.findOwnedWorkForResolver(TENANT_ID, WORK_ITEM_ID, ACTOR_ID, NOW)).thenReturn(ownedWork())
+        `when`(cases.find(TENANT_ID, CASE_ID)).thenReturn(timeline())
+        `when`(runs.find(TENANT_ID, RUN_ID)).thenReturn(storedRun())
+        `when`(transitions.findState(TENANT_ID, RUN_ID)).thenReturn(
+            ResolutionRunStateSnapshot(RUN_ID, ResolutionRunState.ESCALATED, 2, ESCALATED_AT),
+        )
     }
 
     private fun ownedWork(): ResolverOwnedHumanFollowUpWork {
@@ -126,7 +193,7 @@ class ResolverFollowUpCaseSummaryServiceTest {
                 WORK_ITEM_ID,
                 HumanFollowUpSource(CASE_ID, RUN_ID, ESCALATION_EVENT_ID, REASON),
                 HumanFollowUpQueueKey.ACCESS_RESTORATION,
-                NOW.minusSeconds(30),
+                ESCALATED_AT,
             )
         val claim =
             HumanFollowUpClaim.claim(
@@ -173,6 +240,60 @@ class ResolverFollowUpCaseSummaryServiceTest {
         return StoredResolutionRunStart(ResolutionRunStart.create(RUN_ID, CASE_ID, plan), NOW.minusSeconds(120))
     }
 
+    private fun storedReceipt(
+        outcome: CapabilityInvocationOutcome = CapabilityInvocationOutcome.FAILED,
+    ): StoredCapabilityInvocationReceipt {
+        val consumptionId = CapabilityAuthorizationConsumptionId(CONSUMPTION_ID)
+        val receipt =
+            CapabilityInvocationReceipt.rehydrate(
+                CapabilityInvocationReceiptSnapshot(
+                    authorizationConsumptionId = consumptionId,
+                    authorizationGrantId = CapabilityAuthorizationGrantId(UUID.randomUUID()),
+                    runId = RUN_ID,
+                    caseId = CASE_ID,
+                    policyRevision = ResolutionPolicyRevision.of("ergon.dev/policy/access-restoration/v1"),
+                    stepId = ResolutionStepId.of("unlock-account"),
+                    capability = CapabilityName.of("identity.account.unlock"),
+                    connector = ConnectorName.of("identity-stub"),
+                    idempotencyKey = consumptionId.value,
+                    outcome = outcome,
+                    providerOperationReference = ProviderOperationReference.of("identity-stub/operations/failed"),
+                    consumptionConsumedAt = NOW.minusSeconds(60),
+                    completedAt = NOW.minusSeconds(50),
+                ),
+            )
+        return StoredCapabilityInvocationReceipt(receipt, NOW.minusSeconds(49))
+    }
+
+    private fun storedEscalation(eventId: ResolutionRunEventId = ESCALATION_EVENT_ID): StoredResolutionRunEscalation {
+        val event =
+            ResolutionRunEscalationRequested.rehydrate(
+                ResolutionRunEscalationSnapshot(
+                    id = eventId,
+                    runId = RUN_ID,
+                    sequence = 2,
+                    type = ResolutionRunEventType.ESCALATION_REQUESTED,
+                    fromState = ResolutionRunState.ACTION_FAILED,
+                    toState = ResolutionRunState.ESCALATED,
+                    reason = REASON,
+                    authorization =
+                        ResolutionRunEscalationAuthorization(
+                            ACTOR_ID,
+                            ApprovalAuthorityEvidenceId(UUID.randomUUID()),
+                        ),
+                    retryDenial =
+                        ResolutionRetryEligibility.Denied(
+                            ResolutionRetryPolicyRevision.of("ergon.dev/policy/resolution-retry/v1"),
+                            1,
+                            1,
+                            ResolutionRetryDenialReason.ATTEMPT_LIMIT_REACHED,
+                        ),
+                    occurredAt = ESCALATED_AT,
+                ),
+            )
+        return StoredResolutionRunEscalation(event, ESCALATED_AT.plusSeconds(1))
+    }
+
     private class RecordingTransactionRunner : TransactionRunner {
         var calls = 0
 
@@ -191,5 +312,7 @@ class ResolverFollowUpCaseSummaryServiceTest {
         val ESCALATION_EVENT_ID = ResolutionRunEventId(UUID.randomUUID())
         val REASON = ResolutionRunEscalationReason.RETRY_ATTEMPT_LIMIT_REACHED
         val NOW = Instant.parse("2026-09-25T12:00:00Z")
+        val ESCALATED_AT = NOW.minusSeconds(30)
+        val CONSUMPTION_ID = UUID.randomUUID()
     }
 }
