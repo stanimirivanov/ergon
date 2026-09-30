@@ -32,6 +32,7 @@ boundaries.
 |:--|:--|:--|
 | [`domain-kernel`](domain-kernel/README.md) | Framework-free Ergon domain model | Active |
 | [`control-plane`](control-plane/README.md) | Ergon case, contract, policy, and run APIs | Active |
+| [`tools/repository-policy`](tools/repository-policy/README.md) | Tooling-only repository and documentation policy sensor | Active tooling |
 
 The moving inventory of implemented behavior belongs in
 [current state](docs/development/current-state.md), not in this entry point.
@@ -45,7 +46,18 @@ Requirements:
   PostgreSQL integration tests; and
 - Git with LF line endings preserved by EditorConfig.
 
-Run the required repository verification:
+Run the fast repository-policy feedback while changing documentation,
+decisions, milestones, templates, or harness configuration:
+
+```powershell
+.\mvnw.cmd -B -ntp -pl :repository-policy verify
+```
+
+```bash
+./mvnw -B -ntp -pl :repository-policy verify
+```
+
+Run the required full repository verification before completion:
 
 ```powershell
 .\mvnw.cmd -B -ntp verify
@@ -68,6 +80,7 @@ module READMEs for runtime configuration and local startup.
 ## Start here
 
 - [Documentation map](docs/README.md)
+- [Coding harness and feedback tiers](docs/development/harness.md)
 - [Contributor workflow](CONTRIBUTING.md)
 - [Tool-facing working agreement](AGENTS.md)
 - [Engineering standards](docs/development/engineering-standards.md)

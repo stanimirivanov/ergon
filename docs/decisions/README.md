@@ -7,6 +7,8 @@
 - Number ADRs sequentially and never reuse a published number.
 - Allocate from current repository state and renumber a concurrent collision.
 - Accepted ADRs are history; supersede rather than rewrite them.
+- The repository-policy checker preserves the latest published ADR number and
+  validates the current template without rewriting historical formats.
 - Record alternatives, consequences, compatibility, security/operations, and
   validation—not only the selected technology.
 
@@ -45,7 +47,12 @@ numbers remain immutable.
 
 ADRs 0001–0005 describe the predecessor RAG Help Center and are superseded by
 the Ergon rewrite boundary. They remain useful history but are not authority for
-new Ergon behavior. Ergon decisions begin at 0006.
+new Ergon behavior. Ergon decisions begin at 0006. ADRs 0001–0041 retain their
+published legacy structures; ADR 0042 and later MUST use the current template.
+
+The latest published high-water mark is ADR 0042. The checker retains that
+number independently of directory contents, so deletion does not permit reuse.
+The next new decision is 0043 unless concurrent work has already allocated it.
 
 ## Template
 
@@ -98,3 +105,4 @@ benchmarks rather than duplicating them.
 | 0039 | [Expose resolver-owned work through the browser session](0039-expose-resolver-owned-work-through-browser-session.md) |
 | 0040 | [Expose an owned follow-up case summary through the browser session](0040-expose-owned-follow-up-case-summary-through-browser-session.md) |
 | 0041 | [Expose failed execution and escalation context to the owning resolver](0041-expose-failed-execution-and-escalation-context.md) |
+| 0042 | [Enforce repository documentation policy](0042-enforce-repository-documentation-policy.md) |
