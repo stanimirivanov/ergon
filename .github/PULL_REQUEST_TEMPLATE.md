@@ -17,7 +17,10 @@
 
 | Command or check | Result | Evidence or reason not run |
 |:--|:--|:--|
+| `./mvnw -B -ntp -pl :repository-policy verify` | | |
 | `./mvnw -B -ntp verify` | | |
+
+Checks not run, blocking conditions, and residual risk:
 
 ## Migration, rollout, and rollback
 
@@ -31,4 +34,5 @@
 - [ ] Tenant, authorization, concurrency, and idempotency risks are covered.
 - [ ] Documentation, ADRs, and module READMEs are current.
 - [ ] Migrations pass empty and supported-upgrade paths where applicable.
+- [ ] Repository policy passes.
 - [ ] No secrets, production data, generated noise, or hidden skipped checks.

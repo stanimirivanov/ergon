@@ -10,6 +10,8 @@
 - M04 completes guarded execution, outcome verification, retry, and escalation.
 - M05 is building the durable human follow-up and resolver experience.
 - GitHub owns live issue state; this file owns intended sequence and boundaries.
+- M08 is the published high-water mark; published milestone numbers are never
+  removed, reused, or renumbered.
 
 ## Milestone index
 
@@ -173,6 +175,12 @@ reliability, cost, ownership, and compatibility controls.
 
 ## Planning rules
 
+- The published milestone high-water mark is `M08`. It may advance but MUST
+  NOT decrease, including when the newest milestone is completed, deprecated,
+  or superseded. A future milestone therefore starts at M09.
+- The repository-policy checker retains the high-water value independently of
+  this document and validates sequential index entries, matching detail
+  sections, and identical non-empty messages.
 - GitHub owns live issue state, labels, assignees, and milestone assignment.
 - This file owns intended sequencing until an issue is created.
 - Every issue names exactly one milestone using its exact title.

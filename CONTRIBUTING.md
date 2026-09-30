@@ -24,6 +24,8 @@ In this repository, **MUST** and **MUST NOT** are requirements, **SHOULD** and
 |:--|:--|
 | Workflow, issue timing, review, and completion | This document |
 | Concise contributor and agent entry point | [AGENTS.md](AGENTS.md) |
+| Task-oriented documentation routing | [Documentation map](docs/README.md) |
+| Feedback tiers and harness extension | [Harness guide](docs/development/harness.md) |
 | Kotlin, Spring, architecture, tests, and operations | [engineering standards](docs/development/engineering-standards.md) |
 | PostgreSQL schema and Flyway migrations | [SQL migration criteria](docs/development/sql-migrations.md) |
 | Durable architecture choices | [ADRs](docs/decisions/README.md) |
@@ -39,8 +41,8 @@ quietly choosing the convenient rule.
 A contributor MUST:
 
 - inspect the branch and working tree and preserve unrelated changes;
-- read the product, architecture, applicable standards, relevant module README,
-  and accepted ADRs;
+- route the task through the [documentation map](docs/README.md), then read the
+  selected product, architecture, standards, module README, and accepted ADRs;
 - define the smallest independently reviewable outcome;
 - identify affected contracts, migrations, security boundaries, documentation,
   and operational behavior; and
@@ -137,7 +139,8 @@ future configuration.
    issue-oriented branch name for human work.
 3. Add or update tests with the behavior.
 4. Implement the smallest coherent solution.
-5. Format and run the exact checks.
+5. Run the cheapest relevant harness feedback while editing, then format and
+   run the applicable complete checks.
 6. Review the complete diff for secrets, generated churn, accidental contract
    changes, assumptions, and unrelated edits.
 7. Update documentation, ADRs, migration notes, and operational guidance.
@@ -150,7 +153,22 @@ is deterministic.
 
 ## Verification and constrained environments
 
-The required baseline is:
+Run the deterministic repository-policy check early for every change:
+
+```powershell
+.\mvnw.cmd -B -ntp -pl :repository-policy verify
+```
+
+```bash
+./mvnw -B -ntp -pl :repository-policy verify
+```
+
+It checks stable repository and documentation contracts without requiring
+Docker, PostgreSQL, or an external service. Maven may still need to populate an
+empty local dependency cache. The checker owns the enforced contract shapes;
+do not weaken prose and templates together to evade a failing rule.
+
+The required full baseline is:
 
 ```powershell
 .\mvnw.cmd -B -ntp verify
@@ -162,8 +180,10 @@ The required baseline is:
 
 This runs compilation, tests, Ktlint, and Detekt across the reactor. Docker must
 be available for Testcontainers-backed integration tests; a skipped Docker test
-is not passing evidence. Narrow module or test commands are useful while
-working but do not replace the applicable baseline.
+is not passing evidence. The focused policy check, narrow module tests, and
+other inner-loop commands do not replace the applicable baseline. See the
+[harness guide](docs/development/harness.md#feedback-tiers) for the T0 through
+T3 feedback model and boundary-specific checks.
 
 When a required check cannot run, report the exact check as **not run**, the
 blocking condition, checks that did run, residual risk, and where the missing
@@ -177,7 +197,12 @@ metadata. Treat a document as long when it has 800 or more words, more than five
 second-level sections, or is an architecture, security, operational, migration,
 or end-to-end workflow guide. Templates and forms are exempt because their
 headings define the content contributors must supply rather than a reading
-sequence.
+sequence. ADRs are also exempt because their fixed decision structure is
+validated separately and serves a different reading purpose.
+
+A qualifying TL;DR is visible rendered prose, list, or table content associated
+with that heading. HTML comments, raw HTML, image alternative text, and fenced
+code do not satisfy the requirement.
 
 Public contracts, configuration, migrations, behavior, and troubleshooting
 change with the code they describe. Examples SHOULD be executable or verified.
@@ -211,6 +236,7 @@ Use [the checked-in template](.github/PULL_REQUEST_TEMPLATE.md).
 - [ ] API, event, schema, configuration, and operational docs are current.
 - [ ] Migrations pass empty-database and supported-upgrade verification.
 - [ ] Required checks passed or unavailable checks are reported honestly.
+- [ ] The focused repository-policy check passes.
 - [ ] No unrelated changes, secrets, personal data, or generated noise exist.
 - [ ] An ADR is present when the choice meets the ADR threshold.
 

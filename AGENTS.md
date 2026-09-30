@@ -1,10 +1,10 @@
 # Repository working agreement
 
+## TL;DR
+
 This is the concise, tool-facing entry point for contributors and coding
 agents. [CONTRIBUTING.md](CONTRIBUTING.md) is the canonical workflow policy.
 Normative terms have the meanings defined there.
-
-## TL;DR
 
 Deliver one verified vertical slice at a time. Preserve inward dependencies,
 keep authority deterministic, follow the Kotlin, Spring, SQL, and documentation
@@ -13,13 +13,16 @@ standards, and report verification and remaining limitations exactly.
 ## Before changing anything
 
 1. Read [CONTRIBUTING.md](CONTRIBUTING.md), especially ambiguity, issue timing,
-   verification, and completion reporting.
+   verification, and completion reporting, then route the task through the
+   [documentation map](docs/README.md).
 2. Inspect the branch and working tree. Preserve pre-existing changes and do
    not mix unrelated work into the task.
-3. Read the relevant module README, [engineering standards](docs/development/engineering-standards.md),
-   [SQL criteria](docs/development/sql-migrations.md), and accepted ADRs.
-4. Use repository-local tools and report checks exactly as run. A skipped or
-   unavailable check is not a pass.
+3. Read only the module guide, detailed standards, and accepted ADRs selected
+   by that route; SQL work always includes the
+   [SQL criteria](docs/development/sql-migrations.md).
+4. Use the [harness feedback tiers](docs/development/harness.md#feedback-tiers)
+   from the cheapest relevant check outward. Report checks exactly as run. A
+   skipped or unavailable check is not a pass.
 
 If code, documentation, and an accepted decision disagree, do not silently
 pick one. Correct an obvious local error or propose a superseding ADR.
@@ -73,6 +76,10 @@ pick one. Correct an obvious local error or propose a superseding ADR.
 
 ## Quality and safety
 
+- Run the focused repository-policy check early for every change and repeat it
+  while editing documentation, decisions, milestones, templates, or harness
+  configuration. Its diagnostics are requirements, not prompts to weaken the
+  checker or the canonical policy.
 - Test observable behavior at the lowest convincing boundary. Defect fixes
   begin with a regression test.
 - Tests are deterministic, isolated, parallel-safe, tenant-aware where
@@ -87,7 +94,9 @@ pick one. Correct an obvious local error or propose a superseding ADR.
 
 ## Completion
 
-Run the applicable Maven Wrapper verification and follow the exact
+Run the focused repository-policy check, then the applicable Maven Wrapper
+verification, and follow the exact
 [completion report](CONTRIBUTING.md#completion-report). Include the milestone,
 copy/paste-ready issue title and body, limitations, and passed/failed/not-run
-checks. Planned work is indexed in [milestones](docs/roadmap/milestones.md).
+checks. Planned work is indexed in [milestones](docs/roadmap/milestones.md),
+and the [harness guide](docs/development/harness.md) defines the feedback loop.
