@@ -13,7 +13,7 @@ class AdrPolicyTest {
     @Test
     fun `deleting the published tail fails sequence and index policy`() {
         val documents = documents().toMutableMap()
-        documents.remove("docs/decisions/0042-decision-42.md")
+        documents.remove("docs/decisions/0043-decision-43.md")
 
         assertThat(AdrPolicy.check(repository(documents)).map { it.rule })
             .contains("adr.sequence", "adr.index")
@@ -22,8 +22,8 @@ class AdrPolicyTest {
     @Test
     fun `new decisions cannot use a grandfathered heading or omit current metadata`() {
         val documents = documents().toMutableMap()
-        documents["docs/decisions/0042-decision-42.md"] =
-            historicalRecord(42).replace("## Alternatives considered", "## Alternatives")
+        documents["docs/decisions/0043-decision-43.md"] =
+            historicalRecord(43).replace("## Alternatives considered", "## Alternatives")
 
         assertThat(AdrPolicy.check(repository(documents)).map { it.rule })
             .contains("adr.heading", "adr.metadata", "adr.sections")
@@ -36,9 +36,9 @@ class AdrPolicyTest {
             documents
                 .getValue("docs/decisions/README.md")
                 .replace(
-                    "| 0042 | [Decision 42](0042-decision-42.md) |",
-                    """| 0042 | [Decision 42](wrong.md) |
-| 0042 | [Decision 42 again](0042-decision-42.md) |""",
+                    "| 0043 | [Decision 43](0043-decision-43.md) |",
+                    """| 0043 | [Decision 43](wrong.md) |
+| 0043 | [Decision 43 again](0043-decision-43.md) |""",
                 )
 
         assertThat(AdrPolicy.check(repository(documents)).map { it.rule }).contains("adr.index")
@@ -47,9 +47,9 @@ class AdrPolicyTest {
     @Test
     fun `supersession must name an existing reciprocal record`() {
         val documents = documents().toMutableMap()
-        documents["docs/decisions/0042-decision-42.md"] =
+        documents["docs/decisions/0043-decision-43.md"] =
             documents
-                .getValue("docs/decisions/0042-decision-42.md")
+                .getValue("docs/decisions/0043-decision-43.md")
                 .replace("- Supersedes:", "- Supersedes: ADR 9999")
 
         assertThat(AdrPolicy.check(repository(documents)).map { it.rule }).contains("adr.supersession")
@@ -65,7 +65,7 @@ class AdrPolicyTest {
         val documents = linkedMapOf<String, String>()
         (1..AdrPolicy.LATEST_PUBLISHED_ADR).forEach { number ->
             val path = "docs/decisions/${number.toString().padStart(4, '0')}-decision-$number.md"
-            documents[path] = if (number == 42) CURRENT_RECORD else historicalRecord(number)
+            documents[path] = if (number >= 42) currentRecord(number) else historicalRecord(number)
         }
         documents["docs/decisions/0000-template.md"] = TEMPLATE
         documents["docs/decisions/README.md"] = index()
@@ -122,6 +122,14 @@ class AdrPolicyTest {
                 appendLine("Visible decision text.")
             }
         }
+    }
+
+    private fun currentRecord(number: Int): String {
+        val padded = number.toString().padStart(4, '0')
+        return CURRENT_RECORD.replace(
+            "# ADR 0042: Decision 42",
+            "# ADR $padded: Decision $number",
+        )
     }
 
     private companion object {
