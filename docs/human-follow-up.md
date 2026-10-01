@@ -228,9 +228,23 @@ grant access to other resolvers' workload and provides no stable total count.
 
 ## Deliberate limits
 
-The creation row, its initial queue, and first-owner claim are immutable. Later
-changes must define attributable lifecycle events and may add a current-state
-projection. This slice does not define queue administration, configurable
+The creation row, its initial queue, and first-owner claim are immutable. First
+claims now populate an append-only ownership event and current-ownership
+projection in the same transaction, including when an older application
+instance inserts the claim. The inbox and owned-work queries use that
+projection; historical claim retrieval remains an audit read. No release or
+later-claim command is enabled yet.
+
+The additive migration backfills existing first claims and installs the
+first-claim mirror before switching readers. Older instances may continue to
+write first claims during this rollout, but release must stay disabled until
+all ownership readers and writers use the new lifecycle. Before the first
+release, an older binary can ignore the expanded schema; after release,
+recovery must roll forward because it cannot interpret current ownership.
+Assess the claim-table backfill and trigger-install lock against production
+table size before deployment.
+
+This slice does not define queue administration, configurable
 routing, automatic assignment, reassignment, release, priority, due time,
 service levels, completion, cancellation, notification, semantic summaries,
 supervisor workload views, general case search/detail, or other browser

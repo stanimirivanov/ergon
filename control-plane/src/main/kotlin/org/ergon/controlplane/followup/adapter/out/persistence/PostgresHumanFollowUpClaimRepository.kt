@@ -60,6 +60,12 @@ class PostgresHumanFollowUpClaimRepository(
     ): StoredHumanFollowUpClaim? =
         queryBase(
             """
+            JOIN human_follow_up_current_ownership ownership
+                ON ownership.tenant_id = claim.tenant_id
+                AND ownership.work_item_id = claim.work_item_id
+                AND ownership.current_claim_id = claim.claim_id
+                AND ownership.current_resolver_actor_id = claim.resolver_actor_id
+                AND ownership.current_claimed_at = claim.claimed_at
             WHERE claim.tenant_id = :tenantId
                 AND claim.work_item_id = :workItemId
             """.trimIndent(),
@@ -198,10 +204,16 @@ class PostgresHumanFollowUpClaimRepository(
                 claim.authority_evidence_id,
                 claim.claimed_at,
                 claim.recorded_at AS claim_recorded_at
-            FROM human_follow_up_claims claim
+            FROM human_follow_up_current_ownership ownership
+            JOIN human_follow_up_claims claim
+                ON claim.tenant_id = ownership.tenant_id
+                AND claim.work_item_id = ownership.work_item_id
+                AND claim.claim_id = ownership.current_claim_id
+                AND claim.resolver_actor_id = ownership.current_resolver_actor_id
+                AND claim.claimed_at = ownership.current_claimed_at
             JOIN human_follow_up_work_items item
-                ON item.tenant_id = claim.tenant_id
-                AND item.work_item_id = claim.work_item_id
+                ON item.tenant_id = ownership.tenant_id
+                AND item.work_item_id = ownership.work_item_id
             JOIN resolution_runs run
                 ON run.tenant_id = item.tenant_id
                 AND run.run_id = item.run_id

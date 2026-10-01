@@ -247,6 +247,8 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
         seedRun(tenantId)
         seedWorkItem(tenantId)
         seedAuthority(tenantId, actorId, authorityEvidenceId)
+        // The real first-claim trigger must materialize current ownership.
+        jdbcClient.sql("SET LOCAL session_replication_role = origin").update()
         seedClaim(tenantId, actorId, authorityEvidenceId, claimId)
     }
 

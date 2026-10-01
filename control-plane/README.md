@@ -12,6 +12,8 @@ ownership. They can recover their active claimed work through a separately
 paginated resolver-owned view and retrieve the case evidence plus immutable
 run, failed-execution, and exhausted-retry facts needed to continue one owned
 escalation.
+First claims also populate append-only ownership history and a current-owner
+projection; release and later claim cycles are not enabled yet.
 
 It is a modular monolith: capability packages contain application-owned ports
 and inbound/outbound adapters while `domain-kernel` remains framework-free.

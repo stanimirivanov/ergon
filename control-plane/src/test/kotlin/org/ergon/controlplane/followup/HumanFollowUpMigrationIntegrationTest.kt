@@ -26,6 +26,128 @@ class HumanFollowUpMigrationIntegrationTest {
         assertQueueInboxIndex(schema)
     }
 
+    @Test
+    fun `upgrade backfills current ownership from immutable first claims`() {
+        val schema = "ownership_upgrade_${UUID.randomUUID().toString().replace("-", "")}"
+        flyway(schema).target(PREVIOUS_OWNERSHIP_VERSION).load().migrate()
+        seedOwnershipFixture(schema, insertClaim = true)
+
+        flyway(schema).load().migrate()
+
+        assertFirstClaimIsCurrent(schema)
+    }
+
+    @Test
+    fun `first claims inserted after upgrade are mirrored for old application writers`() {
+        val schema = "ownership_writer_${UUID.randomUUID().toString().replace("-", "")}"
+        flyway(schema).target(PREVIOUS_OWNERSHIP_VERSION).load().migrate()
+        seedOwnershipFixture(schema, insertClaim = false)
+        flyway(schema).load().migrate()
+
+        insertFirstClaim(schema)
+
+        assertFirstClaimIsCurrent(schema)
+    }
+
+    private fun seedOwnershipFixture(
+        schema: String,
+        insertClaim: Boolean,
+    ) {
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.schema = schema
+            connection.createStatement().use { statement ->
+                // Earlier migrations own the full source graph; this fixture
+                // isolates the ownership backfill and mixed-writer contract.
+                statement.execute("SET session_replication_role = replica")
+                insertRun(statement)
+                insertEscalation(statement)
+                statement.executeUpdate(
+                    """
+                    INSERT INTO human_follow_up_work_items (
+                        tenant_id, work_item_id, run_id, escalation_event_id,
+                        reason, queue_key, status, opened_at
+                    ) VALUES (
+                        '$TENANT_ID', '$WORK_ITEM_ID', '$RUN_ID', '$ESCALATION_EVENT_ID',
+                        'RETRY_ATTEMPT_LIMIT_REACHED', 'access-restoration', 'OPEN',
+                        '2026-09-16T12:00:00Z'
+                    )
+                    """.trimIndent(),
+                )
+                statement.executeUpdate(
+                    """
+                    INSERT INTO approval_authority_evidence (
+                        tenant_id, evidence_id, actor_id, authority, case_id,
+                        source_provider, source_reference, attested_at, expires_at
+                    ) VALUES (
+                        '$TENANT_ID', '$AUTHORITY_EVIDENCE_ID', '$ACTOR_ID',
+                        'RESOLVER', NULL, 'workforce-sso', 'groups/resolvers',
+                        '2026-09-16T11:00:00Z', '2026-09-17T11:00:00Z'
+                    )
+                    """.trimIndent(),
+                )
+                if (insertClaim) {
+                    insertFirstClaim(statement)
+                }
+                statement.execute("SET session_replication_role = origin")
+            }
+        }
+    }
+
+    private fun insertFirstClaim(schema: String) {
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.schema = schema
+            connection.createStatement().use { statement -> insertFirstClaim(statement) }
+        }
+    }
+
+    private fun insertFirstClaim(statement: Statement) {
+        statement.executeUpdate(
+            """
+            INSERT INTO human_follow_up_claims (
+                tenant_id, claim_id, work_item_id, resolver_actor_id,
+                authority_evidence_id, claimed_at
+            ) VALUES (
+                '$TENANT_ID', '$CLAIM_ID', '$WORK_ITEM_ID', '$ACTOR_ID',
+                '$AUTHORITY_EVIDENCE_ID', '2026-09-16T12:05:00Z'
+            )
+            """.trimIndent(),
+        )
+    }
+
+    private fun assertFirstClaimIsCurrent(schema: String) {
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.schema = schema
+            connection.createStatement().use { statement ->
+                statement
+                    .executeQuery(
+                        """
+                        SELECT ownership.ownership_revision, ownership.current_claim_id,
+                            ownership.current_resolver_actor_id, event.event_type,
+                            event.authority_evidence_id
+                        FROM human_follow_up_current_ownership ownership
+                        JOIN human_follow_up_ownership_events event
+                            ON event.tenant_id = ownership.tenant_id
+                            AND event.work_item_id = ownership.work_item_id
+                            AND event.ownership_revision = ownership.ownership_revision
+                        WHERE ownership.tenant_id = '$TENANT_ID'
+                            AND ownership.work_item_id = '$WORK_ITEM_ID'
+                        """.trimIndent(),
+                    ).use { result ->
+                        assertThat(result.next()).isTrue()
+                        assertThat(result.getLong("ownership_revision")).isEqualTo(1)
+                        assertThat(result.getObject("current_claim_id", UUID::class.java))
+                            .isEqualTo(UUID.fromString(CLAIM_ID))
+                        assertThat(result.getObject("current_resolver_actor_id", UUID::class.java))
+                            .isEqualTo(UUID.fromString(ACTOR_ID))
+                        assertThat(result.getString("event_type")).isEqualTo("CLAIMED")
+                        assertThat(result.getObject("authority_evidence_id", UUID::class.java))
+                            .isEqualTo(UUID.fromString(AUTHORITY_EVIDENCE_ID))
+                        assertThat(result.next()).isFalse()
+                    }
+            }
+        }
+    }
+
     private fun seedExistingEscalation(schema: String) {
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.schema = schema
@@ -162,12 +284,15 @@ class HumanFollowUpMigrationIntegrationTest {
 
     private companion object {
         private const val PREVIOUS_VERSION = "20260916010000"
+        private const val PREVIOUS_OWNERSHIP_VERSION = "20260919090000"
         private const val TENANT_ID = "11111111-1111-1111-1111-111111111111"
         private const val RUN_ID = "22222222-2222-2222-2222-222222222222"
         private const val CASE_ID = "33333333-3333-3333-3333-333333333333"
         private const val ESCALATION_EVENT_ID = "44444444-4444-4444-4444-444444444444"
         private const val ACTOR_ID = "55555555-5555-5555-5555-555555555555"
         private const val AUTHORITY_EVIDENCE_ID = "66666666-6666-6666-6666-666666666666"
+        private const val WORK_ITEM_ID = "77777777-7777-7777-7777-777777777777"
+        private const val CLAIM_ID = "88888888-8888-8888-8888-888888888888"
 
         @Container
         @JvmStatic

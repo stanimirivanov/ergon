@@ -55,13 +55,13 @@ interface HumanFollowUpClaimRepository {
         workItemId: HumanFollowUpWorkItemId,
     ): Boolean
 
-    /** @return the claim for [workItemId], or `null` before the work is claimed. */
+    /** @return the active first claim for [workItemId], or `null` while unclaimed. */
     fun findByWorkItem(
         tenantId: TenantId,
         workItemId: HumanFollowUpWorkItemId,
     ): StoredHumanFollowUpClaim?
 
-    /** Stores the first and only claim for [claim]'s work item. */
+    /** Stores the immutable first claim for [claim]'s work item. */
     fun create(
         tenantId: TenantId,
         claim: HumanFollowUpClaim,
