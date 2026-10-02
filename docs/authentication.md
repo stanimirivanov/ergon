@@ -88,9 +88,9 @@ local development should use `localhost`, which browsers treat as a secure
 cookie context, or local HTTPS.
 
 When browser sessions are disabled, the login, session, CSRF, browser inbox,
-and both browser claim routes return a stable `503`. The initial session store is
-process-local, so restarts sign users out and multi-instance deployment is not
-supported yet. Logout, provider revocation, and other mutating BFF routes are
-deferred. See
+both browser claim routes, and browser release return a stable `503`. The
+initial session store is process-local, so restarts sign users out and
+multi-instance deployment is not supported yet. Logout, provider revocation,
+and other mutating BFF routes are deferred. See
 [ADR 0036](decisions/0036-establish-confidential-browser-session-boundary.md)
 and [ADR 0037](decisions/0037-expose-resolver-inbox-through-browser-session.md).

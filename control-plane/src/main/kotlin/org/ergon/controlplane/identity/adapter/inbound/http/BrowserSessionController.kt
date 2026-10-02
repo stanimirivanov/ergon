@@ -134,6 +134,14 @@ class BrowserSessionUnavailableController {
         @Suppress("UNUSED_PARAMETER") @PathVariable workItemId: UUID,
     ): ProblemDetail = unavailableProblem()
 
+    /** Reports that release requires browser OIDC configuration. */
+    @PostMapping("/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claims/{claimId}/release")
+    fun humanFollowUpReleaseUnavailable(
+        @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
+        @Suppress("UNUSED_PARAMETER") @PathVariable workItemId: UUID,
+        @Suppress("UNUSED_PARAMETER") @PathVariable claimId: UUID,
+    ): ProblemDetail = unavailableProblem()
+
     private fun unavailableProblem(): ProblemDetail =
         ProblemDetail
             .forStatusAndDetail(

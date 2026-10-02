@@ -1,5 +1,6 @@
 package org.ergon.controlplane.followup.adapter.inbound.http
 
+import org.ergon.controlplane.followup.application.AvailableHumanFollowUpWork
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
 import org.ergon.controlplane.followup.application.HumanFollowUpInboxQuery
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemQueryService
@@ -57,7 +58,7 @@ class BrowserHumanFollowUpInboxController(
                 ),
             )
         return BrowserHumanFollowUpPageResponse(
-            page.items.map(StoredHumanFollowUpWorkItem::toBrowserResponse),
+            page.items.map(AvailableHumanFollowUpWork::toBrowserResponse),
             page.nextCursor?.let { BrowserHumanFollowUpCursorResponse(it.openedAt, it.workItemId.value) },
         )
     }
@@ -153,6 +154,7 @@ data class BrowserHumanFollowUpWorkItemResponse(
     val status: String,
     val openedAt: Instant,
     val recordedAt: Instant,
+    val ownershipRevision: Long,
 )
 
 /** Active browser-visible work paired with its token-free immutable claim. */
@@ -173,7 +175,7 @@ data class BrowserResolverOwnedHumanFollowUpCursorResponse(
     val afterClaimId: UUID,
 )
 
-private fun StoredHumanFollowUpWorkItem.toBrowserResponse() =
+private fun StoredHumanFollowUpWorkItem.toBrowserResponse(ownershipRevision: Long) =
     BrowserHumanFollowUpWorkItemResponse(
         item.id.value,
         item.caseId.value,
@@ -184,11 +186,14 @@ private fun StoredHumanFollowUpWorkItem.toBrowserResponse() =
         item.status.name,
         item.openedAt,
         recordedAt,
+        ownershipRevision,
     )
+
+private fun AvailableHumanFollowUpWork.toBrowserResponse() = workItem.toBrowserResponse(ownershipRevision.value)
 
 private fun ResolverOwnedHumanFollowUpWork.toBrowserResponse() =
     BrowserResolverOwnedHumanFollowUpResponse(
-        workItem.toBrowserResponse(),
+        workItem.toBrowserResponse(ownershipRevision.value),
         BrowserHumanFollowUpClaimResponse(
             claim.claim.id.value,
             claim.claim.workItemId.value,

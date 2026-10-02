@@ -339,6 +339,7 @@ class HumanFollowUpClaimServiceTest {
                 HumanFollowUpClaim.claim(claimId, workItemId, evidence(ACTOR_ID), claimedAt),
                 NOW,
             ),
+            HumanFollowUpOwnershipRevision(1),
         )
 
     private fun randomClaimId() = HumanFollowUpClaimId(UUID.randomUUID())

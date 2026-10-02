@@ -60,7 +60,7 @@ class HumanFollowUpWorkItemController(
                 ),
             )
         return HumanFollowUpWorkItemPageResponse(
-            page.items.map(StoredHumanFollowUpWorkItem::toResponse),
+            page.items.map { it.workItem.toResponse() },
             page.nextCursor?.let { HumanFollowUpWorkItemCursorResponse(it.openedAt, it.workItemId.value) },
         )
     }

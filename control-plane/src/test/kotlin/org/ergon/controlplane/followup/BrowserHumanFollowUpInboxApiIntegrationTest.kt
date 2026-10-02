@@ -1,6 +1,7 @@
 package org.ergon.controlplane.followup
 
 import org.ergon.cases.domain.CaseId
+import org.ergon.controlplane.followup.application.AvailableHumanFollowUpWork
 import org.ergon.controlplane.followup.application.HumanFollowUpInboxQuery
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemCursor
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemPage
@@ -9,6 +10,7 @@ import org.ergon.controlplane.followup.application.InvalidHumanFollowUpQueueExce
 import org.ergon.controlplane.followup.application.InvalidHumanFollowUpWorkItemPageException
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
+import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
@@ -74,7 +76,12 @@ class BrowserHumanFollowUpInboxApiIntegrationTest(
             .`when`(workItems.listOpen(expectedQuery))
             .thenReturn(
                 HumanFollowUpWorkItemPage(
-                    listOf(StoredHumanFollowUpWorkItem(workItem, RECORDED_AT)),
+                    listOf(
+                        AvailableHumanFollowUpWork(
+                            StoredHumanFollowUpWorkItem(workItem, RECORDED_AT),
+                            HumanFollowUpOwnershipRevision(2),
+                        ),
+                    ),
                     HumanFollowUpWorkItemCursor(workItem.openedAt, workItem.id),
                 ),
             )
@@ -93,6 +100,7 @@ class BrowserHumanFollowUpInboxApiIntegrationTest(
             .andExpect(jsonPath("$.items[0].caseId").value(workItem.caseId.value.toString()))
             .andExpect(jsonPath("$.items[0].queueKey").value("access-restoration"))
             .andExpect(jsonPath("$.items[0].status").value("OPEN"))
+            .andExpect(jsonPath("$.items[0].ownershipRevision").value(2))
             .andExpect(jsonPath("$.items[0].recordedAt").value(RECORDED_AT.toString()))
             .andExpect(jsonPath("$.nextCursor.afterOpenedAt").value(workItem.openedAt.toString()))
             .andExpect(jsonPath("$.nextCursor.afterWorkItemId").value(workItem.id.value.toString()))

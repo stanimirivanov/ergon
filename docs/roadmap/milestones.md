@@ -110,6 +110,8 @@ Candidate PR-sized outcomes:
   CSRF-protected contract without private resolver attribution.
 - Delivered: release current ownership and reacquire work through revisioned
   internal commands while preserving immutable claim history.
+- Delivered: expose current ownership revisions and a CSRF-protected browser
+  release/later-claim cycle without private attribution.
 - Define priority, reassignment, and completion semantics separately.
 - Add idempotent notification delivery after durable work exists.
 - Implement the minimum resolver console for evidence, approvals, execution,

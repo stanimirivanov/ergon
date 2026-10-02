@@ -1,5 +1,6 @@
 package org.ergon.controlplane.followup.application
 
+import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
@@ -16,6 +17,12 @@ data class StoredHumanFollowUpWorkItem(
     val recordedAt: Instant,
 )
 
+/** Available work and the current revision a new claim command must compare. */
+data class AvailableHumanFollowUpWork(
+    val workItem: StoredHumanFollowUpWorkItem,
+    val ownershipRevision: HumanFollowUpOwnershipRevision,
+)
+
 /** Stable keyset position in the oldest-first human follow-up inbox. */
 data class HumanFollowUpWorkItemCursor(
     val openedAt: Instant,
@@ -24,7 +31,7 @@ data class HumanFollowUpWorkItemCursor(
 
 /** A bounded page of human follow-up work and the position for its successor page. */
 data class HumanFollowUpWorkItemPage(
-    val items: List<StoredHumanFollowUpWorkItem>,
+    val items: List<AvailableHumanFollowUpWork>,
     val nextCursor: HumanFollowUpWorkItemCursor?,
 )
 
@@ -74,7 +81,7 @@ interface HumanFollowUpWorkItemRepository {
      * return no rows when the actor lacks current tenant-wide resolver evidence
      * at the query instant.
      */
-    fun listOpenForResolver(criteria: HumanFollowUpInboxCriteria): List<StoredHumanFollowUpWorkItem>
+    fun listOpenForResolver(criteria: HumanFollowUpInboxCriteria): List<AvailableHumanFollowUpWork>
 }
 
 /** Supplies unpredictable identities without coupling follow-up use cases to UUID generation. */
@@ -170,7 +177,10 @@ class HumanFollowUpWorkItemQueryService(
         val items = results.take(query.limit)
         val nextCursor =
             if (results.size > query.limit) {
-                items.last().let { HumanFollowUpWorkItemCursor(it.item.openedAt, it.item.id) }
+                items
+                    .last()
+                    .workItem.item
+                    .let { HumanFollowUpWorkItemCursor(it.openedAt, it.id) }
             } else {
                 null
             }

@@ -71,4 +71,18 @@ class BrowserSessionUnavailableControllerTest {
             ).andExpect(status().isServiceUnavailable)
             .andExpect(jsonPath("$.type").value(expectedType))
     }
+
+    @Test
+    fun `release fails closed when browser sessions are unavailable`() {
+        mockMvc
+            .perform(
+                post(
+                    "/bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claims/{claimId}/release",
+                    UUID.randomUUID(),
+                    UUID.randomUUID(),
+                    UUID.randomUUID(),
+                ),
+            ).andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:browser-authentication-unavailable"))
+    }
 }

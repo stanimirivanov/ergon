@@ -3,6 +3,7 @@ package org.ergon.controlplane.followup.application
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.ergon.cases.domain.CaseId
+import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
@@ -44,9 +45,21 @@ class HumanFollowUpWorkItemQueryServiceTest {
 
     @Test
     fun `open inbox returns a bounded page and cursor from the last visible item`() {
-        val first = StoredHumanFollowUpWorkItem(workItem(Instant.parse("2026-09-16T10:00:00Z"), randomId()), NOW)
-        val second = StoredHumanFollowUpWorkItem(workItem(Instant.parse("2026-09-16T11:00:00Z"), randomId()), NOW)
-        val hiddenLookahead = StoredHumanFollowUpWorkItem(workItem(NOW, randomId()), NOW)
+        val first =
+            AvailableHumanFollowUpWork(
+                StoredHumanFollowUpWorkItem(workItem(Instant.parse("2026-09-16T10:00:00Z"), randomId()), NOW),
+                HumanFollowUpOwnershipRevision(0),
+            )
+        val second =
+            AvailableHumanFollowUpWork(
+                StoredHumanFollowUpWorkItem(workItem(Instant.parse("2026-09-16T11:00:00Z"), randomId()), NOW),
+                HumanFollowUpOwnershipRevision(2),
+            )
+        val hiddenLookahead =
+            AvailableHumanFollowUpWork(
+                StoredHumanFollowUpWorkItem(workItem(NOW, randomId()), NOW),
+                HumanFollowUpOwnershipRevision(0),
+            )
         `when`(
             repository.listOpenForResolver(criteria(limit = 3)),
         ).thenReturn(listOf(first, second, hiddenLookahead))
@@ -55,7 +68,7 @@ class HumanFollowUpWorkItemQueryServiceTest {
 
         assertThat(page.items).containsExactly(first, second)
         assertThat(page.nextCursor)
-            .isEqualTo(HumanFollowUpWorkItemCursor(second.item.openedAt, second.item.id))
+            .isEqualTo(HumanFollowUpWorkItemCursor(second.workItem.item.openedAt, second.workItem.item.id))
         verify(repository).listOpenForResolver(criteria(limit = 3))
     }
 
