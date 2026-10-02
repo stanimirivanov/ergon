@@ -55,7 +55,9 @@ The current slice can:
     provider identity or authority attribution; and
 23. expose one owned escalation's case observations, pinned contract, immutable
     run snapshot, failed connector outcome, and exhausted-retry decision without
-    disclosing claim, provider-operation, or authority attribution.
+    disclosing claim, provider-operation, or authority attribution; and
+24. claim first-owner work through an internal revision-checked command with a
+    durable exact-replay receipt, while leaving release disabled.
 
 Detailed HTTP semantics live with their capabilities:
 

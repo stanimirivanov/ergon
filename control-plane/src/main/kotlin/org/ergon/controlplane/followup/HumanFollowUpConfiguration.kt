@@ -2,6 +2,7 @@ package org.ergon.controlplane.followup
 
 import org.ergon.controlplane.cases.application.CaseTimelineRepository
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommandRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimIdentityGenerator
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
@@ -43,13 +44,15 @@ class HumanFollowUpConfiguration {
     ) = HumanFollowUpWorkItemQueryService(repository, clock)
 
     @Bean
+    @Suppress("LongParameterList") // Composition root wires claim and command persistence explicitly.
     fun humanFollowUpClaimService(
         claims: HumanFollowUpClaimRepository,
+        commands: HumanFollowUpClaimCommandRepository,
         authorities: HumanAuthorityRepository,
         identities: HumanFollowUpClaimIdentityGenerator,
         transactionRunner: TransactionRunner,
         clock: Clock,
-    ) = HumanFollowUpClaimService(claims, authorities, identities, transactionRunner, clock)
+    ) = HumanFollowUpClaimService(claims, commands, authorities, identities, transactionRunner, clock)
 
     @Bean
     @Suppress("LongParameterList") // Composition roots make dependencies explicit for Spring wiring.

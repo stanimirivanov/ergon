@@ -3,11 +3,14 @@ package org.ergon.controlplane.followup.application
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.followup.domain.HumanFollowUpClaim
+import org.ergon.followup.domain.HumanFollowUpClaimCommandId
 import org.ergon.followup.domain.HumanFollowUpClaimId
+import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthority
+import org.ergon.resolution.domain.ApprovalAuthorityEvidence
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -22,6 +25,29 @@ data class StoredHumanFollowUpClaim(
 /** Result of first recording or idempotently replaying one resolver claim. */
 data class HumanFollowUpClaimRecording(
     val storedClaim: StoredHumanFollowUpClaim,
+    val created: Boolean,
+)
+
+/** One client intent to claim work at an expected ownership revision. */
+data class HumanFollowUpClaimCommand(
+    val tenantId: UUID,
+    val workItemId: UUID,
+    val actorId: UUID,
+    val commandId: UUID,
+    val expectedOwnershipRevision: Long,
+)
+
+/** Durable result of one command, retained for exact retry after an ambiguous response. */
+data class StoredHumanFollowUpClaimCommand(
+    val commandId: HumanFollowUpClaimCommandId,
+    val expectedOwnershipRevision: HumanFollowUpOwnershipRevision,
+    val resultingOwnershipRevision: HumanFollowUpOwnershipRevision,
+    val storedClaim: StoredHumanFollowUpClaim,
+)
+
+/** A newly applied command or an exact replay of its prior durable result. */
+data class HumanFollowUpClaimCommandRecording(
+    val receipt: StoredHumanFollowUpClaimCommand,
     val created: Boolean,
 )
 
@@ -111,6 +137,31 @@ interface HumanFollowUpClaimRepository {
     ): List<ResolverOwnedHumanFollowUpWork>
 }
 
+/** Durable receipt and ownership-revision boundary for revision-checked claim commands. */
+interface HumanFollowUpClaimCommandRepository {
+    /** Returns the command's immutable result, even if ownership later changes. */
+    fun findCommand(
+        tenantId: TenantId,
+        workItemId: HumanFollowUpWorkItemId,
+        commandId: HumanFollowUpClaimCommandId,
+    ): StoredHumanFollowUpClaimCommand?
+
+    /** Returns zero before the first claim and the latest transition revision otherwise. */
+    fun currentOwnershipRevision(
+        tenantId: TenantId,
+        workItemId: HumanFollowUpWorkItemId,
+    ): HumanFollowUpOwnershipRevision
+
+    /** Persists an exact command receipt in the same transaction as its claim event. */
+    fun recordCommand(
+        tenantId: TenantId,
+        workItemId: HumanFollowUpWorkItemId,
+        commandId: HumanFollowUpClaimCommandId,
+        expectedRevision: HumanFollowUpOwnershipRevision,
+        resultingRevision: HumanFollowUpOwnershipRevision,
+    )
+}
+
 /** Supplies unpredictable identities without coupling claim use cases to UUID generation. */
 fun interface HumanFollowUpClaimIdentityGenerator {
     /** @return a fresh identity suitable for one durable claim. */
@@ -127,6 +178,17 @@ class HumanFollowUpClaimNotFoundException(
     claimId: UUID,
 ) : RuntimeException("human follow-up claim $claimId was not found")
 
+/** Rejects malformed revisioned claim input before any storage or authority lookup. */
+class InvalidHumanFollowUpClaimCommandException : RuntimeException("expectedOwnershipRevision must not be negative")
+
+/** Rejects reuse of one command identity with a different actor or expected revision. */
+class HumanFollowUpClaimCommandConflictException :
+    RuntimeException("human follow-up claim command identity was already used for different intent")
+
+/** Rejects a claim command whose expected ownership state cannot be applied. */
+class HumanFollowUpOwnershipRevisionConflictException :
+    RuntimeException("human follow-up ownership revision does not permit this claim")
+
 /** Signals malformed or out-of-range resolver-owned work pagination input. */
 class InvalidResolverOwnedHumanFollowUpPageException(
     message: String,
@@ -135,6 +197,7 @@ class InvalidResolverOwnedHumanFollowUpPageException(
 /** Establishes and retrieves immutable resolver ownership of open human follow-up work. */
 class HumanFollowUpClaimService(
     private val claims: HumanFollowUpClaimRepository,
+    private val commands: HumanFollowUpClaimCommandRepository,
     private val authorities: HumanAuthorityRepository,
     private val identities: HumanFollowUpClaimIdentityGenerator,
     private val transactionRunner: TransactionRunner,
@@ -162,15 +225,7 @@ class HumanFollowUpClaimService(
             val scopedActorId = HumanActorId(actorId)
             // Match PostgreSQL precision so the first response and durable replay agree.
             val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
-            val authority =
-                authorities
-                    .findCurrent(
-                        scopedTenantId,
-                        scopedActorId,
-                        ApprovalAuthority.RESOLVER,
-                        null,
-                        now,
-                    )?.evidence ?: throw CurrentHumanFollowUpResolverAuthorityNotFoundException()
+            val authority = currentResolverAuthority(scopedTenantId, scopedActorId, now)
             if (!claims.lockOpenWorkItem(scopedTenantId, scopedWorkItemId)) {
                 throw HumanFollowUpWorkItemNotFoundException(workItemId)
             }
@@ -183,6 +238,79 @@ class HumanFollowUpClaimService(
             val claim = HumanFollowUpClaim.claim(identities.next(), scopedWorkItemId, authority, now)
             HumanFollowUpClaimRecording(claims.create(scopedTenantId, claim), created = true)
         }
+
+    /**
+     * Applies one revision-checked claim intent or returns its exact durable receipt.
+     *
+     * Unlike the legacy same-resolver replay, a different command identity never
+     * reuses an existing claim. The current slice accepts only the initial
+     * `0 -> 1` transition; later claim cycles require the release capability.
+     *
+     * @throws InvalidHumanFollowUpClaimCommandException for a negative revision.
+     * @throws CurrentHumanFollowUpResolverAuthorityNotFoundException without
+     *   current tenant-wide resolver authority, including on replay.
+     * @throws HumanFollowUpWorkItemNotFoundException for absent or non-open work.
+     * @throws HumanFollowUpClaimCommandConflictException when a command identity
+     *   is reused with different intent.
+     * @throws HumanFollowUpOwnershipRevisionConflictException when ownership
+     *   changed or an initial claim is already present.
+     */
+    fun claimWithCommand(command: HumanFollowUpClaimCommand): HumanFollowUpClaimCommandRecording {
+        if (command.expectedOwnershipRevision < 0) {
+            throw InvalidHumanFollowUpClaimCommandException()
+        }
+        return transactionRunner.required {
+            val tenantId = TenantId(command.tenantId)
+            val workItemId = HumanFollowUpWorkItemId(command.workItemId)
+            val actorId = HumanActorId(command.actorId)
+            val commandId = HumanFollowUpClaimCommandId(command.commandId)
+            val expectedRevision = HumanFollowUpOwnershipRevision(command.expectedOwnershipRevision)
+            val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
+            val authority = currentResolverAuthority(tenantId, actorId, now)
+
+            if (!claims.lockOpenWorkItem(tenantId, workItemId)) {
+                throw HumanFollowUpWorkItemNotFoundException(command.workItemId)
+            }
+            commands.findCommand(tenantId, workItemId, commandId)?.let { prior ->
+                return@required replayCommand(prior, actorId, expectedRevision)
+            }
+
+            // A second first-claim insert would violate the immutable singleton
+            // constraint. Release must introduce a separate later-claim write path.
+            requireInitialClaimRevision(commands.currentOwnershipRevision(tenantId, workItemId), expectedRevision)
+
+            val claim = HumanFollowUpClaim.claim(identities.next(), workItemId, authority, now)
+            val storedClaim = claims.create(tenantId, claim)
+            val resultingRevision = HumanFollowUpOwnershipRevision(1)
+            commands.recordCommand(tenantId, workItemId, commandId, expectedRevision, resultingRevision)
+            HumanFollowUpClaimCommandRecording(
+                StoredHumanFollowUpClaimCommand(commandId, expectedRevision, resultingRevision, storedClaim),
+                created = true,
+            )
+        }
+    }
+
+    private fun replayCommand(
+        prior: StoredHumanFollowUpClaimCommand,
+        actorId: HumanActorId,
+        expectedRevision: HumanFollowUpOwnershipRevision,
+    ): HumanFollowUpClaimCommandRecording {
+        if (prior.storedClaim.claim.resolverActorId != actorId ||
+            prior.expectedOwnershipRevision != expectedRevision
+        ) {
+            throw HumanFollowUpClaimCommandConflictException()
+        }
+        return HumanFollowUpClaimCommandRecording(prior, created = false)
+    }
+
+    private fun requireInitialClaimRevision(
+        currentRevision: HumanFollowUpOwnershipRevision,
+        expectedRevision: HumanFollowUpOwnershipRevision,
+    ) {
+        if (currentRevision != expectedRevision || expectedRevision.value != 0L) {
+            throw HumanFollowUpOwnershipRevisionConflictException()
+        }
+    }
 
     /**
      * Retrieves one claim without revealing claim or work existence to unauthorized callers.
@@ -253,6 +381,14 @@ class HumanFollowUpClaimService(
             }
         return ResolverOwnedHumanFollowUpPage(items, nextCursor)
     }
+
+    private fun currentResolverAuthority(
+        tenantId: TenantId,
+        actorId: HumanActorId,
+        at: Instant,
+    ): ApprovalAuthorityEvidence =
+        authorities.findCurrent(tenantId, actorId, ApprovalAuthority.RESOLVER, null, at)?.evidence
+            ?: throw CurrentHumanFollowUpResolverAuthorityNotFoundException()
 
     private companion object {
         const val MAX_PAGE_SIZE = 100
