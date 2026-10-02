@@ -125,9 +125,10 @@ class PostgresHumanFollowUpWorkItemRepository(
                     AND item.status = 'OPEN'
                     AND NOT EXISTS (
                         SELECT 1
-                        FROM human_follow_up_claims claim
-                        WHERE claim.tenant_id = item.tenant_id
-                            AND claim.work_item_id = item.work_item_id
+                        FROM human_follow_up_current_ownership ownership
+                        WHERE ownership.tenant_id = item.tenant_id
+                            AND ownership.work_item_id = item.work_item_id
+                            AND ownership.current_claim_id IS NOT NULL
                     )
                     AND EXISTS (
                         SELECT 1

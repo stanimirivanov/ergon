@@ -39,7 +39,8 @@ The current slice can:
 14. atomically open and retrieve one immutable-source human follow-up work item
     for that escalation;
 15. discover unclaimed work through a bounded, oldest-first resolver inbox;
-16. claim open work once with immutable resolver and authority attribution;
+16. claim open work once with immutable resolver and authority attribution,
+    mirrored into append-only ownership history and a current-owner projection;
     and
 17. page through the authenticated resolver's active claimed work; and
 18. route creation to an immutable `access-restoration` queue and filter the

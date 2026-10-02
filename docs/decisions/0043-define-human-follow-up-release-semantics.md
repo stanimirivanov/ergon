@@ -1,6 +1,6 @@
 # ADR 0043: Define human follow-up release semantics
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-01
 - Milestone: M05 - Human follow-up and resolver console
 - Deciders: Ergon maintainers
@@ -25,7 +25,7 @@ represent a second claim cycle after release.
 
 ## Decision
 
-Propose an append-only ownership history with a transactionally maintained
+Use an append-only ownership history with a transactionally maintained
 current-ownership projection. Retain the immutable creation snapshot and first
 claim. A release records the releasing claim, authenticated resolver, authority
 evidence accepted for the command, occurrence and recording instants, and a
@@ -99,7 +99,7 @@ retrieval must be described separately from active ownership.
 
 Supervisor recovery for an owner who loses authority, reassignment, priority,
 completion, service levels, and notification delivery remain separate
-decisions. This proposed ADR does not authorize an implementation to infer
+decisions. This ADR does not authorize an implementation to infer
 those policies.
 
 ## Compatibility and migration
@@ -136,9 +136,7 @@ content or provider identity.
 
 ## Validation
 
-Before implementation, maintainers must review the owner-only release rule,
-the treatment of historical claim reads, and the new multi-cycle claim command
-shape. Implementation tests must cover first claim, release, same-actor replay,
+Implementation tests must cover first claim, release, same-actor replay,
 stale release after another claim, concurrent claims, authority expiry,
 cross-tenant and cross-owner non-disclosure, browser CSRF, and projection
 consistency. PostgreSQL tests must prove migration backfill and supported
