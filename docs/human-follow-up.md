@@ -206,6 +206,35 @@ Send `GET` to the claim location to retrieve its durable attribution. Missing,
 mismatched, and currently unauthorized coordinates all return
 `404 human-follow-up-claim-not-found`.
 
+### Revision-checked claim command
+
+An internal bearer-authenticated resolver can also submit a durable command
+identity and expected ownership revision:
+
+```text
+POST /internal/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claim-commands
+Content-Type: application/json
+
+{"commandId":"<UUID>","expectedOwnershipRevision":0}
+```
+
+For now, only the first claim (`0` to `1`) is enabled. The server checks current
+resolver authority before revealing the work item, then locks the item and
+compares its current ownership revision. A new command returns `201` with the
+command ID, resulting revision, and nested immutable claim. An exact retry by
+the same actor with the same command ID and expected revision returns `200`
+with the original result; this receipt is stored in the same transaction as
+the claim and ownership event. Command IDs are scoped to a tenant and work
+item. The response `Location` identifies the claim.
+
+A reused command ID with different actor or expected revision returns
+`409 human-follow-up-claim-command-conflict`. A stale or unsupported expected
+revision returns `409 human-follow-up-ownership-revision-conflict`; a negative
+revision returns `400 invalid-human-follow-up-claim-command`. Neither conflict
+reveals another resolver's identity. Current resolver authority is required
+even for replay. This route does not change the existing claim or browser
+contracts and is not yet a release or later-claim command.
+
 ## Resolver-owned work
 
 An authenticated resolver can recover their active claimed work with:

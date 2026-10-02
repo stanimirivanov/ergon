@@ -7,7 +7,9 @@ import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.identity.application.StoredApprovalAuthorityEvidence
 import org.ergon.followup.domain.HumanFollowUpClaim
+import org.ergon.followup.domain.HumanFollowUpClaimCommandId
 import org.ergon.followup.domain.HumanFollowUpClaimId
+import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
@@ -33,11 +35,13 @@ import java.util.UUID
 
 class HumanFollowUpClaimServiceTest {
     private val claims = mock(HumanFollowUpClaimRepository::class.java)
+    private val commands = mock(HumanFollowUpClaimCommandRepository::class.java)
     private val authorities = mock(HumanAuthorityRepository::class.java)
     private val identities = mock(HumanFollowUpClaimIdentityGenerator::class.java)
     private val service =
         HumanFollowUpClaimService(
             claims,
+            commands,
             authorities,
             identities,
             object : TransactionRunner {
@@ -111,6 +115,85 @@ class HumanFollowUpClaimServiceTest {
     }
 
     @Test
+    fun `revisioned command claims never-owned work and records one receipt`() {
+        authorize(ACTOR_ID)
+        `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(true)
+        `when`(commands.currentOwnershipRevision(TENANT_ID, WORK_ITEM_ID))
+            .thenReturn(HumanFollowUpOwnershipRevision(0))
+        `when`(identities.next()).thenReturn(CLAIM_ID)
+        val claim = HumanFollowUpClaim.claim(CLAIM_ID, WORK_ITEM_ID, evidence(ACTOR_ID), NOW)
+        val stored = StoredHumanFollowUpClaim(claim, NOW)
+        `when`(claims.create(TENANT_ID, claim)).thenReturn(stored)
+
+        val result = service.claimWithCommand(command())
+
+        assertThat(result)
+            .isEqualTo(
+                HumanFollowUpClaimCommandRecording(
+                    StoredHumanFollowUpClaimCommand(
+                        COMMAND_ID,
+                        HumanFollowUpOwnershipRevision(0),
+                        HumanFollowUpOwnershipRevision(1),
+                        stored,
+                    ),
+                    created = true,
+                ),
+            )
+        verify(commands).recordCommand(
+            TENANT_ID,
+            WORK_ITEM_ID,
+            COMMAND_ID,
+            HumanFollowUpOwnershipRevision(0),
+            HumanFollowUpOwnershipRevision(1),
+        )
+    }
+
+    @Test
+    fun `exact command replay returns its original receipt without a new claim`() {
+        authorize(ACTOR_ID)
+        `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(true)
+        val prior = commandReceipt()
+        `when`(commands.findCommand(TENANT_ID, WORK_ITEM_ID, COMMAND_ID)).thenReturn(prior)
+
+        val result = service.claimWithCommand(command())
+
+        assertThat(result).isEqualTo(HumanFollowUpClaimCommandRecording(prior, created = false))
+        verifyNoInteractions(identities)
+    }
+
+    @Test
+    fun `command identity cannot be reused by another resolver`() {
+        authorize(OTHER_ACTOR_ID)
+        `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(true)
+        `when`(commands.findCommand(TENANT_ID, WORK_ITEM_ID, COMMAND_ID)).thenReturn(commandReceipt())
+
+        assertThatThrownBy { service.claimWithCommand(command(actorId = OTHER_ACTOR_ID)) }
+            .isInstanceOf(HumanFollowUpClaimCommandConflictException::class.java)
+        verifyNoInteractions(identities)
+    }
+
+    @Test
+    fun `stale expected revision cannot create a second first claim`() {
+        authorize(ACTOR_ID)
+        `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(true)
+        `when`(commands.currentOwnershipRevision(TENANT_ID, WORK_ITEM_ID))
+            .thenReturn(HumanFollowUpOwnershipRevision(1))
+
+        assertThatThrownBy { service.claimWithCommand(command()) }
+            .isInstanceOf(HumanFollowUpOwnershipRevisionConflictException::class.java)
+        verifyNoInteractions(identities)
+    }
+
+    @Test
+    fun `revisioned command validates input and authority before work lookup`() {
+        assertThatThrownBy { service.claimWithCommand(command(expectedRevision = -1)) }
+            .isInstanceOf(InvalidHumanFollowUpClaimCommandException::class.java)
+        assertThatThrownBy { service.claimWithCommand(command()) }
+            .isInstanceOf(CurrentHumanFollowUpResolverAuthorityNotFoundException::class.java)
+        verifyNoInteractions(claims, commands, identities)
+    }
+
+    @Test
     fun `owned work returns a bounded page and cursor from the last visible claim`() {
         val first = ownedWork(NOW.minusSeconds(30), randomClaimId(), randomWorkItemId())
         val second = ownedWork(NOW.minusSeconds(20), randomClaimId(), randomWorkItemId())
@@ -148,6 +231,28 @@ class HumanFollowUpClaimServiceTest {
         `when`(authorities.findCurrent(TENANT_ID, actorId, ApprovalAuthority.RESOLVER, null, NOW))
             .thenReturn(StoredApprovalAuthorityEvidence(evidence(actorId), NOW))
     }
+
+    private fun command(
+        actorId: HumanActorId = ACTOR_ID,
+        expectedRevision: Long = 0,
+    ) = HumanFollowUpClaimCommand(
+        TENANT_ID.value,
+        WORK_ITEM_ID.value,
+        actorId.value,
+        COMMAND_ID.value,
+        expectedRevision,
+    )
+
+    private fun commandReceipt() =
+        StoredHumanFollowUpClaimCommand(
+            COMMAND_ID,
+            HumanFollowUpOwnershipRevision(0),
+            HumanFollowUpOwnershipRevision(1),
+            StoredHumanFollowUpClaim(
+                HumanFollowUpClaim.claim(CLAIM_ID, WORK_ITEM_ID, evidence(ACTOR_ID), NOW),
+                NOW,
+            ),
+        )
 
     private fun evidence(actorId: HumanActorId) =
         ApprovalAuthorityEvidence(
@@ -189,6 +294,7 @@ class HumanFollowUpClaimServiceTest {
         val TENANT_ID = TenantId(UUID.randomUUID())
         val WORK_ITEM_ID = HumanFollowUpWorkItemId(UUID.randomUUID())
         val CLAIM_ID = HumanFollowUpClaimId(UUID.randomUUID())
+        val COMMAND_ID = HumanFollowUpClaimCommandId(UUID.randomUUID())
         val ACTOR_ID = HumanActorId(UUID.randomUUID())
         val OTHER_ACTOR_ID = HumanActorId(UUID.randomUUID())
         val EVIDENCE_ID = ApprovalAuthorityEvidenceId(UUID.randomUUID())

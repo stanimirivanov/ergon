@@ -13,6 +13,22 @@ value class HumanFollowUpClaimId(
     val value: UUID,
 )
 
+/** Client-chosen identity for one intent to acquire follow-up ownership. */
+@JvmInline
+value class HumanFollowUpClaimCommandId(
+    val value: UUID,
+)
+
+/** Monotonic current-ownership position; zero means the work was never claimed. */
+@JvmInline
+value class HumanFollowUpOwnershipRevision(
+    val value: Long,
+) {
+    init {
+        require(value >= 0) { "human follow-up ownership revision must not be negative" }
+    }
+}
+
 /** Complete values needed to rehydrate a durable human follow-up claim. */
 data class HumanFollowUpClaimSnapshot(
     val id: HumanFollowUpClaimId,

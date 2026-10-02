@@ -14,6 +14,13 @@ import java.util.UUID
 
 class HumanFollowUpClaimTest {
     @Test
+    fun `ownership revision starts at zero and rejects negative positions`() {
+        assertThat(HumanFollowUpOwnershipRevision(0).value).isZero()
+        assertThatThrownBy { HumanFollowUpOwnershipRevision(-1) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+    @Test
     fun `claim retains exact resolver authority attribution`() {
         val claim = HumanFollowUpClaim.claim(CLAIM_ID, WORK_ITEM_ID, evidence(), NOW)
 

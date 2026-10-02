@@ -1,6 +1,8 @@
 package org.ergon.controlplane.followup.adapter.inbound.http
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
+import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommand
+import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommandRecording
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRecording
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
 import org.ergon.controlplane.followup.application.HumanFollowUpInboxQuery
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -101,6 +104,36 @@ class HumanFollowUpWorkItemController(
             ResponseEntity.created(location).body(recording.toResponse())
         } else {
             ResponseEntity.ok().location(location).body(recording.toResponse())
+        }
+    }
+
+    /**
+     * Applies an initial claim only at ownership revision zero or replays its
+     * exact client command identity. A different intent never inherits a claim.
+     */
+    @PostMapping("/{workItemId}/claim-commands")
+    fun claimWithCommand(
+        @PathVariable tenantId: UUID,
+        @PathVariable workItemId: UUID,
+        @RequestBody request: HumanFollowUpClaimCommandRequest,
+        authentication: JwtAuthenticationToken,
+    ): ResponseEntity<HumanFollowUpClaimCommandResponse> {
+        val actor = actors.resolve(tenantId, authentication)
+        val result =
+            claims.claimWithCommand(
+                HumanFollowUpClaimCommand(
+                    tenantId,
+                    workItemId,
+                    actor.actor.id.value,
+                    request.commandId,
+                    request.expectedOwnershipRevision,
+                ),
+            )
+        val location = claimLocation(tenantId, workItemId, result.receipt.storedClaim.claim.id.value)
+        return if (result.created) {
+            ResponseEntity.created(location).body(result.toResponse())
+        } else {
+            ResponseEntity.ok().location(location).body(result.toResponse())
         }
     }
 
@@ -190,6 +223,19 @@ data class HumanFollowUpClaimResponse(
     val recordedAt: Instant,
 )
 
+/** Client identity and expected current-state revision for one claim intent. */
+data class HumanFollowUpClaimCommandRequest(
+    val commandId: UUID,
+    val expectedOwnershipRevision: Long,
+)
+
+/** Exact command result with the revision established by its claim event. */
+data class HumanFollowUpClaimCommandResponse(
+    val commandId: UUID,
+    val ownershipRevision: Long,
+    val claim: HumanFollowUpClaimResponse,
+)
+
 private fun StoredHumanFollowUpWorkItem.toResponse() =
     HumanFollowUpWorkItemResponse(
         item.id.value,
@@ -210,6 +256,13 @@ private fun ResolverOwnedHumanFollowUpWork.toResponse() =
     )
 
 private fun HumanFollowUpClaimRecording.toResponse() = storedClaim.toResponse()
+
+private fun HumanFollowUpClaimCommandRecording.toResponse() =
+    HumanFollowUpClaimCommandResponse(
+        receipt.commandId.value,
+        receipt.resultingOwnershipRevision.value,
+        receipt.storedClaim.toResponse(),
+    )
 
 private fun StoredHumanFollowUpClaim.toResponse() =
     HumanFollowUpClaimResponse(
