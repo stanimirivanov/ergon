@@ -5,8 +5,11 @@ import org.ergon.controlplane.followup.application.CurrentHumanFollowUpResolverA
 import org.ergon.controlplane.followup.application.HumanFollowUpAlreadyClaimedException
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommandConflictException
 import org.ergon.controlplane.followup.application.HumanFollowUpOwnershipRevisionConflictException
+import org.ergon.controlplane.followup.application.HumanFollowUpReleaseNotFoundException
+import org.ergon.controlplane.followup.application.HumanFollowUpReleaseUnavailableException
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemNotFoundException
 import org.ergon.controlplane.followup.application.InvalidHumanFollowUpClaimCommandException
+import org.ergon.controlplane.followup.application.InvalidHumanFollowUpReleaseCommandException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidAuthenticatedHumanIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidBrowserOidcIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.UntrustedHumanIdentityIssuerException
@@ -136,17 +139,60 @@ class BrowserHumanFollowUpClaimExceptionHandler {
             exception.message.orEmpty(),
             request,
         )
+}
 
-    private fun problem(
-        status: HttpStatus,
-        type: String,
-        title: String,
-        detail: String,
+/** Maps release-specific failures without exposing owner or authority evidence. */
+@RestControllerAdvice(assignableTypes = [BrowserHumanFollowUpClaimController::class])
+class BrowserHumanFollowUpReleaseExceptionHandler {
+    @ExceptionHandler(HumanFollowUpReleaseUnavailableException::class)
+    fun releaseUnavailable(
+        exception: HumanFollowUpReleaseUnavailableException,
         request: HttpServletRequest,
     ): ProblemDetail =
-        ProblemDetail.forStatusAndDetail(status, detail).apply {
-            this.type = URI.create(type)
-            this.title = title
-            instance = URI.create(request.requestURI)
-        }
+        problem(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "urn:ergon:problem:human-follow-up-release-unavailable",
+            "Human follow-up release unavailable",
+            exception.message.orEmpty(),
+            request,
+        )
+
+    @ExceptionHandler(InvalidHumanFollowUpReleaseCommandException::class)
+    fun invalidReleaseCommand(
+        exception: InvalidHumanFollowUpReleaseCommandException,
+        request: HttpServletRequest,
+    ): ProblemDetail =
+        problem(
+            HttpStatus.BAD_REQUEST,
+            "urn:ergon:problem:invalid-human-follow-up-release-command",
+            "Invalid human follow-up release command",
+            exception.message.orEmpty(),
+            request,
+        )
+
+    @ExceptionHandler(HumanFollowUpReleaseNotFoundException::class)
+    fun releaseNotFound(
+        exception: HumanFollowUpReleaseNotFoundException,
+        request: HttpServletRequest,
+    ): ProblemDetail =
+        problem(
+            HttpStatus.NOT_FOUND,
+            "urn:ergon:problem:human-follow-up-release-not-found",
+            "Current human follow-up claim not found",
+            exception.message.orEmpty(),
+            request,
+        )
 }
+
+private fun problem(
+    status: HttpStatus,
+    type: String,
+    title: String,
+    detail: String,
+    request: HttpServletRequest,
+): ProblemDetail =
+    ProblemDetail.forStatusAndDetail(status, detail).apply {
+        this.type = URI.create(type)
+        this.title = title
+        instance = URI.create(request.requestURI)
+    }

@@ -10,8 +10,8 @@ resolver evidence can retrieve it, list it in the oldest-first unclaimed inbox,
 and acquire immutable ownership. A resolver can filter discovery by queue and
 page through their active claimed work. Queue administration, priority,
 reassignment, notifications, and completion are not implemented. The internal
-resolver boundary supports revision-checked release and later claiming;
-browser release remains deferred.
+resolver and browser boundaries support revision-checked release and later
+claiming. Browser release remains disabled by default during rollout.
 
 ## Creation and replay
 
@@ -125,7 +125,7 @@ other mutations. See
 
 ### Revision-checked browser claim
 
-The browser can submit an explicit first-claim intent with the same
+The browser can submit an explicit revision-checked claim intent with the same
 session-bound CSRF token:
 
 ```text
@@ -145,13 +145,47 @@ browser-safe claim. The nested claim has only `claimId`, `workItemId`,
 resolver actor, authority evidence, or tokens. Command IDs are scoped to one
 tenant and work item.
 
-The route applies only the `0` to `1` transition. Changed command intent and
+The route also accepts the current revision of unowned work returned by the
+browser inbox after a release. Every later cycle requires a fresh command ID;
+the older `/claims` route remains first-cycle-only. Changed command intent and
 stale revision return `409` with distinct stable problem types; negative
 revision returns `400`. Authentication, tenant binding, current resolver
 authority, CSRF, and no-store rules match the existing browser claim route.
 When browser sessions are disabled it returns
-`503 browser-authentication-unavailable`. The existing browser claim route is
-unchanged and must not be used for a later claim cycle.
+`503 browser-authentication-unavailable`.
+
+### Browser release and revision reads
+
+Each row in the authorized browser shared inbox includes `ownershipRevision`
+(`0` before first claim, `2` after first release, and so on). Each owned-work
+row includes the current revision on its `workItem`. A resolver can therefore
+recover the expected state after a page reload; these values are not
+authorization grants and may become stale before submission.
+
+With a current claim ID from the owned-work row, release using the session
+CSRF token and that row's revision:
+
+```text
+POST /bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claims/{claimId}/release
+X-CSRF-TOKEN: {opaque session token}
+Content-Type: application/json
+
+{"expectedOwnershipRevision":1}
+```
+
+A new release returns `201`; an exact replay by the same actor and expected
+revision returns `200` with the original `claimId`, `workItemId`, resulting
+`ownershipRevision`, `releasedAt`, and `recordedAt`. The browser sends no
+actor or authority-evidence IDs and receives none. Release needs current
+tenant-wide resolver authority even on replay. An absent, inactive, or
+different owner's claim returns the same non-disclosing `404`; stale revision
+returns `409`, negative revision `400`. Release remains disabled by default
+and returns `503 human-follow-up-release-unavailable` until the upgraded
+deployment enables it. Disabled browser sessions instead return
+`503 browser-authentication-unavailable`. A successful release returns work
+to its original shared queue; a later resolver uses a fresh revision-checked
+claim command with the revision from the inbox. See
+[ADR 0043](decisions/0043-define-human-follow-up-release-semantics.md).
 
 ## Browser resolver-owned work
 
@@ -167,7 +201,8 @@ oldest-claim-first ordering, `1..100` limit, and paired `afterClaimedAt` plus
 an empty page; the response provides no total count and never reveals another
 resolver's work.
 
-Each row retains separate `workItem` and `claim` objects. The browser claim
+Each row retains separate `workItem` and `claim` objects. The `workItem`
+includes the current ownership revision needed for an exact release. The browser claim
 contains only `claimId`, `workItemId`, `claimedAt`, and `recordedAt`; resolver
 actor identity, authority-evidence attribution, provider identity, and tokens
 are omitted. Invalid pagination returns
@@ -267,7 +302,8 @@ revision returns `400 invalid-human-follow-up-claim-command`. Neither conflict
 reveals another resolver's identity. Current resolver authority is required
 even for replay. The legacy claim routes remain first-cycle-only: after a
 release they return `409` rather than interpreting an old retry as new intent.
-The browser revisioned claim route remains restricted to revision zero.
+The browser revisioned claim route also accepts the current unowned revision
+returned by the authorized browser inbox.
 
 ### Release current ownership
 

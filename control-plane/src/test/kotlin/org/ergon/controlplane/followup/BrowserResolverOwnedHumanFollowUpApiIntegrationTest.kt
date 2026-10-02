@@ -11,6 +11,7 @@ import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
 import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
+import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
@@ -93,6 +94,7 @@ class BrowserResolverOwnedHumanFollowUpApiIntegrationTest(
                 ),
             ).andExpect(jsonPath("$.items[0].workItem.queueKey").value("access-restoration"))
             .andExpect(jsonPath("$.items[0].workItem.status").value("OPEN"))
+            .andExpect(jsonPath("$.items[0].workItem.ownershipRevision").value(1))
             .andExpect(
                 jsonPath("$.items[0].claim.claimId").value(
                     owned.claim.claim.id.value
@@ -224,6 +226,7 @@ class BrowserResolverOwnedHumanFollowUpApiIntegrationTest(
         return ResolverOwnedHumanFollowUpWork(
             StoredHumanFollowUpWorkItem(workItem, WORK_RECORDED_AT),
             StoredHumanFollowUpClaim(claim, CLAIM_RECORDED_AT),
+            HumanFollowUpOwnershipRevision(1),
         )
     }
 

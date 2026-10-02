@@ -162,15 +162,35 @@ class BrowserHumanFollowUpClaimCommandApiIntegrationTest(
     }
 
     @Test
-    fun `browser command remains limited to the first ownership cycle`() {
+    fun `browser command passes the released ownership revision to the application`() {
         val tenantId = UUID.randomUUID()
-        registerActor(tenantId)
+        val actorId = registerActor(tenantId)
+        val workItemId = UUID.randomUUID()
+        val commandId = UUID.randomUUID()
+        val command = HumanFollowUpClaimCommand(tenantId, workItemId, actorId, commandId, 2)
+        val claim = storedClaim(actorId, workItemId)
+        val receipt =
+            StoredHumanFollowUpClaimCommand(
+                HumanFollowUpClaimCommandId(commandId),
+                HumanFollowUpOwnershipRevision(2),
+                HumanFollowUpOwnershipRevision(3),
+                claim,
+            )
+        Mockito
+            .`when`(claims.claimWithCommand(command))
+            .thenReturn(HumanFollowUpClaimCommandRecording(receipt, created = true))
 
         mockMvc
-            .perform(commandRequest(tenantId, UUID.randomUUID(), UUID.randomUUID(), 2))
-            .andExpect(status().isBadRequest)
-            .andExpect(jsonPath("$.type").value("urn:ergon:problem:invalid-human-follow-up-claim-command"))
-        Mockito.verifyNoInteractions(claims)
+            .perform(commandRequest(tenantId, workItemId, commandId, 2))
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.ownershipRevision").value(3))
+            .andExpect(
+                jsonPath("$.claim.claimId").value(
+                    claim.claim.id.value
+                        .toString(),
+                ),
+            ).andExpect(jsonPath("$.claim.resolverActorId").doesNotExist())
+        Mockito.verify(claims).claimWithCommand(command)
     }
 
     private fun commandRequest(

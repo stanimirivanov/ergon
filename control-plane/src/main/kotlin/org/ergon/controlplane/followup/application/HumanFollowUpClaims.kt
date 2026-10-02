@@ -55,6 +55,7 @@ data class HumanFollowUpClaimCommandRecording(
 data class ResolverOwnedHumanFollowUpWork(
     val workItem: StoredHumanFollowUpWorkItem,
     val claim: StoredHumanFollowUpClaim,
+    val ownershipRevision: HumanFollowUpOwnershipRevision,
 )
 
 /** Stable keyset position in a resolver's oldest-claimed-first work view. */

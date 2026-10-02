@@ -1,9 +1,11 @@
 package org.ergon.controlplane.followup.adapter.out.persistence
 
 import org.ergon.cases.domain.CaseId
+import org.ergon.controlplane.followup.application.AvailableHumanFollowUpWork
 import org.ergon.controlplane.followup.application.HumanFollowUpInboxCriteria
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemRepository
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
+import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
@@ -109,7 +111,7 @@ class PostgresHumanFollowUpWorkItemRepository(
             .getOrNull()
             ?.toStoredWorkItem()
 
-    override fun listOpenForResolver(criteria: HumanFollowUpInboxCriteria): List<StoredHumanFollowUpWorkItem> {
+    override fun listOpenForResolver(criteria: HumanFollowUpInboxCriteria): List<AvailableHumanFollowUpWork> {
         require(criteria.limit > 0) { "human follow-up inbox limit must be positive" }
         val cursorPredicate =
             if (criteria.after == null) {
@@ -119,33 +121,8 @@ class PostgresHumanFollowUpWorkItemRepository(
             }
         val queuePredicate = if (criteria.queueKey == null) "" else "AND item.queue_key = :queueKey"
         var statement =
-            queryBase(
-                """
-                WHERE item.tenant_id = :tenantId
-                    AND item.status = 'OPEN'
-                    AND NOT EXISTS (
-                        SELECT 1
-                        FROM human_follow_up_current_ownership ownership
-                        WHERE ownership.tenant_id = item.tenant_id
-                            AND ownership.work_item_id = item.work_item_id
-                            AND ownership.current_claim_id IS NOT NULL
-                    )
-                    AND EXISTS (
-                        SELECT 1
-                        FROM approval_authority_evidence authority
-                        WHERE authority.tenant_id = item.tenant_id
-                            AND authority.actor_id = :actorId
-                            AND authority.authority = 'RESOLVER'
-                            AND authority.case_id IS NULL
-                            AND authority.attested_at <= :at
-                            AND authority.expires_at > :at
-                    )
-                    $queuePredicate
-                    $cursorPredicate
-                ORDER BY item.opened_at, item.work_item_id
-                LIMIT :limit
-                """.trimIndent(),
-            ).param("tenantId", criteria.tenantId.value)
+            availableWorkQuery(queuePredicate, cursorPredicate)
+                .param("tenantId", criteria.tenantId.value)
                 .param("actorId", criteria.actorId.value)
                 .param("at", criteria.at.atOffset(ZoneOffset.UTC))
                 .param("limit", criteria.limit)
@@ -159,10 +136,53 @@ class PostgresHumanFollowUpWorkItemRepository(
                     .param("afterWorkItemId", criteria.after.workItemId.value)
         }
         return statement
-            .query(DataClassRowMapper(HumanFollowUpWorkItemRow::class.java))
+            .query(DataClassRowMapper(AvailableHumanFollowUpWorkRow::class.java))
             .list()
-            .map(HumanFollowUpWorkItemRow::toStoredWorkItem)
+            .map(AvailableHumanFollowUpWorkRow::toAvailableWork)
     }
+
+    private fun availableWorkQuery(
+        queuePredicate: String,
+        cursorPredicate: String,
+    ): JdbcClient.StatementSpec =
+        jdbcClient.sql(
+            """
+            SELECT
+                item.work_item_id,
+                run.case_id,
+                item.run_id,
+                item.escalation_event_id,
+                item.reason,
+                item.queue_key,
+                item.status,
+                item.opened_at,
+                item.recorded_at,
+                COALESCE(ownership.ownership_revision, 0) AS ownership_revision
+            FROM human_follow_up_work_items item
+            JOIN resolution_runs run
+                ON run.tenant_id = item.tenant_id AND run.run_id = item.run_id
+            LEFT JOIN human_follow_up_current_ownership ownership
+                ON ownership.tenant_id = item.tenant_id
+                AND ownership.work_item_id = item.work_item_id
+            WHERE item.tenant_id = :tenantId
+                AND item.status = 'OPEN'
+                AND ownership.current_claim_id IS NULL
+                AND EXISTS (
+                    SELECT 1
+                    FROM approval_authority_evidence authority
+                    WHERE authority.tenant_id = item.tenant_id
+                        AND authority.actor_id = :actorId
+                        AND authority.authority = 'RESOLVER'
+                        AND authority.case_id IS NULL
+                        AND authority.attested_at <= :at
+                        AND authority.expires_at > :at
+                )
+                $queuePredicate
+                $cursorPredicate
+            ORDER BY item.opened_at, item.work_item_id
+            LIMIT :limit
+            """.trimIndent(),
+        )
 
     private fun queryBase(whereClause: String): JdbcClient.StatementSpec =
         jdbcClient.sql(
@@ -217,3 +237,32 @@ private data class HumanFollowUpWorkItemRow(
     val openedAt: OffsetDateTime,
     val recordedAt: OffsetDateTime,
 )
+
+private data class AvailableHumanFollowUpWorkRow(
+    val workItemId: UUID,
+    val caseId: UUID,
+    val runId: UUID,
+    val escalationEventId: UUID,
+    val reason: String,
+    val queueKey: String,
+    val status: String,
+    val openedAt: OffsetDateTime,
+    val recordedAt: OffsetDateTime,
+    val ownershipRevision: Long,
+) {
+    fun toAvailableWork(): AvailableHumanFollowUpWork =
+        AvailableHumanFollowUpWork(
+            HumanFollowUpWorkItemRow(
+                workItemId,
+                caseId,
+                runId,
+                escalationEventId,
+                reason,
+                queueKey,
+                status,
+                openedAt,
+                recordedAt,
+            ).toStoredWorkItem(),
+            HumanFollowUpOwnershipRevision(ownershipRevision),
+        )
+}

@@ -255,6 +255,7 @@ class PostgresHumanFollowUpClaimRepository(
                 item.status,
                 item.opened_at,
                 item.recorded_at AS work_item_recorded_at,
+                ownership.ownership_revision,
                 claim.claim_id,
                 claim.resolver_actor_id,
                 claim.authority_evidence_id,
@@ -363,6 +364,7 @@ private fun ResolverOwnedHumanFollowUpRow.toOwnedWork(): ResolverOwnedHumanFollo
                 ),
                 claimRecordedAt.toInstant(),
             ),
+            HumanFollowUpOwnershipRevision(ownershipRevision),
         )
     } catch (exception: IllegalArgumentException) {
         throw IllegalStateException("stored resolver-owned human follow-up work is invalid", exception)
@@ -383,4 +385,5 @@ private data class ResolverOwnedHumanFollowUpRow(
     val authorityEvidenceId: UUID,
     val claimedAt: OffsetDateTime,
     val claimRecordedAt: OffsetDateTime,
+    val ownershipRevision: Long,
 )

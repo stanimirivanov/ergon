@@ -4,8 +4,10 @@ import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommand
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommandRecording
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRecording
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
-import org.ergon.controlplane.followup.application.InvalidHumanFollowUpClaimCommandException
+import org.ergon.controlplane.followup.application.HumanFollowUpReleaseCommand
+import org.ergon.controlplane.followup.application.HumanFollowUpReleaseService
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpClaim
+import org.ergon.controlplane.followup.application.StoredHumanFollowUpRelease
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
@@ -31,6 +33,7 @@ import java.util.UUID
 class BrowserHumanFollowUpClaimController(
     private val actors: AuthenticatedHumanActorResolver,
     private val claims: HumanFollowUpClaimService,
+    private val releases: HumanFollowUpReleaseService,
 ) {
     /**
      * Claims open work for the authenticated resolver or replays their existing claim.
@@ -51,7 +54,7 @@ class BrowserHumanFollowUpClaimController(
         return ResponseEntity.status(status).body(recording.toBrowserResponse())
     }
 
-    /** Applies or exactly replays a revision-checked first claim using the session actor. */
+    /** Applies or exactly replays a revision-checked claim using the session actor. */
     @PostMapping("/claim-commands")
     fun claimWithCommand(
         @PathVariable tenantId: UUID,
@@ -60,11 +63,6 @@ class BrowserHumanFollowUpClaimController(
         @AuthenticationPrincipal principal: OidcUser,
     ): ResponseEntity<BrowserHumanFollowUpClaimCommandResponse> {
         val actor = actors.resolve(tenantId, principal)
-        // The browser contract was introduced for first claims only; do not
-        // widen it to release-era cycles without a separately reviewed BFF slice.
-        if (request.expectedOwnershipRevision != 0L) {
-            throw InvalidHumanFollowUpClaimCommandException("browser claim requires ownership revision zero")
-        }
         val recording =
             claims.claimWithCommand(
                 HumanFollowUpClaimCommand(
@@ -77,6 +75,30 @@ class BrowserHumanFollowUpClaimController(
             )
         val status = if (recording.created) HttpStatus.CREATED else HttpStatus.OK
         return ResponseEntity.status(status).body(recording.toBrowserResponse())
+    }
+
+    /** Releases only this resolver's active claim at its current ownership revision. */
+    @PostMapping("/claims/{claimId}/release")
+    fun release(
+        @PathVariable tenantId: UUID,
+        @PathVariable workItemId: UUID,
+        @PathVariable claimId: UUID,
+        @RequestBody request: BrowserHumanFollowUpReleaseRequest,
+        @AuthenticationPrincipal principal: OidcUser,
+    ): ResponseEntity<BrowserHumanFollowUpReleaseResponse> {
+        val actor = actors.resolve(tenantId, principal)
+        val recording =
+            releases.release(
+                HumanFollowUpReleaseCommand(
+                    tenantId,
+                    workItemId,
+                    claimId,
+                    actor.actor.id.value,
+                    request.expectedOwnershipRevision,
+                ),
+            )
+        val status = if (recording.created) HttpStatus.CREATED else HttpStatus.OK
+        return ResponseEntity.status(status).body(recording.release.toBrowserResponse())
     }
 }
 
@@ -101,6 +123,20 @@ data class BrowserHumanFollowUpClaimCommandResponse(
     val claim: BrowserHumanFollowUpClaimResponse,
 )
 
+/** Browser-supplied expected state for release of the exact path claim. */
+data class BrowserHumanFollowUpReleaseRequest(
+    val expectedOwnershipRevision: Long,
+)
+
+/** Durable release result without resolver or authority-evidence attribution. */
+data class BrowserHumanFollowUpReleaseResponse(
+    val claimId: UUID,
+    val workItemId: UUID,
+    val ownershipRevision: Long,
+    val releasedAt: Instant,
+    val recordedAt: Instant,
+)
+
 private fun HumanFollowUpClaimRecording.toBrowserResponse() = storedClaim.toBrowserResponse()
 
 private fun HumanFollowUpClaimCommandRecording.toBrowserResponse() =
@@ -115,5 +151,14 @@ private fun StoredHumanFollowUpClaim.toBrowserResponse(): BrowserHumanFollowUpCl
         claimId = claim.id.value,
         workItemId = claim.workItemId.value,
         claimedAt = claim.claimedAt,
+        recordedAt = recordedAt,
+    )
+
+private fun StoredHumanFollowUpRelease.toBrowserResponse(): BrowserHumanFollowUpReleaseResponse =
+    BrowserHumanFollowUpReleaseResponse(
+        claimId = claimId.value,
+        workItemId = workItemId.value,
+        ownershipRevision = ownershipRevision.value,
+        releasedAt = releasedAt,
         recordedAt = recordedAt,
     )

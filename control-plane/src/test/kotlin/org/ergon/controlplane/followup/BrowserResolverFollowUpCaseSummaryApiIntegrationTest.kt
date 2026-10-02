@@ -26,6 +26,7 @@ import org.ergon.controlplane.resolution.application.StoredResolutionRunEscalati
 import org.ergon.controlplane.resolution.application.StoredResolutionRunStart
 import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
+import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
@@ -382,6 +383,7 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
         return ResolverOwnedHumanFollowUpWork(
             StoredHumanFollowUpWorkItem(item, NOW.minusSeconds(29)),
             StoredHumanFollowUpClaim(claim, NOW.minusSeconds(19)),
+            HumanFollowUpOwnershipRevision(1),
         )
     }
 

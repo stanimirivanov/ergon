@@ -63,7 +63,11 @@ The current slice can:
 26. release an exact active claim on the internal resolver boundary, return
     work to its original shared queue, and acquire a later distinct claim using
     a new revision-checked command while preserving historical attribution;
-    release is disabled by default until upgraded ownership readers are deployed.
+    release is disabled by default until upgraded ownership readers are deployed;
+    and
+27. read current ownership revisions in the browser inbox and owned-work page,
+    release an exact owned claim through the CSRF-protected BFF, and submit a
+    later revision-checked browser claim without exposing private attribution.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -158,7 +162,7 @@ GitHub SCM URL retains its factual existing repository name.
   simulation lab, or improvement proposal generator.
 - No resolver console, adaptive canvas, or public SDK.
 - Browser sessions are process-local and have no logout or provider-revocation
-  flow; the BFF has no release, reassignment, completion, or other lifecycle
+  flow; the BFF has no reassignment, completion, or other lifecycle
   mutation contract yet.
 
 The intended sequence is maintained in
