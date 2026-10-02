@@ -161,6 +161,18 @@ class BrowserHumanFollowUpClaimCommandApiIntegrationTest(
             .andExpect(jsonPath("$.type").value("urn:ergon:problem:invalid-human-follow-up-claim-command"))
     }
 
+    @Test
+    fun `browser command remains limited to the first ownership cycle`() {
+        val tenantId = UUID.randomUUID()
+        registerActor(tenantId)
+
+        mockMvc
+            .perform(commandRequest(tenantId, UUID.randomUUID(), UUID.randomUUID(), 2))
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:invalid-human-follow-up-claim-command"))
+        Mockito.verifyNoInteractions(claims)
+    }
+
     private fun commandRequest(
         tenantId: UUID,
         workItemId: UUID,

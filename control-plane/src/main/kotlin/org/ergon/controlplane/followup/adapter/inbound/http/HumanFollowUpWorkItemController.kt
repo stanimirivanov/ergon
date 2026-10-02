@@ -6,12 +6,16 @@ import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommandReco
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRecording
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
 import org.ergon.controlplane.followup.application.HumanFollowUpInboxQuery
+import org.ergon.controlplane.followup.application.HumanFollowUpReleaseCommand
+import org.ergon.controlplane.followup.application.HumanFollowUpReleaseService
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemQueryService
 import org.ergon.controlplane.followup.application.ResolverOwnedHumanFollowUpWork
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpClaim
+import org.ergon.controlplane.followup.application.StoredHumanFollowUpRelease
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.springframework.format.annotation.DateTimeFormat
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.web.bind.annotation.GetMapping
@@ -34,6 +38,7 @@ class HumanFollowUpWorkItemController(
     private val actors: AuthenticatedHumanActorResolver,
     private val service: HumanFollowUpWorkItemQueryService,
     private val claims: HumanFollowUpClaimService,
+    private val releases: HumanFollowUpReleaseService,
 ) {
     /** Lists the oldest unclaimed work, optionally from one queue, under current resolver authority. */
     @GetMapping
@@ -107,10 +112,7 @@ class HumanFollowUpWorkItemController(
         }
     }
 
-    /**
-     * Applies an initial claim only at ownership revision zero or replays its
-     * exact client command identity. A different intent never inherits a claim.
-     */
+    /** Applies one revision-checked claim intent or replays its exact durable result. */
     @PostMapping("/{workItemId}/claim-commands")
     fun claimWithCommand(
         @PathVariable tenantId: UUID,
@@ -147,6 +149,30 @@ class HumanFollowUpWorkItemController(
     ): HumanFollowUpClaimResponse {
         val actor = actors.resolve(tenantId, authentication)
         return claims.get(tenantId, workItemId, claimId, actor.actor.id.value).toResponse()
+    }
+
+    /** Releases only the named active claim at the expected ownership revision. */
+    @PostMapping("/{workItemId}/claims/{claimId}/release")
+    fun release(
+        @PathVariable tenantId: UUID,
+        @PathVariable workItemId: UUID,
+        @PathVariable claimId: UUID,
+        @RequestBody request: HumanFollowUpReleaseRequest,
+        authentication: JwtAuthenticationToken,
+    ): ResponseEntity<HumanFollowUpReleaseResponse> {
+        val actor = actors.resolve(tenantId, authentication)
+        val recording =
+            releases.release(
+                HumanFollowUpReleaseCommand(
+                    tenantId,
+                    workItemId,
+                    claimId,
+                    actor.actor.id.value,
+                    request.expectedOwnershipRevision,
+                ),
+            )
+        val body = recording.release.toResponse()
+        return if (recording.created) ResponseEntity.status(HttpStatus.CREATED).body(body) else ResponseEntity.ok(body)
     }
 }
 
@@ -236,6 +262,22 @@ data class HumanFollowUpClaimCommandResponse(
     val claim: HumanFollowUpClaimResponse,
 )
 
+/** Revision asserted by the resolver releasing the exact path claim. */
+data class HumanFollowUpReleaseRequest(
+    val expectedOwnershipRevision: Long,
+)
+
+/** Durable release receipt; the work remains open in its original queue. */
+data class HumanFollowUpReleaseResponse(
+    val claimId: UUID,
+    val workItemId: UUID,
+    val resolverActorId: UUID,
+    val authorityEvidenceId: UUID,
+    val ownershipRevision: Long,
+    val releasedAt: Instant,
+    val recordedAt: Instant,
+)
+
 private fun StoredHumanFollowUpWorkItem.toResponse() =
     HumanFollowUpWorkItemResponse(
         item.id.value,
@@ -271,6 +313,17 @@ private fun StoredHumanFollowUpClaim.toResponse() =
         claim.resolverActorId.value,
         claim.authorityEvidenceId.value,
         claim.claimedAt,
+        recordedAt,
+    )
+
+private fun StoredHumanFollowUpRelease.toResponse() =
+    HumanFollowUpReleaseResponse(
+        claimId.value,
+        workItemId.value,
+        resolverActorId.value,
+        authorityEvidenceId.value,
+        ownershipRevision.value,
+        releasedAt,
         recordedAt,
     )
 

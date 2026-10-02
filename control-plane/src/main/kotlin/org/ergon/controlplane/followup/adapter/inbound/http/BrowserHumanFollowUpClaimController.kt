@@ -4,6 +4,7 @@ import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommand
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommandRecording
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRecording
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
+import org.ergon.controlplane.followup.application.InvalidHumanFollowUpClaimCommandException
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpClaim
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -59,6 +60,11 @@ class BrowserHumanFollowUpClaimController(
         @AuthenticationPrincipal principal: OidcUser,
     ): ResponseEntity<BrowserHumanFollowUpClaimCommandResponse> {
         val actor = actors.resolve(tenantId, principal)
+        // The browser contract was introduced for first claims only; do not
+        // widen it to release-era cycles without a separately reviewed BFF slice.
+        if (request.expectedOwnershipRevision != 0L) {
+            throw InvalidHumanFollowUpClaimCommandException("browser claim requires ownership revision zero")
+        }
         val recording =
             claims.claimWithCommand(
                 HumanFollowUpClaimCommand(

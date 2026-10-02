@@ -14,6 +14,8 @@ spring:
           issuer-uri: ${ERGON_HUMAN_JWT_ISSUER_URI:}
 
 ergon:
+  follow-up:
+    release-enabled: ${ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED:false}
   security:
     browser-session:
       enabled: ${ERGON_BROWSER_SESSION_ENABLED:false}

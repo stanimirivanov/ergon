@@ -9,8 +9,9 @@ and immutable. The creation snapshot routes it to the immutable named
 resolver evidence can retrieve it, list it in the oldest-first unclaimed inbox,
 and acquire immutable ownership. A resolver can filter discovery by queue and
 page through their active claimed work. Queue administration, priority,
-reassignment, release, notifications, and later lifecycle transitions are not
-implemented.
+reassignment, notifications, and completion are not implemented. The internal
+resolver boundary supports revision-checked release and later claiming;
+browser release remains deferred.
 
 ## Creation and replay
 
@@ -248,8 +249,10 @@ Content-Type: application/json
 {"commandId":"<UUID>","expectedOwnershipRevision":0}
 ```
 
-For now, only the first claim (`0` to `1`) is enabled. The server checks current
-resolver authority before revealing the work item, then locks the item and
+The first claim moves revision `0` to `1`. After a release, a new command may
+claim the unowned work at its current revision and receives a new immutable
+claim ID. The server checks current resolver authority before revealing the
+work item, then locks it and
 compares its current ownership revision. A new command returns `201` with the
 command ID, resulting revision, and nested immutable claim. An exact retry by
 the same actor with the same command ID and expected revision returns `200`
@@ -258,12 +261,47 @@ the claim and ownership event. Command IDs are scoped to a tenant and work
 item. The response `Location` identifies the claim.
 
 A reused command ID with different actor or expected revision returns
-`409 human-follow-up-claim-command-conflict`. A stale or unsupported expected
+`409 human-follow-up-claim-command-conflict`. A stale expected
 revision returns `409 human-follow-up-ownership-revision-conflict`; a negative
 revision returns `400 invalid-human-follow-up-claim-command`. Neither conflict
 reveals another resolver's identity. Current resolver authority is required
-even for replay. This route does not change the existing claim or browser
-contracts and is not yet a release or later-claim command.
+even for replay. The legacy claim routes remain first-cycle-only: after a
+release they return `409` rather than interpreting an old retry as new intent.
+The browser revisioned claim route remains restricted to revision zero.
+
+### Release current ownership
+
+An internal bearer-authenticated resolver releases only their active claim:
+
+```text
+POST /internal/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claims/{claimId}/release
+Content-Type: application/json
+
+{"expectedOwnershipRevision":1}
+```
+
+The server resolves the actor and requires current tenant-wide resolver
+authority, then serializes the command on the work-item lock. The claim ID and
+expected revision must identify the active owner. A first release returns
+`201` with `claimId`, `workItemId`, `resolverActorId`, the accepted
+`authorityEvidenceId`, resulting `ownershipRevision`, `releasedAt`, and
+`recordedAt`. An exact retry by the same actor and expected revision returns
+`200` with that original receipt, even if ownership has since changed.
+Negative revision returns `400 invalid-human-follow-up-release-command`;
+absent, inactive, or differently owned claims return the same non-disclosing
+`404 human-follow-up-release-not-found`; stale revision returns
+`409 human-follow-up-ownership-revision-conflict`.
+
+Release is disabled by default and returns
+`503 human-follow-up-release-unavailable` until
+`ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED=true` is set for the upgraded deployment.
+
+Release appends an immutable event and clears only current ownership. The work
+stays `OPEN` in its original named queue and becomes discoverable in the shared
+inbox. A later resolver must use a new claim command ID and the current
+revision; first-claim history is not rewritten. Historical claim retrieval is
+an audit read, not evidence of current ownership. See
+[ADR 0043](decisions/0043-define-human-follow-up-release-semantics.md).
 
 ## Resolver-owned work
 
@@ -287,24 +325,24 @@ grant access to other resolvers' workload and provides no stable total count.
 
 ## Deliberate limits
 
-The creation row, its initial queue, and first-owner claim are immutable. First
-claims now populate an append-only ownership event and current-ownership
-projection in the same transaction, including when an older application
-instance inserts the claim. The inbox and owned-work queries use that
-projection; historical claim retrieval remains an audit read. No release or
-later-claim command is enabled yet.
+The creation row, its initial queue, and first-owner claim are immutable.
+Claims and releases append ownership events and advance the current-ownership
+projection in the same transaction. An older application instance can still
+insert a first claim through the mirror trigger, but it cannot interpret a
+released or later-claimed item. The inbox and owned-work queries use the
+projection; historical claim retrieval remains an audit read.
 
 The additive migration backfills existing first claims and installs the
-first-claim mirror before switching readers. Older instances may continue to
-write first claims during this rollout, but release must stay disabled until
-all ownership readers and writers use the new lifecycle. Before the first
-release, an older binary can ignore the expanded schema; after release,
+first-claim mirror before switching readers. Keep
+`ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED=false` until all ownership readers and
+writers run this lifecycle version. Before the
+first release, an older binary can ignore the expanded schema; after release,
 recovery must roll forward because it cannot interpret current ownership.
 Assess the claim-table backfill and trigger-install lock against production
 table size before deployment.
 
 This slice does not define queue administration, configurable
-routing, automatic assignment, reassignment, release, priority, due time,
+routing, automatic assignment, reassignment, priority, due time,
 service levels, completion, cancellation, notification, semantic summaries,
 supervisor workload views, general case search/detail, or other browser
 mutations.

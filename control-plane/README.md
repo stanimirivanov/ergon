@@ -14,8 +14,12 @@ run, failed-execution, and exhausted-retry facts needed to continue one owned
 escalation.
 First claims also populate append-only ownership history and a current-owner
 projection. An internal revision-checked claim command records a durable
-client-command receipt for exact replay; release and later claim cycles are not
-enabled yet.
+client-command receipt for exact replay. Internal release and later claiming
+append ownership events without rewriting the first claim.
+Release remains disabled by default during a mixed-version rollout. Set
+`ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED=true` only after every instance serving
+ownership traffic runs the new lifecycle code. Once a release is durable,
+rollback to an older binary is unsafe; disable new releases and recover forward.
 
 It is a modular monolith: capability packages contain application-owned ports
 and inbound/outbound adapters while `domain-kernel` remains framework-free.
@@ -32,6 +36,7 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_HUMAN_JWT_ISSUER_URI` | Trusted human JWT issuer; optional only for unprotected development paths |
 | `ERGON_HUMAN_IDENTITY_PROVIDER` | Stable provider name paired with the issuer |
 | `ERGON_BROWSER_SESSION_ENABLED` | Enables the confidential OIDC BFF; defaults to `false` |
+| `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED` | Enables internal release after every ownership reader and writer is upgraded; defaults to `false` |
 
 The JWT variables are a pair. Protected human operations fail closed when the
 trust mapping is absent. Enabling browser sessions additionally requires the
@@ -87,8 +92,8 @@ Browser endpoints under `/bff` use an optional confidential OIDC session and
 never return provider tokens to browser code. They fail with `503` while the
 feature is disabled. The BFF exposes the tenant actor session, shared resolver
 inbox, resolver-owned active work, an owner-scoped case summary, and the
-CSRF-protected idempotent and revision-checked first-claim commands; release
-and later claim cycles remain disabled.
+CSRF-protected idempotent and revision-checked first-claim commands; browser
+release and later claim cycles remain disabled.
 The case summary includes the failed connector outcome and retry-ceiling
 decision while keeping provider-operation and authority attribution server-side.
 The current server-side session store is process-local and is not suitable for
