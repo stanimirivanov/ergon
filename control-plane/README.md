@@ -87,7 +87,8 @@ Browser endpoints under `/bff` use an optional confidential OIDC session and
 never return provider tokens to browser code. They fail with `503` while the
 feature is disabled. The BFF exposes the tenant actor session, shared resolver
 inbox, resolver-owned active work, an owner-scoped case summary, and the
-CSRF-protected idempotent claim command; lifecycle mutations remain internal.
+CSRF-protected idempotent and revision-checked first-claim commands; release
+and later claim cycles remain disabled.
 The case summary includes the failed connector outcome and retry-ceiling
 decision while keeping provider-operation and authority attribution server-side.
 The current server-side session store is process-local and is not suitable for

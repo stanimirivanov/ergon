@@ -127,6 +127,13 @@ class BrowserSessionUnavailableController {
         @Suppress("UNUSED_PARAMETER") @PathVariable workItemId: UUID,
     ): ProblemDetail = unavailableProblem()
 
+    /** Reports that revisioned browser claiming requires browser OIDC configuration. */
+    @PostMapping("/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claim-commands")
+    fun humanFollowUpClaimCommandUnavailable(
+        @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
+        @Suppress("UNUSED_PARAMETER") @PathVariable workItemId: UUID,
+    ): ProblemDetail = unavailableProblem()
+
     private fun unavailableProblem(): ProblemDetail =
         ProblemDetail
             .forStatusAndDetail(
