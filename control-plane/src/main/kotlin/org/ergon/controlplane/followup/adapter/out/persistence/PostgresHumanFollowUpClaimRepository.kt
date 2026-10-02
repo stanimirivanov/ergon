@@ -9,6 +9,7 @@ import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
 import org.ergon.followup.domain.HumanFollowUpClaimSnapshot
+import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
@@ -29,7 +30,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.jvm.optionals.getOrNull
 
-/** PostgreSQL adapter for immutable, resolver-attributed follow-up claims. */
+/** PostgreSQL adapter for immutable claims and the current resolver projection. */
 @Repository
 class PostgresHumanFollowUpClaimRepository(
     private val jdbcClient: JdbcClient,
@@ -63,11 +64,11 @@ class PostgresHumanFollowUpClaimRepository(
             JOIN human_follow_up_current_ownership ownership
                 ON ownership.tenant_id = claim.tenant_id
                 AND ownership.work_item_id = claim.work_item_id
+                AND ownership.ownership_revision = claim.ownership_revision
                 AND ownership.current_claim_id = claim.claim_id
-                AND ownership.current_resolver_actor_id = claim.resolver_actor_id
-                AND ownership.current_claimed_at = claim.claimed_at
             WHERE claim.tenant_id = :tenantId
                 AND claim.work_item_id = :workItemId
+                AND claim.event_type = 'CLAIMED'
             """.trimIndent(),
         ).param("tenantId", tenantId.value)
             .param("workItemId", workItemId.value)
@@ -104,6 +105,60 @@ class PostgresHumanFollowUpClaimRepository(
         return StoredHumanFollowUpClaim(claim, recordedAt.toInstant())
     }
 
+    override fun createLater(
+        tenantId: TenantId,
+        claim: HumanFollowUpClaim,
+        expectedRevision: HumanFollowUpOwnershipRevision,
+    ): StoredHumanFollowUpClaim {
+        val resultingRevision = expectedRevision.value + 1
+        val recordedAt =
+            jdbcClient
+                .sql(
+                    """
+                    INSERT INTO human_follow_up_ownership_events (
+                        tenant_id, work_item_id, ownership_revision, event_type,
+                        claim_id, resolver_actor_id, authority_evidence_id, occurred_at
+                    ) VALUES (
+                        :tenantId, :workItemId, :revision, 'CLAIMED',
+                        :claimId, :actorId, :evidenceId, :claimedAt
+                    )
+                    RETURNING recorded_at
+                    """.trimIndent(),
+                ).param("tenantId", tenantId.value)
+                .param("workItemId", claim.workItemId.value)
+                .param("revision", resultingRevision)
+                .param("claimId", claim.id.value)
+                .param("actorId", claim.resolverActorId.value)
+                .param("evidenceId", claim.authorityEvidenceId.value)
+                .param("claimedAt", claim.claimedAt.atOffset(ZoneOffset.UTC))
+                .query(OffsetDateTime::class.java)
+                .single()
+        val updated =
+            jdbcClient
+                .sql(
+                    """
+                    UPDATE human_follow_up_current_ownership
+                    SET ownership_revision = :resultingRevision,
+                        current_claim_id = :claimId,
+                        current_resolver_actor_id = :actorId,
+                        current_claimed_at = :claimedAt
+                    WHERE tenant_id = :tenantId
+                        AND work_item_id = :workItemId
+                        AND ownership_revision = :expectedRevision
+                        AND current_claim_id IS NULL
+                    """.trimIndent(),
+                ).param("tenantId", tenantId.value)
+                .param("workItemId", claim.workItemId.value)
+                .param("expectedRevision", expectedRevision.value)
+                .param("resultingRevision", resultingRevision)
+                .param("claimId", claim.id.value)
+                .param("actorId", claim.resolverActorId.value)
+                .param("claimedAt", claim.claimedAt.atOffset(ZoneOffset.UTC))
+                .update()
+        check(updated == 1) { "released ownership projection changed during later claim" }
+        return StoredHumanFollowUpClaim(claim, recordedAt.toInstant())
+    }
+
     override fun findForResolver(
         tenantId: TenantId,
         workItemId: HumanFollowUpWorkItemId,
@@ -116,6 +171,7 @@ class PostgresHumanFollowUpClaimRepository(
             WHERE claim.tenant_id = :tenantId
                 AND claim.work_item_id = :workItemId
                 AND claim.claim_id = :claimId
+                AND claim.event_type = 'CLAIMED'
                 AND EXISTS (
                     SELECT 1
                     FROM approval_authority_evidence authority
@@ -149,7 +205,7 @@ class PostgresHumanFollowUpClaimRepository(
             if (after == null) {
                 ""
             } else {
-                "AND (claim.claimed_at, claim.claim_id) > (:afterClaimedAt, :afterClaimId)"
+                "AND (claim.occurred_at, claim.claim_id) > (:afterClaimedAt, :afterClaimId)"
             }
         var statement =
             ownedWorkQuery(cursorPredicate)
@@ -202,15 +258,17 @@ class PostgresHumanFollowUpClaimRepository(
                 claim.claim_id,
                 claim.resolver_actor_id,
                 claim.authority_evidence_id,
-                claim.claimed_at,
+                claim.occurred_at AS claimed_at,
                 claim.recorded_at AS claim_recorded_at
             FROM human_follow_up_current_ownership ownership
-            JOIN human_follow_up_claims claim
+            JOIN human_follow_up_ownership_events claim
                 ON claim.tenant_id = ownership.tenant_id
                 AND claim.work_item_id = ownership.work_item_id
+                AND claim.ownership_revision = ownership.ownership_revision
                 AND claim.claim_id = ownership.current_claim_id
                 AND claim.resolver_actor_id = ownership.current_resolver_actor_id
-                AND claim.claimed_at = ownership.current_claimed_at
+                AND claim.occurred_at = ownership.current_claimed_at
+                AND claim.event_type = 'CLAIMED'
             JOIN human_follow_up_work_items item
                 ON item.tenant_id = ownership.tenant_id
                 AND item.work_item_id = ownership.work_item_id
@@ -231,7 +289,7 @@ class PostgresHumanFollowUpClaimRepository(
                         AND authority.expires_at > :at
                 )
                 $cursorPredicate
-            ORDER BY claim.claimed_at, claim.claim_id
+            ORDER BY claim.occurred_at, claim.claim_id
             LIMIT :limit
             """.trimIndent(),
         )
@@ -244,9 +302,9 @@ class PostgresHumanFollowUpClaimRepository(
                 claim.work_item_id,
                 claim.resolver_actor_id,
                 claim.authority_evidence_id,
-                claim.claimed_at,
+                claim.occurred_at AS claimed_at,
                 claim.recorded_at
-            FROM human_follow_up_claims claim
+            FROM human_follow_up_ownership_events claim
             $whereClause
             """.trimIndent(),
         )

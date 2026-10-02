@@ -103,6 +103,7 @@ class HumanJwtSecurityConfiguration {
                 it.requestMatchers(HttpMethod.GET, HUMAN_FOLLOW_UP_CLAIM_PATH).authenticated()
                 it.requestMatchers(HttpMethod.POST, HUMAN_FOLLOW_UP_CLAIMS_PATH).authenticated()
                 it.requestMatchers(HttpMethod.POST, HUMAN_FOLLOW_UP_CLAIM_COMMANDS_PATH).authenticated()
+                it.requestMatchers(HttpMethod.POST, HUMAN_FOLLOW_UP_RELEASE_PATH).authenticated()
                 it.requestMatchers(HttpMethod.POST, APPROVAL_DECISION_PATH).authenticated()
                 it.requestMatchers(HttpMethod.POST, RESOLUTION_RUN_RETRY_PATH).authenticated()
                 it.requestMatchers(HttpMethod.POST, RESOLUTION_RUN_ESCALATION_PATH).authenticated()
@@ -122,6 +123,7 @@ class HumanJwtSecurityConfiguration {
         const val HUMAN_FOLLOW_UP_CLAIMS_PATH = "/internal/v1/tenants/*/human-follow-ups/*/claims"
         const val HUMAN_FOLLOW_UP_CLAIM_PATH = "/internal/v1/tenants/*/human-follow-ups/*/claims/*"
         const val HUMAN_FOLLOW_UP_CLAIM_COMMANDS_PATH = "/internal/v1/tenants/*/human-follow-ups/*/claim-commands"
+        const val HUMAN_FOLLOW_UP_RELEASE_PATH = "/internal/v1/tenants/*/human-follow-ups/*/claims/*/release"
         const val RESOLUTION_RUN_RETRY_PATH = "/internal/v1/tenants/*/resolution-runs/*/retries"
         const val RESOLUTION_RUN_ESCALATION_PATH = "/internal/v1/tenants/*/resolution-runs/*/escalations"
     }

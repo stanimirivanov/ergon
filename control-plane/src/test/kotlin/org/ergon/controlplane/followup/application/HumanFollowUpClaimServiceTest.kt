@@ -54,6 +54,8 @@ class HumanFollowUpClaimServiceTest {
     fun `current resolver claims open work once`() {
         authorize(ACTOR_ID)
         `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(true)
+        `when`(commands.currentOwnershipRevision(TENANT_ID, WORK_ITEM_ID))
+            .thenReturn(HumanFollowUpOwnershipRevision(0))
         `when`(identities.next()).thenReturn(CLAIM_ID)
         val claim = HumanFollowUpClaim.claim(CLAIM_ID, WORK_ITEM_ID, evidence(ACTOR_ID), NOW)
         val stored = StoredHumanFollowUpClaim(claim, NOW)
@@ -69,6 +71,8 @@ class HumanFollowUpClaimServiceTest {
     fun `same resolver replays original claim without allocating identity`() {
         authorize(ACTOR_ID)
         `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(true)
+        `when`(commands.currentOwnershipRevision(TENANT_ID, WORK_ITEM_ID))
+            .thenReturn(HumanFollowUpOwnershipRevision(1))
         val existing =
             StoredHumanFollowUpClaim(
                 HumanFollowUpClaim.claim(CLAIM_ID, WORK_ITEM_ID, evidence(ACTOR_ID), NOW),
@@ -86,6 +90,8 @@ class HumanFollowUpClaimServiceTest {
     fun `different resolver cannot replace existing owner`() {
         authorize(OTHER_ACTOR_ID)
         `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(true)
+        `when`(commands.currentOwnershipRevision(TENANT_ID, WORK_ITEM_ID))
+            .thenReturn(HumanFollowUpOwnershipRevision(1))
         val existing =
             StoredHumanFollowUpClaim(
                 HumanFollowUpClaim.claim(CLAIM_ID, WORK_ITEM_ID, evidence(ACTOR_ID), NOW),
@@ -181,6 +187,55 @@ class HumanFollowUpClaimServiceTest {
 
         assertThatThrownBy { service.claimWithCommand(command()) }
             .isInstanceOf(HumanFollowUpOwnershipRevisionConflictException::class.java)
+        verifyNoInteractions(identities)
+    }
+
+    @Test
+    fun `released work accepts a new command with a new claim identity`() {
+        authorize(ACTOR_ID)
+        `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(true)
+        `when`(commands.currentOwnershipRevision(TENANT_ID, WORK_ITEM_ID))
+            .thenReturn(HumanFollowUpOwnershipRevision(2))
+        `when`(identities.next()).thenReturn(CLAIM_ID)
+        val claim = HumanFollowUpClaim.claim(CLAIM_ID, WORK_ITEM_ID, evidence(ACTOR_ID), NOW)
+        val stored = StoredHumanFollowUpClaim(claim, NOW)
+        `when`(claims.createLater(TENANT_ID, claim, HumanFollowUpOwnershipRevision(2))).thenReturn(stored)
+
+        val result = service.claimWithCommand(command(expectedRevision = 2))
+
+        assertThat(result.receipt.resultingOwnershipRevision).isEqualTo(HumanFollowUpOwnershipRevision(3))
+        assertThat(result.receipt.storedClaim).isEqualTo(stored)
+        verify(claims).createLater(TENANT_ID, claim, HumanFollowUpOwnershipRevision(2))
+        verify(commands).recordCommand(
+            TENANT_ID,
+            WORK_ITEM_ID,
+            COMMAND_ID,
+            HumanFollowUpOwnershipRevision(2),
+            HumanFollowUpOwnershipRevision(3),
+        )
+    }
+
+    @Test
+    fun `legacy claim cannot reacquire released work after an ambiguous retry`() {
+        authorize(ACTOR_ID)
+        `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(true)
+        `when`(commands.currentOwnershipRevision(TENANT_ID, WORK_ITEM_ID))
+            .thenReturn(HumanFollowUpOwnershipRevision(2))
+
+        assertThatThrownBy { service.claim(TENANT_ID.value, WORK_ITEM_ID.value, ACTOR_ID.value) }
+            .isInstanceOf(HumanFollowUpAlreadyClaimedException::class.java)
+        verifyNoInteractions(identities)
+    }
+
+    @Test
+    fun `legacy claim cannot replay a later claim even when the resolver is the same`() {
+        authorize(ACTOR_ID)
+        `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(true)
+        `when`(commands.currentOwnershipRevision(TENANT_ID, WORK_ITEM_ID))
+            .thenReturn(HumanFollowUpOwnershipRevision(3))
+
+        assertThatThrownBy { service.claim(TENANT_ID.value, WORK_ITEM_ID.value, ACTOR_ID.value) }
+            .isInstanceOf(HumanFollowUpAlreadyClaimedException::class.java)
         verifyNoInteractions(identities)
     }
 

@@ -59,8 +59,11 @@ The current slice can:
 24. claim first-owner work through an internal revision-checked command with a
     durable exact-replay receipt; and
 25. submit the same first-claim intent through an independent CSRF-protected
-    browser contract without exposing resolver or authority attribution, while
-    leaving release disabled.
+    browser contract without exposing resolver or authority attribution; and
+26. release an exact active claim on the internal resolver boundary, return
+    work to its original shared queue, and acquire a later distinct claim using
+    a new revision-checked command while preserving historical attribution;
+    release is disabled by default until upgraded ownership readers are deployed.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -145,7 +148,7 @@ GitHub SCM URL retains its factual existing repository name.
 ## Deliberate limitations
 
 - No queue administration, configurable routing, automatic assignment,
-  reassignment, release, priority, due-time, lifecycle transition, or
+  reassignment, priority, due-time, completion, or
   notification.
 - No automatic resolution-contract selection or multi-step interpreter.
 - No AI-assisted semantic binding or Ergon evidence compiler.

@@ -6,6 +6,8 @@ import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommandRepo
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimIdentityGenerator
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
+import org.ergon.controlplane.followup.application.HumanFollowUpReleaseRepository
+import org.ergon.controlplane.followup.application.HumanFollowUpReleaseService
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemIdentityGenerator
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemQueryService
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemRepository
@@ -17,6 +19,7 @@ import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
 import org.ergon.followup.domain.HumanFollowUpClaimId
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
@@ -53,6 +56,18 @@ class HumanFollowUpConfiguration {
         transactionRunner: TransactionRunner,
         clock: Clock,
     ) = HumanFollowUpClaimService(claims, commands, authorities, identities, transactionRunner, clock)
+
+    @Bean
+    @Suppress("LongParameterList") // Composition root makes the release transaction dependencies explicit.
+    fun humanFollowUpReleaseService(
+        claims: HumanFollowUpClaimRepository,
+        commands: HumanFollowUpClaimCommandRepository,
+        releases: HumanFollowUpReleaseRepository,
+        authorities: HumanAuthorityRepository,
+        transactionRunner: TransactionRunner,
+        clock: Clock,
+        @Value("\${ergon.follow-up.release-enabled}") enabled: Boolean,
+    ) = HumanFollowUpReleaseService(claims, commands, releases, authorities, transactionRunner, clock, enabled)
 
     @Bean
     @Suppress("LongParameterList") // Composition roots make dependencies explicit for Spring wiring.

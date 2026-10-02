@@ -108,7 +108,9 @@ Candidate PR-sized outcomes:
   exact-replay receipt on the internal resolver boundary.
 - Delivered: expose revision-checked first claiming through a browser-specific
   CSRF-protected contract without private resolver attribution.
-- Define priority, reassignment, release, and completion semantics separately.
+- Delivered: release current ownership and reacquire work through revisioned
+  internal commands while preserving immutable claim history.
+- Define priority, reassignment, and completion semantics separately.
 - Add idempotent notification delivery after durable work exists.
 - Implement the minimum resolver console for evidence, approvals, execution,
   verification, and handoff.

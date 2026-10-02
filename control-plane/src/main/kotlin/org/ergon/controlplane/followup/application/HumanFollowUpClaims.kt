@@ -81,7 +81,7 @@ interface HumanFollowUpClaimRepository {
         workItemId: HumanFollowUpWorkItemId,
     ): Boolean
 
-    /** @return the active first claim for [workItemId], or `null` while unclaimed. */
+    /** @return the active claim for [workItemId], or `null` while unclaimed. */
     fun findByWorkItem(
         tenantId: TenantId,
         workItemId: HumanFollowUpWorkItemId,
@@ -91,6 +91,13 @@ interface HumanFollowUpClaimRepository {
     fun create(
         tenantId: TenantId,
         claim: HumanFollowUpClaim,
+    ): StoredHumanFollowUpClaim
+
+    /** Appends a later claim and advances the released ownership projection atomically. */
+    fun createLater(
+        tenantId: TenantId,
+        claim: HumanFollowUpClaim,
+        expectedRevision: HumanFollowUpOwnershipRevision,
     ): StoredHumanFollowUpClaim
 
     /**
@@ -179,7 +186,9 @@ class HumanFollowUpClaimNotFoundException(
 ) : RuntimeException("human follow-up claim $claimId was not found")
 
 /** Rejects malformed revisioned claim input before any storage or authority lookup. */
-class InvalidHumanFollowUpClaimCommandException : RuntimeException("expectedOwnershipRevision must not be negative")
+class InvalidHumanFollowUpClaimCommandException(
+    message: String = "expectedOwnershipRevision must not be negative",
+) : RuntimeException(message)
 
 /** Rejects reuse of one command identity with a different actor or expected revision. */
 class HumanFollowUpClaimCommandConflictException :
@@ -229,11 +238,20 @@ class HumanFollowUpClaimService(
             if (!claims.lockOpenWorkItem(scopedTenantId, scopedWorkItemId)) {
                 throw HumanFollowUpWorkItemNotFoundException(workItemId)
             }
+            val currentRevision = commands.currentOwnershipRevision(scopedTenantId, scopedWorkItemId)
+            // Legacy retry has no command identity and can refer only to the
+            // original claim, never to a later ownership cycle.
+            if (currentRevision.value > 1L) {
+                throw HumanFollowUpAlreadyClaimedException(workItemId)
+            }
             claims.findByWorkItem(scopedTenantId, scopedWorkItemId)?.let { existing ->
                 if (existing.claim.resolverActorId != scopedActorId) {
                     throw HumanFollowUpAlreadyClaimedException(workItemId)
                 }
                 return@required HumanFollowUpClaimRecording(existing, created = false)
+            }
+            if (currentRevision.value != 0L) {
+                throw HumanFollowUpAlreadyClaimedException(workItemId)
             }
             val claim = HumanFollowUpClaim.claim(identities.next(), scopedWorkItemId, authority, now)
             HumanFollowUpClaimRecording(claims.create(scopedTenantId, claim), created = true)
@@ -243,8 +261,8 @@ class HumanFollowUpClaimService(
      * Applies one revision-checked claim intent or returns its exact durable receipt.
      *
      * Unlike the legacy same-resolver replay, a different command identity never
-     * reuses an existing claim. The current slice accepts only the initial
-     * `0 -> 1` transition; later claim cycles require the release capability.
+     * reuses an existing claim. A later claim requires a released projection and
+     * the exact current ownership revision.
      *
      * @throws InvalidHumanFollowUpClaimCommandException for a negative revision.
      * @throws CurrentHumanFollowUpResolverAuthorityNotFoundException without
@@ -255,6 +273,7 @@ class HumanFollowUpClaimService(
      * @throws HumanFollowUpOwnershipRevisionConflictException when ownership
      *   changed or an initial claim is already present.
      */
+    @Suppress("ThrowsCount") // Distinct failures preserve the command's security and conflict contract.
     fun claimWithCommand(command: HumanFollowUpClaimCommand): HumanFollowUpClaimCommandRecording {
         if (command.expectedOwnershipRevision < 0) {
             throw InvalidHumanFollowUpClaimCommandException()
@@ -275,13 +294,22 @@ class HumanFollowUpClaimService(
                 return@required replayCommand(prior, actorId, expectedRevision)
             }
 
-            // A second first-claim insert would violate the immutable singleton
-            // constraint. Release must introduce a separate later-claim write path.
-            requireInitialClaimRevision(commands.currentOwnershipRevision(tenantId, workItemId), expectedRevision)
+            val currentRevision = commands.currentOwnershipRevision(tenantId, workItemId)
+            if (currentRevision != expectedRevision ||
+                currentRevision.value == Long.MAX_VALUE ||
+                claims.findByWorkItem(tenantId, workItemId) != null
+            ) {
+                throw HumanFollowUpOwnershipRevisionConflictException()
+            }
 
             val claim = HumanFollowUpClaim.claim(identities.next(), workItemId, authority, now)
-            val storedClaim = claims.create(tenantId, claim)
-            val resultingRevision = HumanFollowUpOwnershipRevision(1)
+            val storedClaim =
+                if (currentRevision.value == 0L) {
+                    claims.create(tenantId, claim)
+                } else {
+                    claims.createLater(tenantId, claim, currentRevision)
+                }
+            val resultingRevision = HumanFollowUpOwnershipRevision(currentRevision.value + 1)
             commands.recordCommand(tenantId, workItemId, commandId, expectedRevision, resultingRevision)
             HumanFollowUpClaimCommandRecording(
                 StoredHumanFollowUpClaimCommand(commandId, expectedRevision, resultingRevision, storedClaim),
@@ -301,15 +329,6 @@ class HumanFollowUpClaimService(
             throw HumanFollowUpClaimCommandConflictException()
         }
         return HumanFollowUpClaimCommandRecording(prior, created = false)
-    }
-
-    private fun requireInitialClaimRevision(
-        currentRevision: HumanFollowUpOwnershipRevision,
-        expectedRevision: HumanFollowUpOwnershipRevision,
-    ) {
-        if (currentRevision != expectedRevision || expectedRevision.value != 0L) {
-            throw HumanFollowUpOwnershipRevisionConflictException()
-        }
     }
 
     /**
