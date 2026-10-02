@@ -106,6 +106,8 @@ Candidate PR-sized outcomes:
   that caused an owned escalation, without browser-visible private attribution.
 - Delivered: accept a revision-checked first-claim command with a durable
   exact-replay receipt on the internal resolver boundary.
+- Delivered: expose revision-checked first claiming through a browser-specific
+  CSRF-protected contract without private resolver attribution.
 - Define priority, reassignment, release, and completion semantics separately.
 - Add idempotent notification delivery after durable work exists.
 - Implement the minimum resolver console for evidence, approvals, execution,

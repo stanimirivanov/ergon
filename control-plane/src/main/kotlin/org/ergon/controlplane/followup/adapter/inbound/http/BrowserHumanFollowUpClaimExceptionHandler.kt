@@ -3,7 +3,10 @@ package org.ergon.controlplane.followup.adapter.inbound.http
 import jakarta.servlet.http.HttpServletRequest
 import org.ergon.controlplane.followup.application.CurrentHumanFollowUpResolverAuthorityNotFoundException
 import org.ergon.controlplane.followup.application.HumanFollowUpAlreadyClaimedException
+import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommandConflictException
+import org.ergon.controlplane.followup.application.HumanFollowUpOwnershipRevisionConflictException
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemNotFoundException
+import org.ergon.controlplane.followup.application.InvalidHumanFollowUpClaimCommandException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidAuthenticatedHumanIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidBrowserOidcIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.UntrustedHumanIdentityIssuerException
@@ -17,6 +20,45 @@ import java.net.URI
 /** Maps browser claim failures without exposing authority evidence or provider bindings. */
 @RestControllerAdvice(assignableTypes = [BrowserHumanFollowUpClaimController::class])
 class BrowserHumanFollowUpClaimExceptionHandler {
+    @ExceptionHandler(InvalidHumanFollowUpClaimCommandException::class)
+    fun invalidClaimCommand(
+        exception: InvalidHumanFollowUpClaimCommandException,
+        request: HttpServletRequest,
+    ): ProblemDetail =
+        problem(
+            HttpStatus.BAD_REQUEST,
+            "urn:ergon:problem:invalid-human-follow-up-claim-command",
+            "Invalid human follow-up claim command",
+            exception.message.orEmpty(),
+            request,
+        )
+
+    @ExceptionHandler(HumanFollowUpClaimCommandConflictException::class)
+    fun claimCommandConflict(
+        exception: HumanFollowUpClaimCommandConflictException,
+        request: HttpServletRequest,
+    ): ProblemDetail =
+        problem(
+            HttpStatus.CONFLICT,
+            "urn:ergon:problem:human-follow-up-claim-command-conflict",
+            "Human follow-up claim command conflict",
+            exception.message.orEmpty(),
+            request,
+        )
+
+    @ExceptionHandler(HumanFollowUpOwnershipRevisionConflictException::class)
+    fun ownershipRevisionConflict(
+        exception: HumanFollowUpOwnershipRevisionConflictException,
+        request: HttpServletRequest,
+    ): ProblemDetail =
+        problem(
+            HttpStatus.CONFLICT,
+            "urn:ergon:problem:human-follow-up-ownership-revision-conflict",
+            "Human follow-up ownership revision conflict",
+            exception.message.orEmpty(),
+            request,
+        )
+
     @ExceptionHandler(HumanFollowUpAlreadyClaimedException::class)
     fun alreadyClaimed(
         exception: HumanFollowUpAlreadyClaimedException,

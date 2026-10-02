@@ -60,5 +60,15 @@ class BrowserSessionUnavailableControllerTest {
                 ),
             ).andExpect(status().isServiceUnavailable)
             .andExpect(jsonPath("$.type").value(expectedType))
+
+        mockMvc
+            .perform(
+                post(
+                    "/bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claim-commands",
+                    UUID.randomUUID(),
+                    UUID.randomUUID(),
+                ),
+            ).andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.type").value(expectedType))
     }
 }

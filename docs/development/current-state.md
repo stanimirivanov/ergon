@@ -57,7 +57,10 @@ The current slice can:
     run snapshot, failed connector outcome, and exhausted-retry decision without
     disclosing claim, provider-operation, or authority attribution; and
 24. claim first-owner work through an internal revision-checked command with a
-    durable exact-replay receipt, while leaving release disabled.
+    durable exact-replay receipt; and
+25. submit the same first-claim intent through an independent CSRF-protected
+    browser contract without exposing resolver or authority attribution, while
+    leaving release disabled.
 
 Detailed HTTP semantics live with their capabilities:
 

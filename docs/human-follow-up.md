@@ -122,6 +122,36 @@ ambiguous response. It does not establish a blanket automatic-retry policy for
 other mutations. See
 [ADR 0038](decisions/0038-protect-browser-commands-with-session-csrf-tokens.md).
 
+### Revision-checked browser claim
+
+The browser can submit an explicit first-claim intent with the same
+session-bound CSRF token:
+
+```text
+POST /bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claim-commands
+X-CSRF-TOKEN: {opaque session token}
+Content-Type: application/json
+
+{"commandId":"<UUID>","expectedOwnershipRevision":0}
+```
+
+The BFF resolves the actor from the OIDC session; the request contract has no
+actor or authority-evidence fields. A new first claim returns `201`; an
+exact retry by the same resolver, command ID, and expected revision returns
+`200` with the original `commandId`, resulting `ownershipRevision`, and nested
+browser-safe claim. The nested claim has only `claimId`, `workItemId`,
+`claimedAt`, and `recordedAt`; neither response exposes the provider subject,
+resolver actor, authority evidence, or tokens. Command IDs are scoped to one
+tenant and work item.
+
+The route applies only the `0` to `1` transition. Changed command intent and
+stale revision return `409` with distinct stable problem types; negative
+revision returns `400`. Authentication, tenant binding, current resolver
+authority, CSRF, and no-store rules match the existing browser claim route.
+When browser sessions are disabled it returns
+`503 browser-authentication-unavailable`. The existing browser claim route is
+unchanged and must not be used for a later claim cycle.
+
 ## Browser resolver-owned work
 
 An authenticated browser-session resolver can recover active claims with:
