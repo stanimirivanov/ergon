@@ -2,6 +2,7 @@ package org.ergon.controlplane.followup
 
 import org.ergon.controlplane.cases.application.CaseTimelineRepository
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommandRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimIdentityGenerator
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
@@ -16,6 +17,7 @@ import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunEscalationRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
+import org.ergon.controlplane.resolution.application.ResolutionRunRetryRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
 import org.ergon.followup.domain.HumanFollowUpClaimId
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
@@ -78,6 +80,8 @@ class HumanFollowUpConfiguration {
         transitions: ResolutionRunTransitionRepository,
         receipts: CapabilityInvocationReceiptRepository,
         escalations: ResolutionRunEscalationRepository,
+        retries: ResolutionRunRetryRepository,
+        contracts: ResolutionContractRevisionRepository,
         transactionRunner: TransactionRunner,
         clock: Clock,
     ) = ResolverFollowUpCaseSummaryService(
@@ -87,6 +91,8 @@ class HumanFollowUpConfiguration {
         transitions,
         receipts,
         escalations,
+        retries,
+        contracts,
         transactionRunner,
         clock,
     )

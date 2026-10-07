@@ -221,10 +221,19 @@ GET /bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/case-summary
 The response combines the work item's queue, reason, and timing with the case
 header, pinned contract revision, attributable source observations, immutable
 resolution-run inputs, current `ESCALATED` run state, failed connector outcome,
-and exhausted-retry decision. The execution view contains connector and timing
-but omits provider-operation, authorization-consumption, grant, and idempotency
-identifiers. The escalation view contains the retry-policy revision and exact
-attempt ceiling but omits resolver and authority-evidence attribution.
+and exhausted-retry decision. `runHistory.attempts` orders the linked durable
+attempts and their capability-result and retry transitions; it is not a live
+trace of tool spans, latencies, or cost. Each attempt identifies its run,
+attempt number, predecessor, recorded start, current state/version/update,
+capability-result event and timing, and any retry event and successor. The
+final attempt is the summary's escalated run. `outcomeProof` names the fact and
+expected value from the pinned contract. Because this handoff run is
+`ESCALATED`, not `VERIFYING`, its assessment is `NOT_ASSESSED` with reason
+`RUN_NOT_VERIFYING`: this does not mean the outcome condition was disproven.
+The execution view contains connector and timing but omits provider-operation,
+authorization-consumption, grant, and idempotency identifiers. The escalation
+view contains the retry-policy revision and exact attempt ceiling but omits
+resolver and authority-evidence attribution.
 Observation content is untrusted source data and clients must render it as text,
 never executable markup. Provider subjects and tokens are excluded.
 
@@ -233,7 +242,9 @@ The server resolves the actor from the verified OIDC session. The item must be
 authority. Absence, closure, different ownership, and lost authority all return
 the same `404 resolver-follow-up-case-summary-not-found`; case and run records
 are not read until this ownership check succeeds. The multi-query read runs in
-one transaction so its case and run projections form one database view.
+one transaction and validates relationships across its durable records. At the
+default isolation level, the transaction alone does not guarantee one
+point-in-time snapshot of every projection.
 
 The failed receipt must match the run's case, policy, step, and capability. The
 escalation must match the work item's source event, reason, attempt, and opening
@@ -246,6 +257,8 @@ disabled. See
 [ADR 0040](decisions/0040-expose-owned-follow-up-case-summary-through-browser-session.md).
 The failed-execution and retry-handoff extension is recorded in
 [ADR 0041](decisions/0041-expose-failed-execution-and-escalation-context.md).
+The run-history and pinned-proof extension is recorded in
+[ADR 0044](decisions/0044-expose-owned-run-history-and-proof-requirement.md).
 
 ## Claim and replay
 

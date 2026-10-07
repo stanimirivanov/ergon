@@ -4,6 +4,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.ergon.cases.domain.CaseId
 import org.ergon.contracts.domain.ApprovalRequirement
 import org.ergon.contracts.domain.CapabilityName
+import org.ergon.contracts.domain.ContractFactType
+import org.ergon.contracts.domain.ContractFactValue
+import org.ergon.contracts.domain.FactCondition
 import org.ergon.contracts.domain.ResolutionContractIdentity
 import org.ergon.contracts.domain.ResolutionContractKey
 import org.ergon.contracts.domain.ResolutionContractRevision
@@ -17,11 +20,13 @@ import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
 import org.ergon.controlplane.followup.application.ResolverFollowUpCaseSummary
 import org.ergon.controlplane.followup.application.ResolverFollowUpCaseSummaryNotFoundException
 import org.ergon.controlplane.followup.application.ResolverFollowUpCaseSummaryService
+import org.ergon.controlplane.followup.application.ResolverFollowUpRunAttempt
 import org.ergon.controlplane.followup.application.ResolverOwnedHumanFollowUpWork
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpClaim
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
 import org.ergon.controlplane.resolution.application.StoredCapabilityInvocationReceipt
+import org.ergon.controlplane.resolution.application.StoredResolutionRunCapabilityResult
 import org.ergon.controlplane.resolution.application.StoredResolutionRunEscalation
 import org.ergon.controlplane.resolution.application.StoredResolutionRunStart
 import org.ergon.followup.domain.HumanFollowUpClaim
@@ -48,6 +53,8 @@ import org.ergon.resolution.domain.ResolutionPolicyRevision
 import org.ergon.resolution.domain.ResolutionRetryDenialReason
 import org.ergon.resolution.domain.ResolutionRetryEligibility
 import org.ergon.resolution.domain.ResolutionRetryPolicyRevision
+import org.ergon.resolution.domain.ResolutionRunCapabilityResult
+import org.ergon.resolution.domain.ResolutionRunCapabilityResultSnapshot
 import org.ergon.resolution.domain.ResolutionRunEscalationAuthorization
 import org.ergon.resolution.domain.ResolutionRunEscalationReason
 import org.ergon.resolution.domain.ResolutionRunEscalationRequested
@@ -149,6 +156,42 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
             .andExpect(jsonPath("$.subject").doesNotExist())
             .andExpect(jsonPath("$.accessToken").doesNotExist())
             .andExpect(jsonPath("$.idToken").doesNotExist())
+
+        Mockito.verify(summaries).get(tenantId, WORK_ITEM_ID.value, actorId)
+    }
+
+    @Test
+    fun `returns durable attempt history and unassessed proof without private execution identifiers`() {
+        val tenantId = UUID.randomUUID()
+        val actorId = registerActor(tenantId)
+        Mockito
+            .`when`(summaries.get(tenantId, WORK_ITEM_ID.value, actorId))
+            .thenReturn(summary(actorId))
+
+        mockMvc
+            .perform(get(SUMMARY_PATH, tenantId, WORK_ITEM_ID.value).with(verifiedSession()))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.runHistory.attempts.length()").value(1))
+            .andExpect(jsonPath("$.runHistory.attempts[0].runId").value(RUN_ID.value.toString()))
+            .andExpect(jsonPath("$.runHistory.attempts[0].attemptNumber").value(1))
+            .andExpect(jsonPath("$.runHistory.attempts[0].predecessorRunId").doesNotExist())
+            .andExpect(jsonPath("$.runHistory.attempts[0].state").value("ESCALATED"))
+            .andExpect(jsonPath("$.runHistory.attempts[0].stateVersion").value(2))
+            .andExpect(jsonPath("$.runHistory.attempts[0].capabilityResult.sequence").value(1))
+            .andExpect(jsonPath("$.runHistory.attempts[0].capabilityResult.fromState").value("WAITING_FOR_APPROVAL"))
+            .andExpect(jsonPath("$.runHistory.attempts[0].capabilityResult.toState").value("ACTION_FAILED"))
+            .andExpect(jsonPath("$.runHistory.attempts[0].capabilityResult.outcome").value("FAILED"))
+            .andExpect(jsonPath("$.runHistory.attempts[0].capabilityResult.connector").value("identity-stub"))
+            .andExpect(jsonPath("$.runHistory.attempts[0].capabilityResult.completedAt").value("2026-09-25T11:59:10Z"))
+            .andExpect(jsonPath("$.runHistory.attempts[0].retry").doesNotExist())
+            .andExpect(jsonPath("$.outcomeProof.fact").value("account.access.state"))
+            .andExpect(jsonPath("$.outcomeProof.expectedValue").value("ACTIVE"))
+            .andExpect(jsonPath("$.outcomeProof.assessmentStatus").value("NOT_ASSESSED"))
+            .andExpect(jsonPath("$.outcomeProof.reason").value("RUN_NOT_VERIFYING"))
+            .andExpect(jsonPath("$.runHistory.attempts[0].capabilityResult.authorizationConsumptionId").doesNotExist())
+            .andExpect(jsonPath("$.runHistory.attempts[0].capabilityResult.authorizationGrantId").doesNotExist())
+            .andExpect(jsonPath("$.runHistory.attempts[0].capabilityResult.providerOperationReference").doesNotExist())
+            .andExpect(jsonPath("$.runHistory.attempts[0].retry.authorization").doesNotExist())
 
         Mockito.verify(summaries).get(tenantId, WORK_ITEM_ID.value, actorId)
     }
@@ -345,15 +388,21 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
             .update()
     }
 
-    private fun summary(actorId: UUID) =
-        ResolverFollowUpCaseSummary(
+    private fun summary(actorId: UUID): ResolverFollowUpCaseSummary {
+        val run = storedRun()
+        val state = ResolutionRunStateSnapshot(RUN_ID, ResolutionRunState.ESCALATED, 2, ESCALATED_AT)
+        val receipt = storedReceipt()
+        return ResolverFollowUpCaseSummary(
             ownedWork(actorId),
             caseTimeline(),
-            storedRun(),
-            ResolutionRunStateSnapshot(RUN_ID, ResolutionRunState.ESCALATED, 2, ESCALATED_AT),
-            storedReceipt(),
+            run,
+            state,
+            receipt,
             storedEscalation(actorId),
+            listOf(ResolverFollowUpRunAttempt(run, state, receipt, storedResult(), null)),
+            FactCondition(ContractFactType.of("account.access.state"), ContractFactValue.of("ACTIVE")),
         )
+    }
 
     private fun ownedWork(actorId: UUID): ResolverOwnedHumanFollowUpWork {
         val evidence =
@@ -457,6 +506,24 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
             )
         return StoredCapabilityInvocationReceipt(receipt, NOW.minusSeconds(49))
     }
+
+    private fun storedResult(): StoredResolutionRunCapabilityResult =
+        StoredResolutionRunCapabilityResult(
+            ResolutionRunCapabilityResult.rehydrate(
+                ResolutionRunCapabilityResultSnapshot(
+                    ResolutionRunEventId(UUID.randomUUID()),
+                    RUN_ID,
+                    1,
+                    ResolutionRunEventType.CAPABILITY_FAILED,
+                    ResolutionRunState.WAITING_FOR_APPROVAL,
+                    ResolutionRunState.ACTION_FAILED,
+                    CapabilityAuthorizationConsumptionId(CONSUMPTION_ID),
+                    CapabilityInvocationOutcome.FAILED,
+                    NOW.minusSeconds(50),
+                ),
+            ),
+            NOW.minusSeconds(49),
+        )
 
     private fun storedEscalation(actorId: UUID): StoredResolutionRunEscalation {
         val event =

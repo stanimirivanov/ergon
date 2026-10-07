@@ -71,6 +71,13 @@ the result pending with `VALUE_MISMATCH`.
 This endpoint is intentionally read-only. `ACCEPTED` does not append a run
 event, freeze the evidence, or close the case.
 
+The browser owned-work case summary has a narrower proof view for an escalated
+human handoff. It exposes the pinned contract's fact and expected value, but
+reports `NOT_ASSESSED` with `RUN_NOT_VERIFYING`; it does not run this assessment
+against an ineligible `ESCALATED` attempt. A failed connector result is not a
+proof result. See [human follow-up](human-follow-up.md) and
+[ADR 0044](decisions/0044-expose-owned-run-history-and-proof-requirement.md).
+
 ## Accept outcome proof
 
 Call

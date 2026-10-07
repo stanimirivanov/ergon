@@ -10,8 +10,9 @@ Resolvers can discover unclaimed work through a bounded oldest-first inbox and
 filter it by immutable named queue before acquiring authority-attributed
 ownership. They can recover their active claimed work through a separately
 paginated resolver-owned view and retrieve the case evidence plus immutable
-run, failed-execution, and exhausted-retry facts needed to continue one owned
-escalation.
+run, failed-execution, exhausted-retry, and pinned proof-requirement facts
+needed to continue one owned escalation. The attempt history is durable, not a
+live execution trace; proof remains unassessed for the escalated run.
 First claims also populate append-only ownership history and a current-owner
 projection. An internal revision-checked claim command records a durable
 client-command receipt for exact replay. Internal release and later claiming
@@ -95,8 +96,10 @@ inbox, resolver-owned active work, an owner-scoped case summary, and the
 CSRF-protected idempotent first claiming, revision-checked claim commands,
 and exact-current-claim release. Authorized browser inbox and owned-work
 reads return the current ownership revision needed for those commands.
-The case summary includes the failed connector outcome and retry-ceiling
-decision while keeping provider-operation and authority attribution server-side.
+The case summary includes ordered durable attempts, the failed connector
+outcome, the retry-ceiling decision, and the pinned but unassessed outcome
+condition while keeping provider-operation and authority attribution
+server-side.
 The current server-side session store is process-local and is not suitable for
 a multi-instance deployment.
 

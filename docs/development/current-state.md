@@ -54,8 +54,9 @@ The current slice can:
 22. expose active work owned by the browser-session resolver without returning
     provider identity or authority attribution; and
 23. expose one owned escalation's case observations, pinned contract, immutable
-    run snapshot, failed connector outcome, and exhausted-retry decision without
-    disclosing claim, provider-operation, or authority attribution; and
+    run snapshot, ordered durable attempt history, failed connector outcome,
+    exhausted-retry decision, and pinned but unassessed outcome-proof condition
+    without disclosing claim, provider-operation, or authority attribution; and
 24. claim first-owner work through an internal revision-checked command with a
     durable exact-replay receipt; and
 25. submit the same first-claim intent through an independent CSRF-protected

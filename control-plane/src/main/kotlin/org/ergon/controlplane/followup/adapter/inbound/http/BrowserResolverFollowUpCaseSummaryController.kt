@@ -116,6 +116,51 @@ data class BrowserResolverEscalationResponse(
     val recordedAt: Instant,
 )
 
+/** Failed capability transition from one durable run attempt, with no private authorization identity. */
+data class BrowserResolverCapabilityResultResponse(
+    val sequence: Long,
+    val fromState: String,
+    val toState: String,
+    val connector: String,
+    val outcome: String,
+    val completedAt: Instant,
+    val recordedAt: Instant,
+)
+
+/** Explicit transition that superseded a failed attempt with its successor. */
+data class BrowserResolverRetryResponse(
+    val sequence: Long,
+    val replacementRunId: UUID,
+    val occurredAt: Instant,
+    val recordedAt: Instant,
+)
+
+/** One failed attempt in chronological attempt order, including its final state. */
+data class BrowserResolverRunAttemptResponse(
+    val runId: UUID,
+    val attemptNumber: Int,
+    val predecessorRunId: UUID?,
+    val startedRecordedAt: Instant,
+    val state: String,
+    val stateVersion: Long,
+    val stateUpdatedAt: Instant,
+    val capabilityResult: BrowserResolverCapabilityResultResponse,
+    val retry: BrowserResolverRetryResponse?,
+)
+
+/** Linked attempts recovered from immutable run starts and transitions, not a live trace. */
+data class BrowserResolverRunHistoryResponse(
+    val attempts: List<BrowserResolverRunAttemptResponse>,
+)
+
+/** Pinned success condition, deliberately unassessed after failed execution. */
+data class BrowserResolverOutcomeProofResponse(
+    val fact: String,
+    val expectedValue: String,
+    val assessmentStatus: String,
+    val reason: String,
+)
+
 /** Resolver-safe context for continuing one claimed follow-up. */
 data class BrowserResolverFollowUpCaseSummaryResponse(
     val followUp: BrowserResolverFollowUpSummaryResponse,
@@ -124,6 +169,8 @@ data class BrowserResolverFollowUpCaseSummaryResponse(
     val resolutionRun: BrowserResolverRunSummaryResponse,
     val failedExecution: BrowserResolverFailedExecutionResponse,
     val escalation: BrowserResolverEscalationResponse,
+    val runHistory: BrowserResolverRunHistoryResponse,
+    val outcomeProof: BrowserResolverOutcomeProofResponse,
 )
 
 private fun ResolverFollowUpCaseSummary.toBrowserResponse() =
@@ -134,6 +181,14 @@ private fun ResolverFollowUpCaseSummary.toBrowserResponse() =
         resolutionRun = toRunResponse(),
         failedExecution = toFailedExecutionResponse(),
         escalation = toEscalationResponse(),
+        runHistory = toRunHistoryResponse(),
+        outcomeProof =
+            BrowserResolverOutcomeProofResponse(
+                fact = outcomeProof.fact.value,
+                expectedValue = outcomeProof.expectedValue.value,
+                assessmentStatus = "NOT_ASSESSED",
+                reason = "RUN_NOT_VERIFYING",
+            ),
     )
 
 private fun ResolverFollowUpCaseSummary.toFollowUpResponse(): BrowserResolverFollowUpSummaryResponse {
@@ -211,4 +266,41 @@ private fun ResolverFollowUpCaseSummary.toEscalationResponse() =
         maximumAttempts = escalation.event.retryDenial.maximumAttempts,
         occurredAt = escalation.event.occurredAt,
         recordedAt = escalation.recordedAt,
+    )
+
+private fun ResolverFollowUpCaseSummary.toRunHistoryResponse() =
+    BrowserResolverRunHistoryResponse(
+        attempts =
+            runHistory.map { attempt ->
+                val run = attempt.run.run
+                val result = attempt.capabilityResult.event
+                BrowserResolverRunAttemptResponse(
+                    runId = run.id.value,
+                    attemptNumber = run.attemptNumber,
+                    predecessorRunId = run.predecessorRunId?.value,
+                    startedRecordedAt = attempt.run.recordedAt,
+                    state = attempt.state.state.name,
+                    stateVersion = attempt.state.version,
+                    stateUpdatedAt = attempt.state.updatedAt,
+                    capabilityResult =
+                        BrowserResolverCapabilityResultResponse(
+                            sequence = result.sequence,
+                            fromState = result.fromState.name,
+                            toState = result.toState.name,
+                            connector = attempt.receipt.receipt.connector.value,
+                            outcome = result.receiptOutcome.name,
+                            completedAt = result.occurredAt,
+                            recordedAt = attempt.capabilityResult.recordedAt,
+                        ),
+                    retry =
+                        attempt.retry?.let {
+                            BrowserResolverRetryResponse(
+                                sequence = it.event.sequence,
+                                replacementRunId = it.event.replacementRunId.value,
+                                occurredAt = it.event.occurredAt,
+                                recordedAt = it.recordedAt,
+                            )
+                        },
+                )
+            },
     )
