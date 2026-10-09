@@ -50,9 +50,9 @@ the Ergon rewrite boundary. They remain useful history but are not authority for
 new Ergon behavior. Ergon decisions begin at 0006. ADRs 0001–0041 retain their
 published legacy structures; ADR 0042 and later MUST use the current template.
 
-The latest published high-water mark is ADR 0044. The checker retains that
+The latest published high-water mark is ADR 0045. The checker retains that
 number independently of directory contents, so deletion does not permit reuse.
-The next new decision is 0045 unless concurrent work has already allocated it.
+The next new decision is 0046 unless concurrent work has already allocated it.
 
 ## Template
 
@@ -108,3 +108,4 @@ benchmarks rather than duplicating them.
 | 0042 | [Enforce repository documentation policy](0042-enforce-repository-documentation-policy.md) |
 | 0043 | [Define human follow-up release semantics](0043-define-human-follow-up-release-semantics.md) |
 | 0044 | [Expose owned run history and the pinned proof requirement](0044-expose-owned-run-history-and-proof-requirement.md) |
+| 0045 | [Assign resolution-run supervisors before browser disclosure](0045-assign-resolution-run-supervisors.md) |

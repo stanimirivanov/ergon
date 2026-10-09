@@ -11,7 +11,9 @@
 - Internal endpoints are development boundaries and must not be treated as a
   production authorization model.
 - The BFF exposes shared discovery, CSRF-protected claiming, resolver-owned
-  active work, and owner-scoped case context needed by the workbench.
+  active work, owner-scoped case context, and assigned-only active-run
+  discovery/detail snapshots. Assignment is machine-controlled; no live
+  execution tree or lease is implemented.
 
 ## Active Ergon slice
 
@@ -68,7 +70,11 @@ The current slice can:
     and
 27. read current ownership revisions in the browser inbox and owned-work page,
     release an exact owned claim through the CSRF-protected BFF, and submit a
-    later revision-checked browser claim without exposing private attribution.
+    later revision-checked browser claim without exposing private attribution;
+    and
+28. record one machine-authenticated initial run-supervisor assignment and
+    let its exact assignee discover and read a narrow run snapshot only while
+    current resolver authority remains.
 
 Detailed HTTP semantics live with their capabilities:
 

@@ -1,5 +1,12 @@
 # Ergon control plane
 
+## TL;DR
+
+The Spring Boot control plane persists Ergon resolution and human follow-up
+facts. A trusted machine can now record one initial run supervisor; only that
+assigned resolver can discover active runs and read their recorded start and
+current state through the browser BFF. This is read access, not a control lease.
+
 ## Purpose
 
 `control-plane` is the active Spring Boot application for Ergon cases,
@@ -17,6 +24,11 @@ First claims also populate append-only ownership history and a current-owner
 projection. An internal revision-checked claim command records a durable
 client-command receipt for exact replay. Internal release and later claiming
 append ownership events without rewriting the first claim.
+Separately, a tenant-scoped machine command can assign one initial supervisor
+to an existing resolution run. The assigned resolver can discover active runs
+and read their pinned start/current-state snapshots through the BFF while
+their resolver authority remains current. This assignment is not a lease or
+permission to execute a capability.
 Release remains disabled by default during a mixed-version rollout. Set
 `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED=true` only after every instance serving
 ownership traffic runs the new lifecycle code. Once a release is durable,
@@ -92,9 +104,10 @@ The current inventory is in [current state](../docs/development/current-state.md
 Browser endpoints under `/bff` use an optional confidential OIDC session and
 never return provider tokens to browser code. They fail with `503` while the
 feature is disabled. The BFF exposes the tenant actor session, shared resolver
-inbox, resolver-owned active work, an owner-scoped case summary, and the
-CSRF-protected idempotent first claiming, revision-checked claim commands,
-and exact-current-claim release. Authorized browser inbox and owned-work
+inbox, resolver-owned active work, an owner-scoped case summary, assigned-only
+active-run list and detail snapshots, CSRF-protected idempotent first claiming,
+revision-checked claim commands, and exact-current-claim release. Authorized
+browser inbox and owned-work
 reads return the current ownership revision needed for those commands.
 The case summary includes ordered durable attempts, the failed connector
 outcome, the retry-ceiling decision, and the pinned but unassessed outcome
@@ -103,8 +116,13 @@ server-side.
 The current server-side session store is process-local and is not suitable for
 a multi-instance deployment.
 
-Endpoints under `/internal` are not public or production-ready authorization
-boundaries. Tenant IDs in paths are scope selectors, not credentials.
+Most endpoints under `/internal` are development boundaries, not public or
+production-ready authorization. The supervisor-assignment POST is an explicit
+exception: it requires a configured-issuer JWT with dedicated audience and
+scope plus an `ergon_tenant_id` claim equal to the path tenant. Provision that
+credential only to a trusted dispatcher. Other internal routes still require
+an ingress/security design before production exposure. Tenant IDs in paths
+are scope selectors, not credentials.
 
 ## Verify
 
