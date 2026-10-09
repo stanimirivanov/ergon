@@ -11,7 +11,7 @@ internal const val RECENT_LEGACY_LAST_ADR = 41
 internal const val ADR_NUMBER_WIDTH = 4
 
 internal object AdrPolicy {
-    const val LATEST_PUBLISHED_ADR = 44
+    const val LATEST_PUBLISHED_ADR = 45
     private val filename = Regex("docs/decisions/(\\d{4})-([a-z0-9]+(?:-[a-z0-9]+)*)\\.md")
 
     fun check(repository: Repository): List<Violation> {

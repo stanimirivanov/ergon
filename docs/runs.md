@@ -38,6 +38,46 @@ execution requires the separate approval, grant, and consumption chain.
 The start row is not current execution state. Its initial value seeds a separate
 version-zero projection while the row itself remains immutable.
 
+## Assign and inspect active runs
+
+A trusted run dispatcher can nominate one initial human supervisor with
+`POST /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/supervisor-assignments`.
+The bearer JWT must come from the configured issuer, include audience
+`ergon-run-supervision`, scope `ergon.run-supervision.assign`, and an
+`ergon_tenant_id` claim matching the path tenant, and name its machine
+principal in `sub`. The body supplies an opaque `commandId` and the
+tenant-registered `supervisorActorId`. The assignee must have current,
+tenant-wide `RESOLVER` evidence. First assignment returns `201`; an exact
+command replay returns `200`; another intent for the same run or command
+returns `409`. Missing tenant-scoped runs return `404`.
+
+This first assignment is an immutable access fact, not a lease, approval,
+capability grant, or permission to steer execution. A machine subject cannot
+be supplied in the request body, and a browser resolver cannot self-assign.
+Existing runs are not backfilled. Reassignment, immediate revocation, and
+handover require a later attributable ownership contract. The assignee's
+current resolver evidence is rechecked on every browser read; an expired
+attestation stops access even though the historical assignment remains.
+
+With browser OIDC enabled, the assigned resolver can call
+`GET /bff/v1/tenants/{tenantId}/resolution-runs/assigned` for a bounded,
+oldest-assignment-first page. `limit` is `1..100` (default `30`); the
+`afterAssignedAt` and `afterAssignmentId` cursor fields must be supplied
+together. The page includes only `WAITING_FOR_APPROVAL`,
+`READY_FOR_AUTHORIZATION`, `VERIFYING`, and `ACTION_FAILED` runs. Membership is
+a current best-effort view, not a point-in-time snapshot or stable total.
+
+`GET /bff/v1/tenants/{tenantId}/resolution-runs/{runId}/console` returns the
+pinned run start, current projected state, and assignment time to that exact
+assignee, including after a terminal transition so polling can show its
+outcome. Missing, unassigned, other-tenant, differently assigned, and
+no-longer-authorized reads share one non-disclosing `404`. The BFF returns
+`no-store` responses and no authority-evidence ID, machine principal, grant,
+consumption, provider operation, or raw connector payload. This is a narrow
+recorded snapshot: it does not yet expose case evidence, run events, live
+tool-call spans, cost/latency, a lease, approval controls, or proof checks.
+See [ADR 0045](decisions/0045-assign-resolution-run-supervisors.md).
+
 ## Record a capability result
 
 After invocation has made a terminal receipt durable, call

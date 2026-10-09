@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.enums.SecuritySchemeType
 import io.swagger.v3.oas.annotations.security.SecurityScheme
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.ergon.controlplane.resolution.application.MAX_ASSIGNING_MACHINE_SUBJECT_LENGTH
 import org.ergon.identity.domain.HumanActor
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
@@ -11,6 +12,8 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
+import org.springframework.security.authorization.AuthorizationDecision
+import org.springframework.security.authorization.AuthorizationManager
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.core.AuthenticationException
@@ -18,10 +21,13 @@ import org.springframework.security.oauth2.jwt.BadJwtException
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.JwtDecoders
 import org.springframework.security.oauth2.jwt.SupplierJwtDecoder
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext
 import tools.jackson.databind.ObjectMapper
 import java.net.URI
+import java.util.UUID
 
 /**
  * Immutable mapping from one trusted token issuer to Ergon's stable provider name.
@@ -90,6 +96,7 @@ class HumanJwtSecurityConfiguration {
     fun humanJwtSecurityFilterChain(
         http: HttpSecurity,
         jwtDecoder: JwtDecoder,
+        trust: HumanJwtTrust,
         authenticationEntryPoint: HumanJwtAuthenticationEntryPoint,
     ): SecurityFilterChain {
         http
@@ -97,6 +104,19 @@ class HumanJwtSecurityConfiguration {
             .csrf { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
+                it
+                    .requestMatchers(HttpMethod.POST, RUN_SUPERVISOR_ASSIGNMENTS_PATH)
+                    .access(runSupervisorAssignmentAccess(trust))
+                // A servlet-path variant must never fall through to the legacy
+                // permit-all internal-route default.
+                it
+                    .requestMatchers(
+                        HttpMethod.POST,
+                        "/internal/v1/tenants/*/resolution-runs/*/supervisor-assignments/**",
+                    ).denyAll()
+                it
+                    .requestMatchers(HttpMethod.POST, "/internal/v1/tenants/*/resolution-runs/*/supervisor-assignments")
+                    .denyAll()
                 it.requestMatchers(HttpMethod.GET, CURRENT_HUMAN_ACTOR_PATH).authenticated()
                 it.requestMatchers(HttpMethod.GET, HUMAN_FOLLOW_UP_COLLECTION_PATH).authenticated()
                 it.requestMatchers(HttpMethod.GET, HUMAN_FOLLOW_UP_PATH).authenticated()
@@ -126,8 +146,60 @@ class HumanJwtSecurityConfiguration {
         const val HUMAN_FOLLOW_UP_RELEASE_PATH = "/internal/v1/tenants/*/human-follow-ups/*/claims/*/release"
         const val RESOLUTION_RUN_RETRY_PATH = "/internal/v1/tenants/*/resolution-runs/*/retries"
         const val RESOLUTION_RUN_ESCALATION_PATH = "/internal/v1/tenants/*/resolution-runs/*/escalations"
+        const val RUN_SUPERVISOR_ASSIGNMENTS_PATH =
+            "/internal/v1/tenants/{tenantId}/resolution-runs/{runId}/supervisor-assignments"
     }
 }
+
+private const val RUN_SUPERVISION_ASSIGN_SCOPE = "SCOPE_ergon.run-supervision.assign"
+private const val RUN_SUPERVISION_AUDIENCE = "ergon-run-supervision"
+private const val RUN_SUPERVISION_TENANT_CLAIM = "ergon_tenant_id"
+
+/**
+ * Requires a trusted machine token scoped to the exact path tenant before assignment dispatch.
+ *
+ * A missing or noncanonical tenant claim, nonmatching path, or unconfigured
+ * issuer fails closed. The tenant claim must be a string UUID, not a human-selected header.
+ */
+private fun runSupervisorAssignmentAccess(trust: HumanJwtTrust): AuthorizationManager<RequestAuthorizationContext> =
+    AuthorizationManager { authentication, context ->
+        val token = authentication.get() as? JwtAuthenticationToken
+        // RequestAuthorizationContext variables are not populated by every matcher
+        // implementation; derive the tenant from the already-matched exact path.
+        val pathTenantId =
+            RUN_SUPERVISION_PATH
+                .matchEntire(
+                    context.request.requestURI.removePrefix(context.request.contextPath),
+                )?.groupValues
+                ?.get(1)
+        val tokenTenantId = token?.token?.claims?.get(RUN_SUPERVISION_TENANT_CLAIM) as? String
+        AuthorizationDecision(
+            trust.issuer != null &&
+                token?.isAuthenticated == true &&
+                // JWT exposes its issuer as URL; configuration stores URI. Exact text
+                // comparison retains the configured issuer boundary across those types.
+                token.token.issuer?.toString() == trust.issuer.toString() &&
+                token.token.audience?.contains(RUN_SUPERVISION_AUDIENCE) == true &&
+                token.token.subject?.let {
+                    it.isNotBlank() && it.length <= MAX_ASSIGNING_MACHINE_SUBJECT_LENGTH
+                } == true &&
+                token.authorities.any { it.authority == RUN_SUPERVISION_ASSIGN_SCOPE } &&
+                canonicalTenantIdMatches(pathTenantId, tokenTenantId),
+        )
+    }
+
+private fun canonicalTenantIdMatches(
+    pathTenantId: String?,
+    tokenTenantId: String?,
+): Boolean {
+    if (pathTenantId == null || tokenTenantId == null || pathTenantId != tokenTenantId) {
+        return false
+    }
+    return runCatching { UUID.fromString(pathTenantId).toString() == pathTenantId }.getOrDefault(false)
+}
+
+private val RUN_SUPERVISION_PATH =
+    Regex("^/internal/v1/tenants/([^/]+)/resolution-runs/([^/]+)/supervisor-assignments$")
 
 /** Writes stable RFC 9457 details for requests rejected before controller dispatch. */
 class HumanJwtAuthenticationEntryPoint(

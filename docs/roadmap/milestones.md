@@ -8,7 +8,8 @@
   foundations; their delivered work is already represented in repository
   history.
 - M04 completes guarded execution, outcome verification, retry, and escalation.
-- M05 is building the durable human follow-up and resolver experience.
+- M05 is building durable human follow-up and an assigned-supervisor Resolver
+  Console; the target Console also needs work in M03, M04, and M06.
 - GitHub owns live issue state; this file owns intended sequence and boundaries.
 - M08 is the published high-water mark; published milestone numbers are never
   removed, reused, or renumbered.
@@ -114,12 +115,56 @@ Candidate PR-sized outcomes:
   release/later-claim cycle without private attribution.
 - Define priority, reassignment, and completion semantics separately.
 - Add idempotent notification delivery after durable work exists.
-- Implement the minimum resolver console for evidence, approvals, execution,
-  verification, and handoff.
+- Establish explicit run-supervisor assignment and assigned-only browser reads
+  before exposing active runs in the Console.
+- Deliver a responsive, accessible active-run Console from recorded facts,
+  without presenting assignment as a lease or inventing execution spans.
 - Implement the adaptive requester canvas over the same case API.
 
 Completion means a resolver can accept and continue an escalated case from
-structured evidence without relying on transcript reconstruction.
+structured evidence, and an explicitly assigned supervisor can inspect an
+active run without relying on transcript reconstruction or tenant-wide run
+disclosure.
+
+### Planned Resolver Console issue sequence
+
+These are proposed issue titles, not claims of delivered behavior. Each task
+is one coherent, reviewable capability; UI-bearing changes include responsive
+layout, accessibility, state binding, focused tests, and an updated executable
+user-guide scenario. Backend-first contracts and browser composition may need
+separate pull requests because they live in different repositories.
+
+1. **M05 - Human follow-up and resolver console:** Assign resolution-run
+   supervisors and expose assigned-only active-run browser reads. Use a
+   dedicated machine-authenticated assignment command; do not allow browser
+   self-assignment. See [ADR 0045](../decisions/0045-assign-resolution-run-supervisors.md).
+2. **M05 - Human follow-up and resolver console:** Deliver the active-run
+   Resolver Console for assigned supervisors. Compose the entire responsive
+   three-pane read experience, including loading, revalidation, absence, and
+   terminal states, from the reviewed BFF contract.
+3. **M04 - Guarded Execution and Verification:** Record and project ordered
+   resolution-step execution with attributable measurements. The current run
+   pins one step; a six-stage waterfall, spans, latency, and cost must be
+   recorded before the UI can show them as facts.
+4. **M05 - Human follow-up and resolver console:** Add exclusive supervisor
+   control, conflict visibility, and explicit handover. Assignment alone is
+   not an expiring lease or permission to steer a run.
+5. **M03 - Human authority and policy:** Review and decide pending capability
+   authorization from the Resolver Console. Bind browser actions to current
+   approval and deterministic gate contracts, not the recorded policy label.
+6. **M06 - Evidence compiler:** Review attributable claims and contradictions
+   from the Resolver Console. Compile typed claims, validity, citations, and
+   conflict meaning rather than relabeling raw observations as verified facts.
+7. **M04 - Guarded Execution and Verification:** Track verification checks and
+   accepted outcome proof in the Resolver Console. Display real check state
+   and proof provenance, never a synthetic completion count.
+8. **M04 - Guarded Execution and Verification:** Steer supervised runs through
+   deterministic, auditable commands. Define bounded command and authority
+   semantics before enabling the mock's Steer control.
+
+The concept images are a visual direction, not source data. The first two
+issues do not promise lease countdowns, live spans, cost totals, verified
+claims, contradictions, approval commands, or a multi-check proof result.
 
 ## M06 - Evidence compiler
 
