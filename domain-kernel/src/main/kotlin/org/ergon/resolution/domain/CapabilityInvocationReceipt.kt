@@ -47,6 +47,25 @@ data class CapabilityInvocationResult(
     val providerOperationReference: ProviderOperationReference,
 )
 
+/**
+ * Runtime-observed duration of the connector gateway call, excluding database work.
+ *
+ * [elapsedNanoseconds] is a non-negative monotonic-clock difference, not a
+ * subtraction of wall-clock instants. [startedAt] is a wall-clock observation
+ * that can be later than receipt completion after a clock correction. This is
+ * one caller's measured gateway call, not provider-internal latency or cost.
+ *
+ * @throws IllegalArgumentException when the elapsed duration is negative.
+ */
+data class CapabilityInvocationTiming(
+    val startedAt: Instant,
+    val elapsedNanoseconds: Long,
+) {
+    init {
+        require(elapsedNanoseconds >= 0) { "capability invocation elapsed duration must not be negative" }
+    }
+}
+
 /** Complete immutable values needed to rehydrate a validated invocation receipt. */
 data class CapabilityInvocationReceiptSnapshot(
     val authorizationConsumptionId: CapabilityAuthorizationConsumptionId,
@@ -62,6 +81,7 @@ data class CapabilityInvocationReceiptSnapshot(
     val providerOperationReference: ProviderOperationReference,
     val consumptionConsumedAt: Instant,
     val completedAt: Instant,
+    val timing: CapabilityInvocationTiming? = null,
 )
 
 /**
@@ -72,6 +92,8 @@ data class CapabilityInvocationReceiptSnapshot(
  * external call but before this receipt becomes durable. A receipt proves only
  * what the connector reported, not that the case outcome was independently
  * verified.
+ * [timing] is absent for historical or older-writer receipts; absence never
+ * means a zero-duration call. Replay retains the original recorded measurement.
  */
 @ConsistentCopyVisibility
 data class CapabilityInvocationReceipt private constructor(
@@ -88,6 +110,7 @@ data class CapabilityInvocationReceipt private constructor(
     val providerOperationReference: ProviderOperationReference,
     val consumptionConsumedAt: Instant,
     val completedAt: Instant,
+    val timing: CapabilityInvocationTiming?,
 ) {
     companion object {
         /**
@@ -102,6 +125,7 @@ data class CapabilityInvocationReceipt private constructor(
             consumption: CapabilityAuthorizationConsumption,
             result: CapabilityInvocationResult,
             completedAt: Instant,
+            timing: CapabilityInvocationTiming? = null,
         ): CapabilityInvocationReceipt {
             require(!completedAt.isBefore(consumption.consumedAt)) {
                 "capability invocation completion predates authorization consumption"
@@ -120,6 +144,7 @@ data class CapabilityInvocationReceipt private constructor(
                 providerOperationReference = result.providerOperationReference,
                 consumptionConsumedAt = consumption.consumedAt,
                 completedAt = completedAt,
+                timing = timing,
             )
         }
 
@@ -150,6 +175,7 @@ data class CapabilityInvocationReceipt private constructor(
                 providerOperationReference = snapshot.providerOperationReference,
                 consumptionConsumedAt = snapshot.consumptionConsumedAt,
                 completedAt = snapshot.completedAt,
+                timing = snapshot.timing,
             )
         }
     }

@@ -145,7 +145,13 @@ separate pull requests because they live in different repositories.
 3. **M04 - Guarded Execution and Verification:** Record and project ordered
    resolution-step execution with attributable measurements. The current run
    pins one step; a six-stage waterfall, spans, latency, and cost must be
-   recorded before the UI can show them as facts.
+   recorded before the UI can show them as facts. The approved first backend
+   slice records the existing gateway call's actual timing and exposes it
+   through assigned-only reads under
+   [ADR 0046](../decisions/0046-record-runtime-capability-invocation-timing.md).
+   Next, consume measured execution in one complete Console UI/user-guide slice.
+   A multi-step executor and real cost attribution remain separate runtime
+   capabilities; this receipt measurement does not deliver that whole waterfall.
 4. **M05 - Human follow-up and resolver console:** Add exclusive supervisor
    control, conflict visibility, and explicit handover. Assignment alone is
    not an expiring lease or permission to steer a run.

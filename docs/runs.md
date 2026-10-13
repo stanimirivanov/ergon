@@ -74,9 +74,59 @@ outcome. Missing, unassigned, other-tenant, differently assigned, and
 no-longer-authorized reads share one non-disclosing `404`. The BFF returns
 `no-store` responses and no authority-evidence ID, machine principal, grant,
 consumption, provider operation, or raw connector payload. This is a narrow
-recorded snapshot: it does not yet expose case evidence, run events, live
-tool-call spans, cost/latency, a lease, approval controls, or proof checks.
+recorded snapshot: it does not expose case evidence, run events, live
+tool-call spans, cost, a lease, approval controls, or proof checks. Its optional
+execution member now supplies terminal gateway timing when actually recorded.
 See [ADR 0045](decisions/0045-assign-resolution-run-supervisors.md).
+
+## Interpret measured execution
+
+Use the same assigned-only `GET /bff/v1/tenants/{tenantId}/resolution-runs/{runId}/console`.
+Recheck current access rather than relying on an old snapshot. The additive
+`execution` member has three distinct meanings:
+
+1. `execution: null`: no terminal receipt is recorded. This does not prove that
+   an uncertain external operation never occurred.
+2. An execution with `timing: null`: a terminal connector result exists, but
+   this historical/older-writer receipt has no duration measurement.
+3. An execution with timing: the runtime measured the winning receipt caller's
+   connector gateway call. Read its source and unit, not the difference between
+   wall-clock timestamps. It is not provider billing or independent proof.
+
+Illustrative execution member only:
+
+```json
+{
+  "stepId": "unlock-account",
+  "capability": "identity.account.unlock",
+  "connector": "identity-stub",
+  "outcome": "SUCCEEDED",
+  "completedAt": "2026-10-12T20:00:00.012345Z",
+  "recordedAt": "2026-10-12T20:00:00.013Z",
+  "timing": {
+    "source": "ergon.dev/measurement/connector-call/v1",
+    "startedAt": "2026-10-12T20:00:00Z",
+    "elapsedNanoseconds": "12345678"
+  }
+}
+```
+
+`elapsedNanoseconds` is a non-negative decimal integer **string**, preserving
+exact values beyond JavaScript's safe integer range. Do not coerce it to Number
+before exact processing. Nanosecond units do not promise nanosecond clock
+resolution. Null timing is unavailable, not zero; no cost is exposed or inferred.
+Step/capability identify the pinned operation. Provider-operation, grant and
+consumption coordinates stay private.
+
+During mixed-version rollout an older server may omit `execution` altogether.
+Treat that as an unavailable projection, not as proof that no receipt exists.
+
+Receipt recording does not silently advance run state. A result can be visible
+before the separate capability-result command projects it; `SUCCEEDED` is still
+not verified resolution. The current workbench does not yet render this new
+member: the next complete Console slice consumes it. Neither backend nor UI
+may invent a multi-stage waterfall from this one measured call. See
+[ADR 0046](decisions/0046-record-runtime-capability-invocation-timing.md).
 
 ## Record a capability result
 

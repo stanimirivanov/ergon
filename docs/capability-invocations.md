@@ -32,3 +32,24 @@ the grant while current. A receipt records the connector's claim only; it does
 not close the run or prove that the requester can sign in. The separate
 [run capability-result command](runs.md#record-a-capability-result) projects the
 claim into `VERIFYING` or `ACTION_FAILED` while preserving that distinction.
+
+## Measured execution
+
+New receipts also retain the runtime's wall-clock start observation and
+monotonic elapsed nanoseconds around the connector gateway call. Database reads,
+waiting after consumption and receipt persistence are excluded. Wall-clock
+timestamps are normalized to PostgreSQL microseconds; subtracting them is not
+the measurement and clock correction may place start after completion.
+
+The measurement describes the caller whose receipt became durable, not the
+provider's internal latency or the sum of uncertain/concurrent calls. Replays
+return that exact record without sampling again. A thrown connector exception
+still leaves the result unknown and creates neither receipt nor timing. Retry
+the original consumption only under its existing provider-idempotency contract.
+
+Historical and older-writer receipts have absent timing; there is no backfill
+or inferred zero. A genuinely measured zero remains valid because clock
+resolution can be coarser than its nanosecond units. Cost is not measured or
+reported. The assigned browser projection is documented in
+[resolution runs](runs.md#interpret-measured-execution), under
+[ADR 0046](decisions/0046-record-runtime-capability-invocation-timing.md).

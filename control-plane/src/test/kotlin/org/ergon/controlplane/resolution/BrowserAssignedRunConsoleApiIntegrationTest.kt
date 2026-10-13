@@ -15,10 +15,19 @@ import org.ergon.controlplane.resolution.application.AssignedRunNotFoundExceptio
 import org.ergon.controlplane.resolution.application.AssignedRunOverview
 import org.ergon.controlplane.resolution.application.AssignedRunPage
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignment
+import org.ergon.controlplane.resolution.application.StoredCapabilityInvocationReceipt
 import org.ergon.controlplane.resolution.application.StoredResolutionRunStart
 import org.ergon.controlplane.resolution.application.StoredRunSupervisorAssignment
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
+import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionId
+import org.ergon.resolution.domain.CapabilityAuthorizationGrantId
+import org.ergon.resolution.domain.CapabilityInvocationOutcome
+import org.ergon.resolution.domain.CapabilityInvocationReceipt
+import org.ergon.resolution.domain.CapabilityInvocationReceiptSnapshot
+import org.ergon.resolution.domain.CapabilityInvocationTiming
+import org.ergon.resolution.domain.ConnectorName
+import org.ergon.resolution.domain.ProviderOperationReference
 import org.ergon.resolution.domain.ResolutionPolicyRevision
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunInitialState
@@ -116,6 +125,72 @@ class BrowserAssignedRunConsoleApiIntegrationTest(
             .andExpect(jsonPath("$.assigningMachineSubject").doesNotExist())
             .andExpect(jsonPath("$.leaseOwner").doesNotExist())
             .andExpect(jsonPath("$.spans").doesNotExist())
+            .andExpect(jsonPath("$.execution").value(org.hamcrest.Matchers.nullValue()))
+    }
+
+    @Test
+    fun `assigned execution exposes exact runtime timing without private receipt coordinates or invented cost`() {
+        val tenantId = UUID.randomUUID()
+        val actorId = registerActor(tenantId)
+        Mockito
+            .`when`(console.get(tenantId, RUN_ID.value, actorId))
+            .thenReturn(detail(actorId).copy(execution = execution(measured = true)))
+
+        mockMvc
+            .perform(get(DETAIL_PATH, tenantId, RUN_ID.value).with(verifiedSession()))
+            .andExpect(status().isOk)
+            .andExpect(header().string("Cache-Control", "no-store"))
+            .andExpect(jsonPath("$.execution.stepId").value("unlock-account"))
+            .andExpect(jsonPath("$.execution.capability").value("identity.account.unlock"))
+            .andExpect(jsonPath("$.execution.connector").value("identity-stub"))
+            .andExpect(jsonPath("$.execution.outcome").value("FAILED"))
+            .andExpect(jsonPath("$.execution.timing.source").value("ergon.dev/measurement/connector-call/v1"))
+            .andExpect(jsonPath("$.execution.timing.elapsedNanoseconds").value(Long.MAX_VALUE.toString()))
+            .andExpect(jsonPath("$.execution.timing.startedAt").value(NOW.toString()))
+            .andExpect(jsonPath("$.execution.cost").doesNotExist())
+            .andExpect(jsonPath("$.execution.authorizationConsumptionId").doesNotExist())
+            .andExpect(jsonPath("$.execution.authorizationGrantId").doesNotExist())
+            .andExpect(jsonPath("$.execution.providerOperationReference").doesNotExist())
+    }
+
+    @Test
+    fun `historical execution retains outcome with explicitly absent timing`() {
+        val tenantId = UUID.randomUUID()
+        val actorId = registerActor(tenantId)
+        Mockito
+            .`when`(console.get(tenantId, RUN_ID.value, actorId))
+            .thenReturn(detail(actorId).copy(execution = execution(measured = false)))
+
+        mockMvc
+            .perform(get(DETAIL_PATH, tenantId, RUN_ID.value).with(verifiedSession()))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.execution.outcome").value("FAILED"))
+            .andExpect(jsonPath("$.execution.timing").value(org.hamcrest.Matchers.nullValue()))
+    }
+
+    private fun execution(measured: Boolean): StoredCapabilityInvocationReceipt {
+        val consumptionId = CapabilityAuthorizationConsumptionId(UUID.randomUUID())
+        return StoredCapabilityInvocationReceipt(
+            CapabilityInvocationReceipt.rehydrate(
+                CapabilityInvocationReceiptSnapshot(
+                    authorizationConsumptionId = consumptionId,
+                    authorizationGrantId = CapabilityAuthorizationGrantId(UUID.randomUUID()),
+                    runId = RUN_ID,
+                    caseId = CASE_ID,
+                    policyRevision = ResolutionPolicyRevision.of("ergon.dev/policy/access-restoration/v1"),
+                    stepId = ResolutionStepId.of("unlock-account"),
+                    capability = CapabilityName.of("identity.account.unlock"),
+                    connector = ConnectorName.of("identity-stub"),
+                    idempotencyKey = consumptionId.value,
+                    outcome = CapabilityInvocationOutcome.FAILED,
+                    providerOperationReference = ProviderOperationReference.of("private-provider-operation"),
+                    consumptionConsumedAt = NOW.minusSeconds(1),
+                    completedAt = NOW,
+                    timing = if (measured) CapabilityInvocationTiming(NOW, Long.MAX_VALUE) else null,
+                ),
+            ),
+            NOW,
+        )
     }
 
     @Test

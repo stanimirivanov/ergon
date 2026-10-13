@@ -68,6 +68,40 @@ class CapabilityInvocationReceiptTest {
         assertThat(receipt.completedAt).isAfter(Instant.parse("2026-09-14T10:15:00Z"))
     }
 
+    @Test
+    fun `elapsed timing is nonnegative and independent of wall clock correction`() {
+        assertThatThrownBy { CapabilityInvocationTiming(Instant.EPOCH, -1) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+        val timing = CapabilityInvocationTiming(Instant.parse("2026-09-14T10:02:00Z"), 0)
+        val receipt =
+            CapabilityInvocationReceipt.complete(
+                consumption(),
+                CapabilityInvocationResult(
+                    CapabilityInvocationOutcome.FAILED,
+                    ProviderOperationReference.of("operation"),
+                ),
+                Instant.parse("2026-09-14T10:01:00Z"),
+                timing,
+            )
+
+        assertThat(receipt.timing).isEqualTo(timing)
+        assertThat(timing.startedAt).isAfter(receipt.completedAt)
+    }
+
+    @Test
+    fun `legacy receipt completion leaves timing absent rather than inferring duration`() {
+        val receipt =
+            CapabilityInvocationReceipt.complete(
+                consumption(),
+                CapabilityInvocationResult(
+                    CapabilityInvocationOutcome.SUCCEEDED,
+                    ProviderOperationReference.of("operation"),
+                ),
+                Instant.parse("2026-09-14T10:16:00Z"),
+            )
+        assertThat(receipt.timing).isNull()
+    }
+
     private fun consumption(): CapabilityAuthorizationConsumption =
         CapabilityAuthorizationConsumption.rehydrate(
             CapabilityAuthorizationConsumptionSnapshot(

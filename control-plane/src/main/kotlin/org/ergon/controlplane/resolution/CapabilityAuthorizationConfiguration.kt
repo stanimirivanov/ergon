@@ -14,6 +14,7 @@ import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGran
 import org.ergon.controlplane.resolution.application.CapabilityConnectorGateway
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
 import org.ergon.controlplane.resolution.application.CapabilityInvocationService
+import org.ergon.controlplane.resolution.application.CapabilityInvocationTicker
 import org.ergon.controlplane.resolution.application.CapabilityRouteRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionId
@@ -70,11 +71,16 @@ class CapabilityAuthorizationConfiguration {
     ) = CapabilityAuthorizationConsumptionService(records, identities, transactionRunner, clock)
 
     @Bean
+    @Suppress("LongParameterList") // Explicit execution, transaction and independent timing ports.
     fun capabilityInvocationService(
         consumptions: CapabilityAuthorizationConsumptionRepository,
         receipts: CapabilityInvocationReceiptRepository,
         connector: CapabilityConnectorGateway,
         transactionRunner: TransactionRunner,
         clock: Clock,
-    ) = CapabilityInvocationService(consumptions, receipts, connector, transactionRunner, clock)
+        ticker: CapabilityInvocationTicker,
+    ) = CapabilityInvocationService(consumptions, receipts, connector, transactionRunner, clock, ticker)
+
+    @Bean
+    fun capabilityInvocationTicker() = CapabilityInvocationTicker(System::nanoTime)
 }

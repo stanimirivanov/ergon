@@ -128,7 +128,9 @@ data class BrowserAssignedRunPageResponse(
  * One run's pinned start and current state, not a live execution trace.
  *
  * This first projection excludes case evidence, human approval identities,
- * authorization consumption, connector payloads, and unrecorded span metrics.
+ * authorization consumption and connector payloads. Execution is a terminal
+ * connector receipt, not a projected transition or independent outcome proof.
+ * A null execution means no receipt; null timing means unmeasured, not zero.
  */
 data class BrowserAssignedRunDetailResponse(
     val runId: UUID,
@@ -148,6 +150,7 @@ data class BrowserAssignedRunDetailResponse(
     val stateVersion: Long,
     val stateUpdatedAt: Instant,
     val assignedAt: Instant,
+    val execution: BrowserAssignedRunExecutionResponse?,
 )
 
 private fun parseCursor(
@@ -203,6 +206,7 @@ private fun AssignedRunDetail.toResponse(): BrowserAssignedRunDetailResponse {
         stateVersion = state.version,
         stateUpdatedAt = state.updatedAt,
         assignedAt = assignment.assignment.assignedAt,
+        execution = execution?.toBrowserExecution(),
     )
 }
 

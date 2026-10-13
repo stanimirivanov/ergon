@@ -78,11 +78,18 @@ data class AssignedRunPage(
     val nextCursor: AssignedRunCursor?,
 )
 
-/** Assigned run start and current state observed in one application read. */
+/**
+ * Assigned start/state plus the exact optional terminal receipt.
+ *
+ * No receipt means execution has not been recorded, not that no external
+ * effect occurred. Receipt recording and run-state projection are separate;
+ * an available receipt need not have advanced the observed state yet.
+ */
 data class AssignedRunDetail(
     val assignment: StoredRunSupervisorAssignment,
     val start: StoredResolutionRunStart,
     val state: ResolutionRunStateSnapshot,
+    val execution: StoredCapabilityInvocationReceipt? = null,
 )
 
 /**
@@ -243,6 +250,7 @@ class RunSupervisorAssignmentService(
  * application-clock instant. Missing and unauthorized detail reads collapse
  * to one not-found outcome before private run snapshots are loaded.
  */
+@Suppress("LongParameterList") // Explicit read ports preserve authority-first lookup before private execution data.
 class AssignedRunConsoleService(
     private val assignments: RunSupervisorAssignmentRepository,
     private val authorities: HumanAuthorityRepository,
@@ -250,6 +258,7 @@ class AssignedRunConsoleService(
     private val transitions: ResolutionRunTransitionRepository,
     private val transactionRunner: TransactionRunner,
     private val clock: Clock,
+    private val receipts: CapabilityInvocationReceiptRepository,
 ) {
     /** Lists at most 100 active assigned runs, with no stable total count. */
     fun list(
@@ -283,6 +292,8 @@ class AssignedRunConsoleService(
     /**
      * Returns the assigned run even after it reaches a terminal state so a
      * polling console can report completion without inventing a live trace.
+     * Only after the gate succeeds is the receipt loaded and checked against
+     * the pinned operation. Receipt timing is historical, not live span progress.
      *
      * @throws AssignedRunNotFoundException for absent, other-tenant, other-actor,
      *   unassigned, or no-longer-authorized runs.
@@ -306,7 +317,15 @@ class AssignedRunConsoleService(
             val start = runs.find(tenant, run) ?: error("assigned run start is absent")
             val state = transitions.findState(tenant, run) ?: error("assigned run state is absent")
             check(state.runId == start.run.id) { "assigned run state belongs to another run" }
-            AssignedRunDetail(assignment, start, state)
+            val execution = receipts.findByRun(tenant, run)
+            execution?.receipt?.let { receipt ->
+                check(
+                    receipt.runId == start.run.id && receipt.caseId == start.run.caseId &&
+                        receipt.policyRevision == start.run.policyRevision && receipt.stepId == start.run.stepId &&
+                        receipt.capability == start.run.capability,
+                ) { "assigned run execution belongs to another pinned operation" }
+            }
+            AssignedRunDetail(assignment, start, state, execution)
         }
 }
 

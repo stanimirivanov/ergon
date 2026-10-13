@@ -28,7 +28,10 @@ Separately, a tenant-scoped machine command can assign one initial supervisor
 to an existing resolution run. The assigned resolver can discover active runs
 and read their pinned start/current-state snapshots through the BFF while
 their resolver authority remains current. This assignment is not a lease or
-permission to execute a capability.
+permission to execute a capability. New terminal receipts also retain runtime
+gateway timing, exposed through a sanitized optional assigned-Console execution
+member. Historical timing and unsupported cost are not inferred; browser
+rendering is a separate slice.
 Release remains disabled by default during a mixed-version rollout. Set
 `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED=true` only after every instance serving
 ownership traffic runs the new lifecycle code. Once a release is durable,
