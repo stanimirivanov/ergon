@@ -74,7 +74,11 @@ The current slice can:
     and
 28. record one machine-authenticated initial run-supervisor assignment and
     let its exact assignee discover and read a narrow run snapshot only while
-    current resolver authority remains.
+    current resolver authority remains; and
+29. retain runtime-measured terminal connector gateway timing on the exact
+    immutable receipt and disclose a sanitized optional execution through the
+    assigned-only Console read. Historical timing remains absent, cost is not
+    reported, and the current workbench does not yet render the new member.
 
 Detailed HTTP semantics live with their capabilities:
 

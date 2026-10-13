@@ -12,6 +12,7 @@ import org.ergon.resolution.domain.CapabilityAuthorizationGrantId
 import org.ergon.resolution.domain.CapabilityInvocationOutcome
 import org.ergon.resolution.domain.CapabilityInvocationReceipt
 import org.ergon.resolution.domain.CapabilityInvocationReceiptSnapshot
+import org.ergon.resolution.domain.CapabilityInvocationTiming
 import org.ergon.resolution.domain.ConnectorName
 import org.ergon.resolution.domain.ProviderOperationReference
 import org.ergon.resolution.domain.ResolutionPolicyRevision
@@ -40,7 +41,7 @@ class PostgresCapabilityInvocationReceiptRepository(
                     authorization_consumption_id, authorization_grant_id, run_id, case_id,
                     policy_revision, step_id, capability, connector, idempotency_key,
                     outcome, provider_operation_reference, consumption_consumed_at,
-                    completed_at, recorded_at
+                    completed_at, invocation_started_at, invocation_elapsed_nanoseconds, recorded_at
                 FROM capability_invocation_receipts
                 WHERE tenant_id = :tenantId AND authorization_consumption_id = :consumptionId
                 """.trimIndent(),
@@ -62,7 +63,7 @@ class PostgresCapabilityInvocationReceiptRepository(
                     authorization_consumption_id, authorization_grant_id, run_id, case_id,
                     policy_revision, step_id, capability, connector, idempotency_key,
                     outcome, provider_operation_reference, consumption_consumed_at,
-                    completed_at, recorded_at
+                    completed_at, invocation_started_at, invocation_elapsed_nanoseconds, recorded_at
                 FROM capability_invocation_receipts
                 WHERE tenant_id = :tenantId AND run_id = :runId
                 """.trimIndent(),
@@ -102,12 +103,12 @@ class PostgresCapabilityInvocationReceiptRepository(
                     tenant_id, authorization_consumption_id, authorization_grant_id,
                     run_id, case_id, policy_revision, step_id, capability, connector,
                     idempotency_key, outcome, provider_operation_reference,
-                    consumption_consumed_at, completed_at
+                    consumption_consumed_at, completed_at, invocation_started_at, invocation_elapsed_nanoseconds
                 ) VALUES (
                     :tenantId, :consumptionId, :grantId,
                     :runId, :caseId, :policyRevision, :stepId, :capability, :connector,
                     :idempotencyKey, :outcome, :providerOperationReference,
-                    :consumptionConsumedAt, :completedAt
+                    :consumptionConsumedAt, :completedAt, :invocationStartedAt, :invocationElapsedNanoseconds
                 )
                 ON CONFLICT (tenant_id, authorization_consumption_id) DO NOTHING
                 RETURNING recorded_at
@@ -126,6 +127,8 @@ class PostgresCapabilityInvocationReceiptRepository(
             .param("providerOperationReference", receipt.providerOperationReference.value)
             .param("consumptionConsumedAt", receipt.consumptionConsumedAt.atOffset(ZoneOffset.UTC))
             .param("completedAt", receipt.completedAt.atOffset(ZoneOffset.UTC))
+            .param("invocationStartedAt", receipt.timing?.startedAt?.atOffset(ZoneOffset.UTC))
+            .param("invocationElapsedNanoseconds", receipt.timing?.elapsedNanoseconds)
             .query(OffsetDateTime::class.java)
             .optional()
             .getOrNull()
@@ -133,6 +136,9 @@ class PostgresCapabilityInvocationReceiptRepository(
 
 private fun CapabilityInvocationReceiptRow.toStoredReceipt(): StoredCapabilityInvocationReceipt =
     try {
+        require((invocationStartedAt == null) == (invocationElapsedNanoseconds == null)) {
+            "stored capability invocation timing is partial"
+        }
         StoredCapabilityInvocationReceipt(
             receipt =
                 CapabilityInvocationReceipt.rehydrate(
@@ -151,6 +157,10 @@ private fun CapabilityInvocationReceiptRow.toStoredReceipt(): StoredCapabilityIn
                         providerOperationReference = ProviderOperationReference.of(providerOperationReference),
                         consumptionConsumedAt = consumptionConsumedAt.toInstant(),
                         completedAt = completedAt.toInstant(),
+                        timing =
+                            invocationStartedAt?.let {
+                                CapabilityInvocationTiming(it.toInstant(), requireNotNull(invocationElapsedNanoseconds))
+                            },
                     ),
                 ),
             recordedAt = recordedAt.toInstant(),
@@ -173,5 +183,7 @@ private data class CapabilityInvocationReceiptRow(
     val providerOperationReference: String,
     val consumptionConsumedAt: OffsetDateTime,
     val completedAt: OffsetDateTime,
+    val invocationStartedAt: OffsetDateTime?,
+    val invocationElapsedNanoseconds: Long?,
     val recordedAt: OffsetDateTime,
 )

@@ -8,6 +8,7 @@ import org.ergon.controlplane.resolution.application.AssignRunSupervisorCommand
 import org.ergon.controlplane.resolution.application.AssignedRunConsoleService
 import org.ergon.controlplane.resolution.application.AssignedRunCursor
 import org.ergon.controlplane.resolution.application.AssignedRunNotFoundException
+import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignment
@@ -15,9 +16,18 @@ import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentConf
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentIdentityGenerator
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentRepository
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentService
+import org.ergon.controlplane.resolution.application.StoredCapabilityInvocationReceipt
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
+import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionId
+import org.ergon.resolution.domain.CapabilityAuthorizationGrantId
+import org.ergon.resolution.domain.CapabilityInvocationOutcome
+import org.ergon.resolution.domain.CapabilityInvocationReceipt
+import org.ergon.resolution.domain.CapabilityInvocationReceiptSnapshot
+import org.ergon.resolution.domain.CapabilityInvocationTiming
+import org.ergon.resolution.domain.ConnectorName
+import org.ergon.resolution.domain.ProviderOperationReference
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunState
 import org.flywaydb.core.Flyway
@@ -47,11 +57,13 @@ import java.util.UUID
 )
 @Testcontainers(disabledWithoutDocker = true)
 @Transactional
+@Suppress("LongParameterList") // Real ports keep the assigned-read integration boundary explicit.
 class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
     @Autowired private val assignments: RunSupervisorAssignmentRepository,
     @Autowired private val authorities: HumanAuthorityRepository,
     @Autowired private val runs: ResolutionRunRepository,
     @Autowired private val transitions: ResolutionRunTransitionRepository,
+    @Autowired private val receipts: CapabilityInvocationReceiptRepository,
     @Autowired private val transactionRunner: TransactionRunner,
     @Autowired private val jdbcClient: JdbcClient,
 ) {
@@ -136,6 +148,86 @@ class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
             .isInstanceOf(AssignedRunNotFoundException::class.java)
     }
 
+    @Test
+    fun `only the current assigned resolver can retrieve measured execution before state projection`() {
+        val tenant = TenantId(UUID.randomUUID())
+        val run = ResolutionRunId(UUID.randomUUID())
+        val actor = HumanActorId(UUID.randomUUID())
+        val evidenceId = ApprovalAuthorityEvidenceId(UUID.randomUUID())
+        seedRunAndAuthority(tenant, run, actor, evidenceId)
+        assignments.create(tenant, assignment(run, actor, evidenceId, NOW))
+        val stored = seedMeasuredExecution(tenant, run)
+        val console = consoleService(NOW)
+        val detail = console.get(tenant.value, run.value, actor.value)
+        assertThat(detail.execution).isEqualTo(stored)
+        // Recording a receipt does not silently advance the run's projection.
+        assertThat(detail.state.version).isZero()
+        assertThatThrownBy { console.get(tenant.value, run.value, UUID.randomUUID()) }
+            .isInstanceOf(AssignedRunNotFoundException::class.java)
+        assertThatThrownBy { consoleService(NOW.plusSeconds(61)).get(tenant.value, run.value, actor.value) }
+            .isInstanceOf(AssignedRunNotFoundException::class.java)
+    }
+
+    private fun seedMeasuredExecution(
+        tenant: TenantId,
+        run: ResolutionRunId,
+    ): StoredCapabilityInvocationReceipt {
+        val start = requireNotNull(runs.find(tenant, run)).run
+        val consumptionId = CapabilityAuthorizationConsumptionId(UUID.randomUUID())
+        val grantId = CapabilityAuthorizationGrantId(UUID.randomUUID())
+        // This read-model fixture isolates receipt/assignment joins from the
+        // approval graph. The complete invocation API flow is tested separately.
+        jdbcClient.sql("SET LOCAL session_replication_role = replica").update()
+        try {
+            jdbcClient
+                .sql(
+                    """
+                    INSERT INTO capability_authorization_consumptions (
+                        tenant_id, authorization_consumption_id, authorization_grant_id,
+                        run_id, case_id, policy_revision, step_id, capability, connector,
+                        grant_authorized_at, grant_expires_at, consumed_at
+                    ) VALUES (
+                        :tenant, :consumption, :grant, :run, :case, :policy, :step, :capability,
+                        'identity-stub', :authorized, :expires, :consumed
+                    )
+                    """.trimIndent(),
+                ).param("tenant", tenant.value)
+                .param("consumption", consumptionId.value)
+                .param("grant", grantId.value)
+                .param("run", run.value)
+                .param("case", start.caseId.value)
+                .param("policy", start.policyRevision.value)
+                .param("step", start.stepId.value)
+                .param("capability", start.capability.value)
+                .param("authorized", NOW.minusSeconds(30).atOffset(ZoneOffset.UTC))
+                .param("expires", NOW.plusSeconds(60).atOffset(ZoneOffset.UTC))
+                .param("consumed", NOW.atOffset(ZoneOffset.UTC))
+                .update()
+        } finally {
+            jdbcClient.sql("SET LOCAL session_replication_role = origin").update()
+        }
+        val receipt =
+            CapabilityInvocationReceipt.rehydrate(
+                CapabilityInvocationReceiptSnapshot(
+                    consumptionId,
+                    grantId,
+                    run,
+                    start.caseId,
+                    start.policyRevision,
+                    start.stepId,
+                    start.capability,
+                    ConnectorName.of("identity-stub"),
+                    consumptionId.value,
+                    CapabilityInvocationOutcome.SUCCEEDED,
+                    ProviderOperationReference.of("private-operation"),
+                    NOW,
+                    NOW.plusSeconds(1),
+                    CapabilityInvocationTiming(NOW, 12_345_678),
+                ),
+            )
+        return receipts.createOrFind(tenant, receipt).storedReceipt
+    }
+
     private fun assignmentService(at: Instant) =
         RunSupervisorAssignmentService(
             assignments,
@@ -153,6 +245,7 @@ class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
             transitions,
             transactionRunner,
             Clock.fixed(at, ZoneOffset.UTC),
+            receipts,
         )
 
     @Test

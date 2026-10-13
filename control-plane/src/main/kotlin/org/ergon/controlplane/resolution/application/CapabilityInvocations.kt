@@ -6,9 +6,11 @@ import org.ergon.resolution.domain.CapabilityAuthorizationConsumption
 import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionId
 import org.ergon.resolution.domain.CapabilityInvocationReceipt
 import org.ergon.resolution.domain.CapabilityInvocationResult
+import org.ergon.resolution.domain.CapabilityInvocationTiming
 import org.ergon.resolution.domain.ResolutionRunId
 import java.time.Clock
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /** Exact authorized input presented to a capability connector. */
@@ -30,6 +32,17 @@ data class CapabilityInvocationCommand(
  */
 fun interface CapabilityConnectorGateway {
     fun invoke(command: CapabilityInvocationCommand): CapabilityInvocationResult
+}
+
+/**
+ * Infallible monotonic timestamps used only as differences around connector I/O.
+ *
+ * Origins are arbitrary and readings may be negative or wrap. Subtraction must
+ * produce a non-negative elapsed duration for calls shorter than 2^63 nanoseconds.
+ * Implementations do not read a wall clock; deterministic tests supply readings.
+ */
+fun interface CapabilityInvocationTicker {
+    fun readNanoseconds(): Long
 }
 
 /** Immutable connector receipt paired with database recording metadata. */
@@ -63,6 +76,8 @@ interface CapabilityInvocationReceiptRepository {
      *
      * @return an execution whose `created` flag is true only for the transaction
      *   that inserted the immutable row.
+     *   The losing caller receives the winner's entire receipt, including its
+     *   timing or unmeasured status; measurements are never merged/backfilled.
      */
     fun createOrFind(
         tenantId: TenantId,
@@ -87,6 +102,7 @@ class CapabilityInvocationService(
     private val connector: CapabilityConnectorGateway,
     private val transactionRunner: TransactionRunner,
     private val clock: Clock,
+    private val ticker: CapabilityInvocationTicker,
 ) {
     /**
      * Invokes [consumptionId] with a stable idempotency key or replays its existing receipt.
@@ -95,6 +111,11 @@ class CapabilityInvocationService(
      * no transaction or row lock is held during connector I/O. Concurrent calls
      * may reach the connector, but its idempotency contract makes them the same
      * provider operation and database uniqueness retains one receipt.
+     * The new receipt retains this caller's monotonic gateway duration. Wall
+     * timestamps are normalized to PostgreSQL microseconds; clock correction
+     * does not change elapsed time. Historical replay performs no sampling.
+     * A thrown connector exception still means an unknown result: no receipt
+     * or timing is written. Clock/invariant defects propagate without fabrication.
      *
      * @throws CapabilityAuthorizationConsumptionNotFoundException when the
      *   consumption is absent from [tenantId].
@@ -121,10 +142,20 @@ class CapabilityInvocationService(
             return CapabilityInvocationExecution(it, created = false)
         }
 
-        val result = connector.invoke(CapabilityInvocationCommand(scopedTenantId, preparation.consumption))
+        val command = CapabilityInvocationCommand(scopedTenantId, preparation.consumption)
+        val startedAt = clock.instant().truncatedTo(ChronoUnit.MICROS)
+        val startedTick = ticker.readNanoseconds()
+        val result = connector.invoke(command)
+        val elapsedNanoseconds = ticker.readNanoseconds() - startedTick
+        val completedAt = clock.instant().truncatedTo(ChronoUnit.MICROS)
         val receipt =
             try {
-                CapabilityInvocationReceipt.complete(preparation.consumption, result, clock.instant())
+                CapabilityInvocationReceipt.complete(
+                    preparation.consumption,
+                    result,
+                    completedAt,
+                    CapabilityInvocationTiming(startedAt, elapsedNanoseconds),
+                )
             } catch (exception: IllegalArgumentException) {
                 // A persisted consumption and injected clock should never contradict one another.
                 throw IllegalStateException("capability invocation receipt is inconsistent", exception)

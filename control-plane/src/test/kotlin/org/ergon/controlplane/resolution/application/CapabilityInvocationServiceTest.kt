@@ -1,6 +1,7 @@
 package org.ergon.controlplane.resolution.application
 
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.ergon.cases.domain.CaseId
 import org.ergon.contracts.domain.CapabilityName
 import org.ergon.contracts.domain.ResolutionStepId
@@ -18,6 +19,9 @@ import org.ergon.resolution.domain.ProviderOperationReference
 import org.ergon.resolution.domain.ResolutionPolicyRevision
 import org.ergon.resolution.domain.ResolutionRunId
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
+import org.mockito.Mockito
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -76,11 +80,119 @@ class CapabilityInvocationServiceTest {
         assertThat(transactions.invocations).isEqualTo(3)
     }
 
+    @ParameterizedTest
+    @EnumSource(CapabilityInvocationOutcome::class)
+    fun `records terminal timing and replays without resampling`(outcome: CapabilityInvocationOutcome) {
+        val transactions = RecordingTransactionRunner()
+        val receipts = InMemoryReceiptRepository()
+        val ticker = Mockito.mock(CapabilityInvocationTicker::class.java)
+        Mockito
+            .`when`(ticker.readNanoseconds())
+            .thenAnswer {
+                check(!transactions.active)
+                -500L
+            }.thenAnswer {
+                check(!transactions.active)
+                12_345_178L
+            }
+        val clock = Mockito.mock(Clock::class.java)
+        val start = COMPLETED_AT.plusNanos(123_456_789)
+        // The wall clock moves backwards, but remains later than consumption.
+        Mockito.`when`(clock.instant()).thenReturn(start, COMPLETED_AT.plusNanos(12_345_678))
+        val service =
+            service(
+                transactions,
+                receipts,
+                CapabilityConnectorGateway { command ->
+                    check(!transactions.active)
+                    connectorResult(command.idempotencyKey).copy(outcome = outcome)
+                },
+                consumption(),
+                ticker,
+                clock,
+            )
+
+        val first = service.invoke(TENANT_ID, CONSUMPTION_ID)
+        val replay = service.invoke(TENANT_ID, CONSUMPTION_ID)
+
+        assertThat(first.storedReceipt.receipt.outcome).isEqualTo(outcome)
+        val timing = requireNotNull(first.storedReceipt.receipt.timing)
+        assertThat(timing.elapsedNanoseconds).isEqualTo(12_345_678L)
+        assertThat(timing.startedAt).isEqualTo(COMPLETED_AT.plusNanos(123_456_000))
+        assertThat(first.storedReceipt.receipt.completedAt).isEqualTo(COMPLETED_AT.plusNanos(12_345_000))
+        assertThat(replay.storedReceipt).isEqualTo(first.storedReceipt)
+        Mockito.verify(ticker, Mockito.times(2)).readNanoseconds()
+        Mockito.verify(clock, Mockito.times(2)).instant()
+    }
+
+    @Test
+    fun `monotonic readings may wrap without changing measured duration`() {
+        val ticker = Mockito.mock(CapabilityInvocationTicker::class.java)
+        Mockito.`when`(ticker.readNanoseconds()).thenReturn(Long.MAX_VALUE - 5, Long.MIN_VALUE + 4)
+        val service =
+            service(
+                RecordingTransactionRunner(),
+                InMemoryReceiptRepository(),
+                CapabilityConnectorGateway { connectorResult(it.idempotencyKey) },
+                consumption(),
+                ticker,
+            )
+
+        assertThat(
+            service
+                .invoke(TENANT_ID, CONSUMPTION_ID)
+                .storedReceipt.receipt.timing
+                ?.elapsedNanoseconds,
+        ).isEqualTo(10L)
+    }
+
+    @Test
+    fun `unknown connector failure creates neither a receipt nor fabricated timing`() {
+        val receipts = InMemoryReceiptRepository()
+        val failure = IllegalStateException("synthetic uncertain provider result")
+        val service =
+            service(
+                RecordingTransactionRunner(),
+                receipts,
+                CapabilityConnectorGateway { throw failure },
+                consumption(),
+            )
+
+        assertThatThrownBy { service.invoke(TENANT_ID, CONSUMPTION_ID) }.isSameAs(failure)
+        assertThat(receipts.find(TenantId(TENANT_ID), CapabilityAuthorizationConsumptionId(CONSUMPTION_ID))).isNull()
+    }
+
+    @Test
+    fun `legacy replay does not backfill or invoke a timing source`() {
+        val receipts = InMemoryReceiptRepository()
+        val original =
+            receipts.createOrFind(
+                TenantId(TENANT_ID),
+                CapabilityInvocationReceipt.complete(consumption(), connectorResult(CONSUMPTION_ID), COMPLETED_AT),
+            )
+        val service =
+            service(
+                RecordingTransactionRunner(),
+                receipts,
+                CapabilityConnectorGateway { error("replay must not invoke") },
+                consumption(),
+                CapabilityInvocationTicker { error("replay must not measure") },
+            )
+
+        val replay = service.invoke(TENANT_ID, CONSUMPTION_ID)
+        assertThat(replay.created).isFalse()
+        assertThat(replay.storedReceipt).isEqualTo(original.storedReceipt)
+        assertThat(replay.storedReceipt.receipt.timing).isNull()
+    }
+
+    @Suppress("LongParameterList") // Independent wall/monotonic sources and execution fakes remain explicit in tests.
     private fun service(
         transactions: RecordingTransactionRunner,
         receipts: InMemoryReceiptRepository,
         connector: CapabilityConnectorGateway,
         consumption: CapabilityAuthorizationConsumption,
+        ticker: CapabilityInvocationTicker = CapabilityInvocationTicker { 123L },
+        clock: Clock = Clock.fixed(COMPLETED_AT, ZoneOffset.UTC),
     ) = CapabilityInvocationService(
         consumptions =
             object : CapabilityAuthorizationConsumptionRepository {
@@ -107,7 +219,8 @@ class CapabilityInvocationServiceTest {
         receipts = receipts,
         connector = connector,
         transactionRunner = transactions,
-        clock = Clock.fixed(COMPLETED_AT, ZoneOffset.UTC),
+        clock = clock,
+        ticker = ticker,
     )
 
     private fun consumption(): CapabilityAuthorizationConsumption =

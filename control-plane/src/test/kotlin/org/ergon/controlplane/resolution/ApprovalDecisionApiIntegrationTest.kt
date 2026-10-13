@@ -1947,12 +1947,17 @@ private fun invokeAndAssertConsumption(
         .andExpect(jsonPath("$.completedAt").exists())
         .andExpect(jsonPath("$.recordedAt").exists())
 
+    val timing = invocationTiming(jdbcClient, context.tenantId, consumptionId)
+    assertThat(timing.first).isNotNull()
+    assertThat(timing.second).isGreaterThanOrEqualTo(0L)
     mockMvc
         .perform(post(CAPABILITY_INVOCATIONS_PATH, context.tenantId, consumptionId))
         .andExpect(status().isOk)
         .andExpect(jsonPath("$.authorizationConsumptionId").value(consumptionId.toString()))
         .andExpect(jsonPath("$.idempotencyKey").value(consumptionId.toString()))
         .andExpect(jsonPath("$.providerOperationReference").value(providerReference))
+
+    assertThat(invocationTiming(jdbcClient, context.tenantId, consumptionId)).isEqualTo(timing)
 
     assertThatThrownBy {
         jdbcClient
@@ -1967,6 +1972,29 @@ private fun invokeAndAssertConsumption(
             .update()
     }.isInstanceOf(DataAccessException::class.java)
 }
+
+private fun invocationTiming(
+    jdbcClient: JdbcClient,
+    tenantId: UUID,
+    consumptionId: UUID,
+): Pair<OffsetDateTime, Long> =
+    jdbcClient
+        .sql(
+            """
+            SELECT invocation_started_at, invocation_elapsed_nanoseconds
+            FROM capability_invocation_receipts
+            WHERE tenant_id = :tenantId AND authorization_consumption_id = :consumptionId
+            """.trimIndent(),
+        ).param("tenantId", tenantId)
+        .param("consumptionId", consumptionId)
+        .query {
+            rs,
+            _,
+            ->
+            val startedAt = rs.getObject("invocation_started_at", OffsetDateTime::class.java)
+            val elapsedNanoseconds = rs.getLong("invocation_elapsed_nanoseconds")
+            startedAt to elapsedNanoseconds
+        }.single()
 
 private fun expectCapabilityResultReceiptMissing(
     mockMvc: MockMvc,
