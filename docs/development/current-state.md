@@ -78,7 +78,11 @@ The current slice can:
 29. retain runtime-measured terminal connector gateway timing on the exact
     immutable receipt and disclose a sanitized optional execution through the
     assigned-only Console read. Historical timing remains absent, cost is not
-    reported, and the current workbench does not yet render the new member.
+    reported, and the workbench now renders the sanitized member; and
+30. expose the assigned snapshot's complete immutable transition prefix through
+    its observed revision, with sanitized state metadata and receipt alignment.
+    This is at most two recorded events per attempt, not a multi-step executor
+    or inspected proof payload.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -171,7 +175,8 @@ GitHub SCM URL retains its factual existing repository name.
 - No public production authorization model for internal endpoints.
 - No compensation engine, failure classification/backoff, autonomous retries,
   simulation lab, or improvement proposal generator.
-- No resolver console, adaptive canvas, or public SDK.
+- No writable resolver console, adaptive canvas, or public SDK. The companion
+  UI has a read-only assigned-run Console.
 - Browser sessions are process-local and have no logout or provider-revocation
   flow; the BFF has no reassignment, completion, or other lifecycle
   mutation contract yet.

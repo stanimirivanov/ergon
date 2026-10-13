@@ -30,8 +30,10 @@ and read their pinned start/current-state snapshots through the BFF while
 their resolver authority remains current. This assignment is not a lease or
 permission to execute a capability. New terminal receipts also retain runtime
 gateway timing, exposed through a sanitized optional assigned-Console execution
-member. Historical timing and unsupported cost are not inferred; browser
-rendering is a separate slice.
+member. Assigned snapshots also include the complete immutable transition
+prefix through their state revision, without event identities or proof payloads.
+The companion workbench renders these facts; historical timing, multi-step
+spans and unsupported cost are not inferred.
 Release remains disabled by default during a mixed-version rollout. Set
 `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED=true` only after every instance serving
 ownership traffic runs the new lifecycle code. Once a release is durable,
@@ -108,7 +110,8 @@ Browser endpoints under `/bff` use an optional confidential OIDC session and
 never return provider tokens to browser code. They fail with `503` while the
 feature is disabled. The BFF exposes the tenant actor session, shared resolver
 inbox, resolver-owned active work, an owner-scoped case summary, assigned-only
-active-run list and detail snapshots, CSRF-protected idempotent first claiming,
+active-run list and detail snapshots with sanitized receipt measurements and
+sequence-aligned transition metadata, CSRF-protected idempotent first claiming,
 revision-checked claim commands, and exact-current-claim release. Authorized
 browser inbox and owned-work
 reads return the current ownership revision needed for those commands.

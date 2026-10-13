@@ -149,7 +149,10 @@ separate pull requests because they live in different repositories.
    slice records the existing gateway call's actual timing and exposes it
    through assigned-only reads under
    [ADR 0046](../decisions/0046-record-runtime-capability-invocation-timing.md).
-   Next, consume measured execution in one complete Console UI/user-guide slice.
+   Measured execution is now consumed by the Console and executable guide.
+   This slice exposes the existing immutable transition prefix, aligned
+   with the assigned snapshot revision under
+   [ADR 0047](../decisions/0047-expose-sequence-aligned-assigned-run-transitions.md).
    A multi-step executor and real cost attribution remain separate runtime
    capabilities; this receipt measurement does not deliver that whole waterfall.
 4. **M05 - Human follow-up and resolver console:** Add exclusive supervisor

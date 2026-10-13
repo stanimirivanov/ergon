@@ -79,17 +79,19 @@ data class AssignedRunPage(
 )
 
 /**
- * Assigned start/state plus the exact optional terminal receipt.
+ * Assigned start/state, its complete transition prefix, and optional terminal receipt.
  *
  * No receipt means execution has not been recorded, not that no external
  * effect occurred. Receipt recording and run-state projection are separate;
- * an available receipt need not have advanced the observed state yet.
+ * an available receipt need not have advanced the observed state yet. Transition
+ * sequence ends at the observed state revision; its timestamps need not increase.
  */
 data class AssignedRunDetail(
     val assignment: StoredRunSupervisorAssignment,
     val start: StoredResolutionRunStart,
     val state: ResolutionRunStateSnapshot,
     val execution: StoredCapabilityInvocationReceipt? = null,
+    val transitions: List<RecordedRunTransition> = emptyList(),
 )
 
 /**
@@ -259,6 +261,7 @@ class AssignedRunConsoleService(
     private val transactionRunner: TransactionRunner,
     private val clock: Clock,
     private val receipts: CapabilityInvocationReceiptRepository,
+    private val historyReader: RecordedRunTransitionReader,
 ) {
     /** Lists at most 100 active assigned runs, with no stable total count. */
     fun list(
@@ -292,11 +295,14 @@ class AssignedRunConsoleService(
     /**
      * Returns the assigned run even after it reaches a terminal state so a
      * polling console can report completion without inventing a live trace.
-     * Only after the gate succeeds is the receipt loaded and checked against
-     * the pinned operation. Receipt timing is historical, not live span progress.
+     * Only after the gate succeeds are receipt and history loaded. The immutable
+     * prefix is bounded to the observed state revision even during concurrent
+     * appends, and is checked against the pinned operation and receipt. Recorded
+     * timing and transitions are historical facts, not live spans or inspected proof.
      *
      * @throws AssignedRunNotFoundException for absent, other-tenant, other-actor,
      *   unassigned, or no-longer-authorized runs.
+     * @throws IllegalStateException when persisted history or receipt attribution is inconsistent.
      */
     fun get(
         tenantId: UUID,
@@ -317,6 +323,9 @@ class AssignedRunConsoleService(
             val start = runs.find(tenant, run) ?: error("assigned run start is absent")
             val state = transitions.findState(tenant, run) ?: error("assigned run state is absent")
             check(state.runId == start.run.id) { "assigned run state belongs to another run" }
+            check(state.version in 0..2) { "assigned run state revision is unsupported" }
+            val history = historyReader.listRecordedTransitions(tenant, run, state.version)
+            checkRecordedRunTransitions(start, state, history)
             val execution = receipts.findByRun(tenant, run)
             execution?.receipt?.let { receipt ->
                 check(
@@ -325,7 +334,16 @@ class AssignedRunConsoleService(
                         receipt.capability == start.run.capability,
                 ) { "assigned run execution belongs to another pinned operation" }
             }
-            AssignedRunDetail(assignment, start, state, execution)
+            if (history.isNotEmpty()) {
+                val receipt = checkNotNull(execution?.receipt) { "projected run result has no receipt" }
+                check(history.first().type.name == "CAPABILITY_${receipt.outcome.name}") {
+                    "projected run result disagrees with its receipt"
+                }
+                check(history.first().occurredAt == receipt.completedAt) {
+                    "projected run result occurrence disagrees with its receipt"
+                }
+            }
+            AssignedRunDetail(assignment, start, state, execution, history)
         }
 }
 

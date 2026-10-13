@@ -4,6 +4,7 @@ import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.resolution.application.AssignedRunConsoleService
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
+import org.ergon.controlplane.resolution.application.RecordedRunTransitionReader
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentIdentityGenerator
@@ -39,5 +40,15 @@ class RunSupervisorConfiguration {
         transactionRunner: TransactionRunner,
         clock: Clock,
         receipts: CapabilityInvocationReceiptRepository,
-    ) = AssignedRunConsoleService(assignments, authorities, runs, transitions, transactionRunner, clock, receipts)
+        historyReader: RecordedRunTransitionReader,
+    ) = AssignedRunConsoleService(
+        assignments,
+        authorities,
+        runs,
+        transitions,
+        transactionRunner,
+        clock,
+        receipts,
+        historyReader,
+    )
 }
