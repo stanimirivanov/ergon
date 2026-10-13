@@ -14,6 +14,7 @@ import org.ergon.controlplane.resolution.application.AssignedRunDetail
 import org.ergon.controlplane.resolution.application.AssignedRunNotFoundException
 import org.ergon.controlplane.resolution.application.AssignedRunOverview
 import org.ergon.controlplane.resolution.application.AssignedRunPage
+import org.ergon.controlplane.resolution.application.RecordedRunTransition
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignment
 import org.ergon.controlplane.resolution.application.StoredCapabilityInvocationReceipt
 import org.ergon.controlplane.resolution.application.StoredResolutionRunStart
@@ -29,6 +30,7 @@ import org.ergon.resolution.domain.CapabilityInvocationTiming
 import org.ergon.resolution.domain.ConnectorName
 import org.ergon.resolution.domain.ProviderOperationReference
 import org.ergon.resolution.domain.ResolutionPolicyRevision
+import org.ergon.resolution.domain.ResolutionRunEventType
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunInitialState
 import org.ergon.resolution.domain.ResolutionRunStart
@@ -191,6 +193,41 @@ class BrowserAssignedRunConsoleApiIntegrationTest(
             ),
             NOW,
         )
+    }
+
+    @Test
+    fun `browser history exposes sequence and state facts without private event attribution`() {
+        val tenantId = UUID.randomUUID()
+        val actorId = registerActor(tenantId)
+        val transition =
+            RecordedRunTransition(
+                RUN_ID,
+                1,
+                ResolutionRunEventType.CAPABILITY_FAILED,
+                ResolutionRunState.WAITING_FOR_APPROVAL,
+                ResolutionRunState.ACTION_FAILED,
+                NOW,
+                NOW,
+            )
+        Mockito.`when`(console.get(tenantId, RUN_ID.value, actorId)).thenReturn(
+            detail(actorId).copy(
+                state = ResolutionRunStateSnapshot(RUN_ID, ResolutionRunState.ACTION_FAILED, 1, NOW),
+                execution = execution(measured = true),
+                transitions = listOf(transition),
+            ),
+        )
+        mockMvc
+            .perform(get(DETAIL_PATH, tenantId, RUN_ID.value).with(verifiedSession()))
+            .andExpect(status().isOk)
+            .andExpect(header().string("Cache-Control", "no-store"))
+            .andExpect(jsonPath("$.transitions[0].sequence").value(1))
+            .andExpect(jsonPath("$.transitions[0].type").value("CAPABILITY_FAILED"))
+            .andExpect(jsonPath("$.transitions[0].toState").value("ACTION_FAILED"))
+            .andExpect(jsonPath("$.transitions[0].recordedAt").value(NOW.toString()))
+            .andExpect(jsonPath("$.transitions[0].eventId").doesNotExist())
+            .andExpect(jsonPath("$.transitions[0].actorId").doesNotExist())
+            .andExpect(jsonPath("$.transitions[0].authorityEvidenceId").doesNotExist())
+            .andExpect(jsonPath("$.transitions[0].authorizationConsumptionId").doesNotExist())
     }
 
     @Test

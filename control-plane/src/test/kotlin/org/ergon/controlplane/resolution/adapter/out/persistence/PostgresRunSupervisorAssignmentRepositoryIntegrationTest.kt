@@ -9,6 +9,7 @@ import org.ergon.controlplane.resolution.application.AssignedRunConsoleService
 import org.ergon.controlplane.resolution.application.AssignedRunCursor
 import org.ergon.controlplane.resolution.application.AssignedRunNotFoundException
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
+import org.ergon.controlplane.resolution.application.RecordedRunTransitionReader
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignment
@@ -28,6 +29,9 @@ import org.ergon.resolution.domain.CapabilityInvocationReceiptSnapshot
 import org.ergon.resolution.domain.CapabilityInvocationTiming
 import org.ergon.resolution.domain.ConnectorName
 import org.ergon.resolution.domain.ProviderOperationReference
+import org.ergon.resolution.domain.ResolutionRunCapabilityResult
+import org.ergon.resolution.domain.ResolutionRunCapabilityResultBasis
+import org.ergon.resolution.domain.ResolutionRunEventId
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunState
 import org.flywaydb.core.Flyway
@@ -64,6 +68,7 @@ class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
     @Autowired private val runs: ResolutionRunRepository,
     @Autowired private val transitions: ResolutionRunTransitionRepository,
     @Autowired private val receipts: CapabilityInvocationReceiptRepository,
+    @Autowired private val historyReader: RecordedRunTransitionReader,
     @Autowired private val transactionRunner: TransactionRunner,
     @Autowired private val jdbcClient: JdbcClient,
 ) {
@@ -128,18 +133,11 @@ class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
         assertThatThrownBy { console.get(UUID.randomUUID(), run.value, actor.value) }
             .isInstanceOf(AssignedRunNotFoundException::class.java)
 
-        jdbcClient
-            .sql(
-                """
-                UPDATE resolution_run_states
-                SET state = 'VERIFIED_RESOLVED', version = 2
-                WHERE tenant_id = :tenantId AND run_id = :runId
-                """.trimIndent(),
-            ).param("tenantId", tenant.value)
-            .param("runId", run.value)
-            .update()
+        seedTerminalTransition(tenant, run)
         assertThat(console.list(tenant.value, actor.value, 30, null).entries).isEmpty()
-        assertThat(console.get(tenant.value, run.value, actor.value).state.state)
+        val terminal = console.get(tenant.value, run.value, actor.value)
+        assertThat(terminal.transitions.map { it.sequence }).containsExactly(1L, 2L)
+        assertThat(terminal.state.state)
             .isEqualTo(ResolutionRunState.VERIFIED_RESOLVED)
 
         val afterExpiry = consoleService(NOW.plusSeconds(61))
@@ -162,6 +160,7 @@ class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
         assertThat(detail.execution).isEqualTo(stored)
         // Recording a receipt does not silently advance the run's projection.
         assertThat(detail.state.version).isZero()
+        assertThat(detail.transitions).isEmpty()
         assertThatThrownBy { console.get(tenant.value, run.value, UUID.randomUUID()) }
             .isInstanceOf(AssignedRunNotFoundException::class.java)
         assertThatThrownBy { consoleService(NOW.plusSeconds(61)).get(tenant.value, run.value, actor.value) }
@@ -228,6 +227,62 @@ class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
         return receipts.createOrFind(tenant, receipt).storedReceipt
     }
 
+    @Test
+    fun `history query excludes later appends and filters exact tenant and run`() {
+        val tenant = TenantId(UUID.randomUUID())
+        val run = ResolutionRunId(UUID.randomUUID())
+        seedRun(tenant, run)
+        seedTerminalTransition(tenant, run)
+        assertThat(historyReader.listRecordedTransitions(tenant, run, 0)).isEmpty()
+        assertThat(historyReader.listRecordedTransitions(tenant, run, 1).map { it.sequence }).containsExactly(1L)
+        assertThat(historyReader.listRecordedTransitions(tenant, run, 2).map { it.sequence }).containsExactly(1L, 2L)
+        assertThat(historyReader.listRecordedTransitions(TenantId(UUID.randomUUID()), run, 2)).isEmpty()
+        assertThat(historyReader.listRecordedTransitions(tenant, ResolutionRunId(UUID.randomUUID()), 2)).isEmpty()
+    }
+
+    private fun seedTerminalTransition(
+        tenant: TenantId,
+        run: ResolutionRunId,
+    ) {
+        seedMeasuredExecution(tenant, run).let { stored ->
+            val start = requireNotNull(runs.find(tenant, run)).run
+            val state = requireNotNull(transitions.lockState(tenant, run))
+            transitions.append(
+                tenant,
+                ResolutionRunCapabilityResult.record(
+                    ResolutionRunEventId(UUID.randomUUID()),
+                    ResolutionRunCapabilityResultBasis(start, state, stored.receipt),
+                ),
+            )
+        }
+        // The read fixture needs legal terminal metadata, not proof payload.
+        // Full evidence acceptance and atomic case closure are verified separately.
+        jdbcClient
+            .sql(
+                """
+                INSERT INTO resolution_run_events (
+                    tenant_id, run_id, sequence, event_id, event_type, from_state, to_state, occurred_at
+                ) VALUES (:tenant, :run, 2, :event, 'OUTCOME_PROOF_ACCEPTED', 'VERIFYING',
+                    'VERIFIED_RESOLVED', :occurred)
+                """.trimIndent(),
+            ).param("tenant", tenant.value)
+            .param("run", run.value)
+            .param("event", UUID.randomUUID())
+            .param("occurred", NOW.plusSeconds(2).atOffset(ZoneOffset.UTC))
+            .update()
+        jdbcClient
+            .sql(
+                """
+                UPDATE resolution_run_states
+                SET state = 'VERIFIED_RESOLVED', version = 2, updated_at = :updatedAt
+                WHERE tenant_id = :tenantId AND run_id = :runId
+                """.trimIndent(),
+            ).param("tenantId", tenant.value)
+            .param("runId", run.value)
+            .param("updatedAt", NOW.plusSeconds(2).atOffset(ZoneOffset.UTC))
+            .update()
+    }
+
     private fun assignmentService(at: Instant) =
         RunSupervisorAssignmentService(
             assignments,
@@ -246,6 +301,7 @@ class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
             transactionRunner,
             Clock.fixed(at, ZoneOffset.UTC),
             receipts,
+            historyReader,
         )
 
     @Test

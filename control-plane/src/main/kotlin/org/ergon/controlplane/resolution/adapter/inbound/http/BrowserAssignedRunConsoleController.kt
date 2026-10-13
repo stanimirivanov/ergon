@@ -7,6 +7,7 @@ import org.ergon.controlplane.resolution.application.AssignedRunDetail
 import org.ergon.controlplane.resolution.application.AssignedRunNotFoundException
 import org.ergon.controlplane.resolution.application.AssignedRunOverview
 import org.ergon.controlplane.resolution.application.AssignedRunPage
+import org.ergon.controlplane.resolution.application.RecordedRunTransition
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.CacheControl
 import org.springframework.http.HttpStatus
@@ -55,7 +56,7 @@ class BrowserAssignedRunConsoleController(
     }
 
     /**
-     * Returns a recorded start/current-state snapshot only after exact
+     * Returns a recorded start/state, bounded transition and receipt snapshot after exact
      * assignment and current resolver authority have been established.
      */
     @GetMapping("/{runId}/console")
@@ -127,10 +128,12 @@ data class BrowserAssignedRunPageResponse(
 /**
  * One run's pinned start and current state, not a live execution trace.
  *
- * This first projection excludes case evidence, human approval identities,
+ * This projection excludes case evidence, human approval identities,
  * authorization consumption and connector payloads. Execution is a terminal
  * connector receipt, not a projected transition or independent outcome proof.
  * A null execution means no receipt; null timing means unmeasured, not zero.
+ * Transitions form the complete immutable prefix through [stateVersion];
+ * a proof-acceptance transition includes no inspected proof evidence.
  */
 data class BrowserAssignedRunDetailResponse(
     val runId: UUID,
@@ -151,7 +154,21 @@ data class BrowserAssignedRunDetailResponse(
     val stateUpdatedAt: Instant,
     val assignedAt: Instant,
     val execution: BrowserAssignedRunExecutionResponse?,
+    val transitions: List<BrowserRecordedRunTransitionResponse>,
 )
+
+/** Sequence-ordered state facts through the returned state version, not a span tree or proof payload. */
+data class BrowserRecordedRunTransitionResponse(
+    val sequence: Long,
+    val type: String,
+    val fromState: String,
+    val toState: String,
+    val occurredAt: Instant,
+    val recordedAt: Instant,
+)
+
+private fun RecordedRunTransition.toResponse(): BrowserRecordedRunTransitionResponse =
+    BrowserRecordedRunTransitionResponse(sequence, type.name, fromState.name, toState.name, occurredAt, recordedAt)
 
 private fun parseCursor(
     assignedAt: String?,
@@ -207,6 +224,7 @@ private fun AssignedRunDetail.toResponse(): BrowserAssignedRunDetailResponse {
         stateUpdatedAt = state.updatedAt,
         assignedAt = assignment.assignment.assignedAt,
         execution = execution?.toBrowserExecution(),
+        transitions = transitions.map(RecordedRunTransition::toResponse),
     )
 }
 

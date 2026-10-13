@@ -74,7 +74,7 @@ outcome. Missing, unassigned, other-tenant, differently assigned, and
 no-longer-authorized reads share one non-disclosing `404`. The BFF returns
 `no-store` responses and no authority-evidence ID, machine principal, grant,
 consumption, provider operation, or raw connector payload. This is a narrow
-recorded snapshot: it does not expose case evidence, run events, live
+recorded snapshot: it does not expose case evidence, full event payloads, live
 tool-call spans, cost, a lease, approval controls, or proof checks. Its optional
 execution member now supplies terminal gateway timing when actually recorded.
 See [ADR 0045](decisions/0045-assign-resolution-run-supervisors.md).
@@ -123,10 +123,34 @@ Treat that as an unavailable projection, not as proof that no receipt exists.
 
 Receipt recording does not silently advance run state. A result can be visible
 before the separate capability-result command projects it; `SUCCEEDED` is still
-not verified resolution. The current workbench does not yet render this new
-member: the next complete Console slice consumes it. Neither backend nor UI
+not verified resolution. The workbench renders the sanitized receipt and exact
+gateway-call measurement. Neither backend nor UI
 may invent a multi-stage waterfall from this one measured call. See
 [ADR 0046](decisions/0046-record-runtime-capability-invocation-timing.md).
+
+## Inspect recorded transition history
+
+The assigned Console GET also returns `transitions`, ordered by immutable append
+sequence through the returned `stateVersion`. Revision zero has an empty array,
+including when a terminal receipt exists before result projection. Current
+attempts support at most two events: a capability success/failure, followed by
+proof acceptance, retry handoff or escalation. They are not nested tool spans.
+
+Each entry contains `sequence`, `type`, `fromState`, `toState`, `occurredAt` and
+`recordedAt`. Occurrence and database recording are distinct observations; do
+not sort by them or derive latency. Clock correction can move them backwards.
+The complete prefix must chain from the initial requirement state to the exact
+returned state and update instant, and its first event must agree with the
+terminal receipt. Persisted inconsistency fails closed. A concurrent later
+append cannot enter an older revision's prefix, without locking writers.
+
+Old servers may omit history: that means unsupported, not empty. New responses
+always supply an array. A proof-acceptance label records a runtime decision but
+includes no observation, fact, check result or proof payload. Event identities,
+authority attribution, retry-successor and work-item coordinates stay private.
+The browser withdraws history with the other private context on recheck or
+failed access; explicit recheck obtains a newer snapshot. See
+[ADR 0047](decisions/0047-expose-sequence-aligned-assigned-run-transitions.md).
 
 ## Record a capability result
 

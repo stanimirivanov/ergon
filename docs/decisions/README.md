@@ -50,7 +50,7 @@ the Ergon rewrite boundary. They remain useful history but are not authority for
 new Ergon behavior. Ergon decisions begin at 0006. ADRs 0001–0041 retain their
 published legacy structures; ADR 0042 and later MUST use the current template.
 
-The latest published high-water mark is ADR 0046. The checker retains that
+The latest published high-water mark is ADR 0047. The checker retains that
 number independently of directory contents, so deletion does not permit reuse.
 The next new decision is 0047 unless concurrent work has already allocated it.
 
@@ -110,3 +110,4 @@ benchmarks rather than duplicating them.
 | 0044 | [Expose owned run history and the pinned proof requirement](0044-expose-owned-run-history-and-proof-requirement.md) |
 | 0045 | [Assign resolution-run supervisors before browser disclosure](0045-assign-resolution-run-supervisors.md) |
 | 0046 | [Record runtime capability-invocation timing](0046-record-runtime-capability-invocation-timing.md) |
+| 0047 | [Expose sequence-aligned assigned run transitions](0047-expose-sequence-aligned-assigned-run-transitions.md) |
