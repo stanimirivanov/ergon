@@ -20,7 +20,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import java.net.URI
 
 /** Stable, no-store failure contracts without raw exceptions, incumbent identities, or SQL diagnostics. */
-@RestControllerAdvice(assignableTypes = [BrowserRunSupervisorHandoverController::class])
+@RestControllerAdvice(
+    assignableTypes = [BrowserRunSupervisorHandoverController::class, BrowserRunApprovalController::class],
+)
 class BrowserRunSupervisorHandoverExceptionHandler {
     @ExceptionHandler(AssignedRunNotFoundException::class)
     fun missing(): ResponseEntity<ProblemDetail> =

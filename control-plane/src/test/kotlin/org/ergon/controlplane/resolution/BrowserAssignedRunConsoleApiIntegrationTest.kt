@@ -279,6 +279,13 @@ class BrowserAssignedRunConsoleApiIntegrationTest(
             StoredRunSupervisorAssignment(assignment, NOW),
             StoredResolutionRunStart(run, NOW),
             ResolutionRunStateSnapshot(RUN_ID, ResolutionRunState.WAITING_FOR_APPROVAL, 0, NOW),
+            approvalReview =
+                org.ergon.controlplane.resolution.application.RunApprovalReview(
+                    org.ergon.controlplane.resolution.application.RunApprovalReviewStatus.NOT_REQUESTED,
+                    NOW,
+                    false,
+                    null,
+                ),
         )
     }
 

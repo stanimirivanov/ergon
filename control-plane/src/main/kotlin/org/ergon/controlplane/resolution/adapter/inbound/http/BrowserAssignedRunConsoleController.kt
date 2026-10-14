@@ -84,6 +84,13 @@ class BrowserAssignedRunConsoleController(
     matchIfMissing = true,
 )
 class BrowserAssignedRunUnavailableController {
+    @PostMapping("/{runId}/approval-requests/{requestId}/decisions")
+    fun approvalUnavailable(): ResponseEntity<ProblemDetail> =
+        ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .cacheControl(CacheControl.noStore())
+            .body(unavailableProblem())
+
     @GetMapping("/{runId}/handover-candidates")
     fun candidatesUnavailable(): ResponseEntity<ProblemDetail> =
         ResponseEntity
@@ -173,6 +180,7 @@ data class BrowserAssignedRunDetailResponse(
     val transitions: List<BrowserRecordedRunTransitionResponse>,
     val supervisionRevision: Long,
     val handoverSupported: Boolean,
+    val approvalReview: BrowserRunApprovalReview,
 )
 
 /** Sequence-ordered state facts through the returned state version, not a span tree or proof payload. */
@@ -246,6 +254,7 @@ private fun AssignedRunDetail.toResponse(): BrowserAssignedRunDetailResponse {
         transitions = transitions.map(RecordedRunTransition::toResponse),
         supervisionRevision = supervisionRevision.value,
         handoverSupported = handoverSupported,
+        approvalReview = approvalReview.toBrowserReview(),
     )
 }
 

@@ -1,5 +1,6 @@
 package org.ergon.controlplane.resolution
 
+import org.ergon.contracts.domain.ApprovalRequirement
 import org.ergon.controlplane.resolution.adapter.out.persistence.PostgresRunSupervisorAssignmentRepository
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignment
 import org.ergon.controlplane.resolution.application.StoredRunSupervisorAssignment
@@ -29,12 +30,13 @@ internal data class RunSupervisionDatabaseFixture(
         fun seed(
             jdbc: JdbcClient,
             now: Instant,
+            requiredApproval: ApprovalRequirement = ApprovalRequirement.RESOLVER,
         ): RunSupervisionDatabaseFixture {
             val tenant = TenantId(UUID.randomUUID())
             val run = ResolutionRunId(UUID.randomUUID())
             val actors = List(4) { HumanActorId(UUID.randomUUID()) }
             val evidence = List(4) { ApprovalAuthorityEvidenceId(UUID.randomUUID()) }
-            seedSourceGraph(jdbc, tenant, run, now)
+            seedSourceGraph(jdbc, tenant, run, now, requiredApproval)
             seedActors(jdbc, tenant, actors, evidence, now)
             val initial =
                 PostgresRunSupervisorAssignmentRepository(jdbc).create(
@@ -67,6 +69,7 @@ internal data class RunSupervisionDatabaseFixture(
             tenant: TenantId,
             run: ResolutionRunId,
             now: Instant,
+            requiredApproval: ApprovalRequirement,
         ) {
             // Earlier capabilities own case/contract construction. Only their
             // source-graph FKs are bypassed; every supervision write runs with
@@ -82,10 +85,11 @@ internal data class RunSupervisionDatabaseFixture(
                         ) VALUES (
                             :tenant, :run, :caseId, 1, 'restore-workspace-access', 1,
                             'ergon.dev/policy/access-restoration/v1', 'unlock-account', 'identity.account.unlock',
-                            'HIGH', 'RESOLVER', 'WAITING_FOR_APPROVAL'
+                            'HIGH', :approval, 'WAITING_FOR_APPROVAL'
                         )
                         """.trimIndent(),
                     ).param("tenant", tenant.value)
+                    .param("approval", requiredApproval.name)
                     .param("run", run.value)
                     .param("caseId", UUID.randomUUID())
                     .update()

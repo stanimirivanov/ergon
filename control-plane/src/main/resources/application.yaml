@@ -15,6 +15,8 @@ spring:
 
 ergon:
   run-supervision:
+    approval:
+      enabled: ${ERGON_RUN_SUPERVISOR_APPROVAL_ENABLED:false}
     handover:
       enabled: ${ERGON_RUN_SUPERVISOR_HANDOVER_ENABLED:false}
   follow-up:

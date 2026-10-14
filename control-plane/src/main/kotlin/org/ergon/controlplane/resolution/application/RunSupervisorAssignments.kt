@@ -95,6 +95,7 @@ data class AssignedRunDetail(
     val transitions: List<RecordedRunTransition> = emptyList(),
     val supervisionRevision: RunSupervisionRevision = RunSupervisionRevision(0),
     val handoverSupported: Boolean = false,
+    val approvalReview: RunApprovalReview,
 )
 
 /**
@@ -103,6 +104,9 @@ data class AssignedRunDetail(
  * [lockRun] must execute inside the caller's transaction before checking or
  * inserting an assignment. It serializes competing first assignments without
  * making the assignee's browser read a lock-taking operation.
+ * The immutable run key is not changed: the non-key-update lock remains
+ * compatible with legacy decision foreign-key checks, preventing a request/run
+ * lock cycle when browser approval also locks the request.
  */
 interface RunSupervisorAssignmentRepository {
     /** @return whether the tenant-scoped run exists and is locked for this transaction. */
@@ -266,6 +270,7 @@ class AssignedRunConsoleService(
     private val clock: Clock,
     private val receipts: CapabilityInvocationReceiptRepository,
     private val historyReader: RecordedRunTransitionReader,
+    private val approvalReviews: RunApprovalReviewService,
     private val handoverEnabled: Boolean = false,
 ) {
     /** Lists at most 100 active assigned runs, with no stable total count. */
@@ -356,6 +361,7 @@ class AssignedRunConsoleService(
                 history,
                 assignment.revision,
                 handoverEnabled && canHandover(state.state) && assignment.revision.value < MAX_RUN_SUPERVISION_REVISION,
+                approvalReviews.review(tenant, start.run, state.state, actor, at),
             )
         }
 }

@@ -56,6 +56,7 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_BROWSER_SESSION_ENABLED` | Enables the confidential OIDC BFF; defaults to `false` |
 | `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED` | Enables internal release after every ownership reader and writer is upgraded; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_HANDOVER_ENABLED` | Enables confirmed browser handover only after every backend supervision reader is upgraded; defaults to `false` |
+| `ERGON_RUN_SUPERVISOR_APPROVAL_ENABLED` | Enables supervisor-scoped confirmed human decisions after the additive schema/backend deployment; defaults to `false` |
 
 The JWT variables are a pair. Protected human operations fail closed when the
 trust mapping is absent. Enabling browser sessions additionally requires the
@@ -141,6 +142,15 @@ After any handover, do not downgrade to an original-assignee reader: disable
 new transfers and recover forward. Recipient IDs and historical receipts do
 not grant execution authority or a lease. See
 [handover contracts](../docs/runs.md#hand-over-current-run-supervision).
+
+## Browser approval rollout
+
+The assigned Console also supplies sanitized current approval review. Confirmed
+browser decisions require current supervision and the exact request authority;
+they never grant, execute or advance a run. Deploy the additive approval-command
+migration before enabling the separate approval flag. Disable commands for an
+application rollback without deleting immutable decisions/receipts. Existing
+bearer decisions remain compatible. See [approval contracts](../docs/approvals.md).
 
 ## Verify
 
