@@ -158,6 +158,11 @@ separate pull requests because they live in different repositories.
 4. **M05 - Human follow-up and resolver console:** Add exclusive supervisor
    control, conflict visibility, and explicit handover. Assignment alone is
    not an expiring lease or permission to steer a run.
+   Confirmed browser handover now uses immutable supervision epochs and a
+   current access projection under
+   [ADR 0048](../decisions/0048-allow-revisioned-browser-supervisor-handover.md).
+   Exclusive leases and fenced steering remain separate runtime capabilities;
+   no countdown is inferred from this transfer.
 5. **M03 - Human authority and policy:** Review and decide pending capability
    authorization from the Resolver Console. Bind browser actions to current
    approval and deterministic gate contracts, not the recorded policy label.

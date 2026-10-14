@@ -320,7 +320,8 @@ class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
 
         assertThat(assignments.findByCommandId(tenant, assignment.commandId)).isEqualTo(stored)
         assertThat(assignments.findByRun(tenant, run)).isEqualTo(stored)
-        assertThat(assignments.findAssigned(tenant, run, actor, NOW)).isEqualTo(stored)
+        assertThat(assignments.findAssigned(tenant, run, actor, NOW)?.initialAssignment).isEqualTo(stored)
+        assertThat(assignments.findAssigned(tenant, run, actor, NOW)?.revision?.value).isZero()
         assertThat(assignments.findAssigned(tenant, run, otherActor, NOW)).isNull()
         assertThat(assignments.findAssigned(tenant, run, actor, NOW.plusSeconds(61))).isNull()
         assertThat(assignments.findAssigned(TenantId(UUID.randomUUID()), run, actor, NOW)).isNull()

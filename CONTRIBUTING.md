@@ -255,3 +255,7 @@ After every completed coding task, print:
 When an existing issue was supplied, repeat or amend its title and body so the
 delivered scope remains auditable. The report does not imply that an external
 issue or pull request was created.
+
+For a slice spanning Ergon and ergon-ui, provide a separate issue title, body,
+and verification report for each repository. Use the same owning milestone but
+distinct scopes, acceptance evidence, limitations and rollout dependencies.

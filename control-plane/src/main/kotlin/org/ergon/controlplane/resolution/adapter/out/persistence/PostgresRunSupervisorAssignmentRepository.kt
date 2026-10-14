@@ -3,7 +3,9 @@ package org.ergon.controlplane.resolution.adapter.out.persistence
 import org.ergon.cases.domain.CaseId
 import org.ergon.controlplane.resolution.application.AssignedRunCursor
 import org.ergon.controlplane.resolution.application.AssignedRunOverview
+import org.ergon.controlplane.resolution.application.CurrentRunSupervision
 import org.ergon.controlplane.resolution.application.MAX_ASSIGNED_RUN_PAGE_SIZE
+import org.ergon.controlplane.resolution.application.RunSupervisionRevision
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignment
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentConflictException
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentRepository
@@ -74,30 +76,45 @@ class PostgresRunSupervisorAssignmentRepository(
         runId: ResolutionRunId,
         actorId: HumanActorId,
         at: Instant,
-    ): StoredRunSupervisorAssignment? =
-        assignmentQuery(
-            """
-            AND assignment.run_id = :runId
-            AND assignment.supervisor_actor_id = :actorId
-            AND EXISTS (
-                SELECT 1
-                FROM approval_authority_evidence authority
-                WHERE authority.tenant_id = assignment.tenant_id
-                    AND authority.actor_id = assignment.supervisor_actor_id
-                    AND authority.authority = 'RESOLVER'
-                    AND authority.case_id IS NULL
-                    AND authority.attested_at <= :at
-                    AND authority.expires_at > :at
-            )
-            """.trimIndent(),
-        ).param("tenantId", tenantId.value)
+    ): CurrentRunSupervision? {
+        val initialMapper = DataClassRowMapper(RunSupervisorAssignmentRow::class.java)
+        return jdbcClient
+            .sql(
+                """
+                SELECT assignment.assignment_id, assignment.run_id, assignment.supervisor_actor_id,
+                    assignment.authority_evidence_id, assignment.command_id, assignment.assigning_machine_subject,
+                    assignment.assigned_at, assignment.recorded_at, current.supervisor_actor_id AS current_actor_id,
+                    current.supervision_revision, current.supervised_at
+                FROM resolution_run_supervisor_assignments assignment
+                JOIN resolution_run_current_supervision current
+                    ON current.tenant_id = assignment.tenant_id AND current.run_id = assignment.run_id
+                WHERE assignment.tenant_id = :tenantId AND assignment.run_id = :runId
+                AND current.supervisor_actor_id = :actorId
+                AND EXISTS (
+                    SELECT 1
+                    FROM approval_authority_evidence authority
+                    WHERE authority.tenant_id = assignment.tenant_id
+                        AND authority.actor_id = current.supervisor_actor_id
+                        AND authority.authority = 'RESOLVER'
+                        AND authority.case_id IS NULL
+                        AND authority.attested_at <= :at
+                        AND authority.expires_at > :at
+                )
+                """.trimIndent(),
+            ).param("tenantId", tenantId.value)
             .param("runId", runId.value)
             .param("actorId", actorId.value)
             .param("at", at.atOffset(ZoneOffset.UTC))
-            .query(DataClassRowMapper(RunSupervisorAssignmentRow::class.java))
-            .optional()
+            .query { row, number ->
+                CurrentRunSupervision(
+                    requireNotNull(initialMapper.mapRow(row, number)).toStoredAssignment(),
+                    HumanActorId(row.getObject("current_actor_id", UUID::class.java)),
+                    RunSupervisionRevision(row.getLong("supervision_revision")),
+                    row.getObject("supervised_at", OffsetDateTime::class.java).toInstant(),
+                )
+            }.optional()
             .getOrNull()
-            ?.toStoredAssignment()
+    }
 
     override fun listAssigned(
         tenantId: TenantId,
@@ -113,14 +130,12 @@ class PostgresRunSupervisorAssignmentRepository(
                 .sql(
                     """
                     SELECT
-                        assignment.assignment_id,
-                        assignment.run_id,
-                        run.case_id,
-                        state.state,
-                        state.version AS state_version,
-                        state.updated_at AS state_updated_at,
-                        assignment.assigned_at
+                        assignment.assignment_id, assignment.run_id, run.case_id,
+                        state.state, state.version AS state_version, state.updated_at AS state_updated_at,
+                        assignment.assigned_at, current.supervision_revision
                     FROM resolution_run_supervisor_assignments assignment
+                    JOIN resolution_run_current_supervision current
+                        ON current.tenant_id = assignment.tenant_id AND current.run_id = assignment.run_id
                     JOIN resolution_runs run
                         ON run.tenant_id = assignment.tenant_id
                         AND run.run_id = assignment.run_id
@@ -128,7 +143,7 @@ class PostgresRunSupervisorAssignmentRepository(
                         ON state.tenant_id = assignment.tenant_id
                         AND state.run_id = assignment.run_id
                     WHERE assignment.tenant_id = :tenantId
-                        AND assignment.supervisor_actor_id = :actorId
+                        AND current.supervisor_actor_id = :actorId
                         AND state.state IN (
                             'WAITING_FOR_APPROVAL', 'READY_FOR_AUTHORIZATION',
                             'VERIFYING', 'ACTION_FAILED'
@@ -137,7 +152,7 @@ class PostgresRunSupervisorAssignmentRepository(
                             SELECT 1
                             FROM approval_authority_evidence authority
                             WHERE authority.tenant_id = assignment.tenant_id
-                                AND authority.actor_id = assignment.supervisor_actor_id
+                                AND authority.actor_id = current.supervisor_actor_id
                                 AND authority.authority = 'RESOLVER'
                                 AND authority.case_id IS NULL
                                 AND authority.attested_at <= :at
@@ -257,6 +272,7 @@ private data class AssignedRunOverviewRow(
     val stateVersion: Long,
     val stateUpdatedAt: OffsetDateTime,
     val assignedAt: OffsetDateTime,
+    val supervisionRevision: Long,
 ) {
     fun toOverview(): AssignedRunOverview =
         AssignedRunOverview(
@@ -267,5 +283,6 @@ private data class AssignedRunOverviewRow(
             stateVersion = stateVersion,
             stateUpdatedAt = stateUpdatedAt.toInstant(),
             assignedAt = assignedAt.toInstant(),
+            supervisionRevision = RunSupervisionRevision(supervisionRevision),
         )
 }
