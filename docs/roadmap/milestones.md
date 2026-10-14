@@ -164,8 +164,11 @@ separate pull requests because they live in different repositories.
    Exclusive leases and fenced steering remain separate runtime capabilities;
    no countdown is inferred from this transfer.
 5. **M03 - Human authority and policy:** Review and decide pending capability
-   authorization from the Resolver Console. Bind browser actions to current
+   prerequisites from the Resolver Console. Bind browser actions to current
    approval and deterministic gate contracts, not the recorded policy label.
+   Supervisor-scoped review and confirmed decisions now use exact authority,
+   supervision epochs and durable command replay; they never grant or execute.
+   See [ADR 0049](../decisions/0049-confirm-supervisor-scoped-approval-decisions.md).
 6. **M06 - Evidence compiler:** Review attributable claims and contradictions
    from the Resolver Console. Compile typed claims, validity, citations, and
    conflict meaning rather than relabeling raw observations as verified facts.

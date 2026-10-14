@@ -1,9 +1,10 @@
 # Approval requests
 
-> **TL;DR:** A run in `WAITING_FOR_APPROVAL` can create one active, 15-minute
-> request. An authenticated actor with matching current authority evidence can
-> answer it once. The immutable decision records audit evidence; a separate
-> bounded grant may derive from approval but still does not execute anything.
+## TL;DR
+
+A current run supervisor may review approval through the confidential Console
+and, when enabled and exactly authorized, confirm a human prerequisite. Requester
+scope, expiry and supervision are rechecked; approval never executes a capability.
 
 ## Request and inspect
 
@@ -46,3 +47,39 @@ authorization by itself. A separate grant can be derived only while the request
 remains current; see [authorization-grants.md](authorization-grants.md). Human
 identity and evidence semantics are in [human-authority.md](human-authority.md),
 and bearer identity resolution is in [authentication.md](authentication.md).
+
+## Browser supervisor review and decision
+
+The assigned Console's `approvalReview` supplies `status`, `observedAt`,
+`canDecide`, a nullable request and a nullable sanitized decision. Lifecycle is
+`NOT_REQUIRED`, `NOT_REQUESTED`, `PENDING`, `EXPIRED` or `DECIDED`; an immutable
+decision remains DECIDED after expiry. Requests include identity, exact authority
+and request/expiry/recording instants; decisions include identity, outcome and
+decision/recording instants, never actor or authority evidence. Older servers
+omit this member: omission is unsupported, not no request or implicit authority.
+
+Confirm through
+`POST /bff/v1/tenants/{tenantId}/resolution-runs/{runId}/approval-requests/{requestId}/decisions`
+with session CSRF and `{commandId, expectedSupervisionRevision, outcome}`.
+The BFF resolves the actor. First application requires current supervisor,
+current tenant resolver evidence, exact supervision revision, WAITING_FOR_APPROVAL,
+latest unexpired request and current exact authority. REQUESTER evidence must
+name this case; resolver evidence cannot substitute. Both outcomes use these gates.
+Request creation/replacement remains the trusted internal operation above.
+
+The first response is 201; exact historical replay is 200 with the original
+persisted receipt: command/run/request identity, unchanged supervision revision,
+decision identity/outcome and stored decision/recording instants. Replay requires
+the originating actor's current resolver evidence, not current supervision or
+still-current requester evidence; it records nothing new. Changed own intent
+conflicts; foreign receipt/run/request absence is neutral 404. Stale epoch,
+expiry, answered request or non-waiting state yields `409 run-approval-conflict`.
+Missing exact authority yields `403 run-approval-authority-missing`. Responses
+and known problems are no-store and omit private attribution or raw causes.
+
+Deploy the additive migration and upgraded backend before enabling
+`ERGON_RUN_SUPERVISOR_APPROVAL_ENABLED=true` (default false). Disabled commands
+return `503 run-approval-disabled`; reads remain available with `canDecide=false`.
+The browser never enables rollout. Disable commands for application rollback;
+retain decisions and receipts. Existing bearer decisions remain compatible.
+See [ADR 0049](decisions/0049-confirm-supervisor-scoped-approval-decisions.md).

@@ -2,11 +2,19 @@ package org.ergon.controlplane.resolution
 
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
+import org.ergon.controlplane.resolution.application.ApprovalDecisionIdentityGenerator
+import org.ergon.controlplane.resolution.application.ApprovalDecisionRecords
+import org.ergon.controlplane.resolution.application.ApprovalDecisionRepository
+import org.ergon.controlplane.resolution.application.ApprovalRequestRepository
 import org.ergon.controlplane.resolution.application.AssignedRunConsoleService
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
 import org.ergon.controlplane.resolution.application.RecordedRunTransitionReader
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
+import org.ergon.controlplane.resolution.application.RunApprovalCommandRepository
+import org.ergon.controlplane.resolution.application.RunApprovalDecisionService
+import org.ergon.controlplane.resolution.application.RunApprovalReviewReader
+import org.ergon.controlplane.resolution.application.RunApprovalReviewService
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentIdentityGenerator
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentRepository
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentService
@@ -22,6 +30,40 @@ import java.util.UUID
 /** Wires immutable initial assignments, revisioned transfers and current-supervisor browser reads. */
 @Configuration(proxyBeanMethods = false)
 class RunSupervisorConfiguration {
+    @Bean
+    fun runApprovalReviewService(
+        reader: RunApprovalReviewReader,
+        authorities: HumanAuthorityRepository,
+        @Value("\${ergon.run-supervision.approval.enabled:false}") enabled: Boolean,
+    ) = RunApprovalReviewService(reader, authorities, enabled)
+
+    @Bean
+    @Suppress("LongParameterList") // Distinct consumed ports keep authority, supervision and audit ownership explicit.
+    fun runApprovalDecisionService(
+        requests: ApprovalRequestRepository,
+        runs: ResolutionRunRepository,
+        authorities: HumanAuthorityRepository,
+        decisions: ApprovalDecisionRepository,
+        assignments: RunSupervisorAssignmentRepository,
+        states: ResolutionRunTransitionRepository,
+        commands: RunApprovalCommandRepository,
+        reader: RunApprovalReviewReader,
+        identities: ApprovalDecisionIdentityGenerator,
+        transactions: TransactionRunner,
+        clock: Clock,
+        @Value("\${ergon.run-supervision.approval.enabled:false}") enabled: Boolean,
+    ) = RunApprovalDecisionService(
+        ApprovalDecisionRecords(requests, runs, authorities, decisions),
+        assignments,
+        states,
+        commands,
+        reader,
+        identities,
+        transactions,
+        clock,
+        enabled,
+    )
+
     @Bean
     @Suppress("LongParameterList") // Application-owned identity, state, and audit boundaries remain distinct.
     fun runSupervisorHandoverService(
@@ -67,6 +109,7 @@ class RunSupervisorConfiguration {
         clock: Clock,
         receipts: CapabilityInvocationReceiptRepository,
         historyReader: RecordedRunTransitionReader,
+        approvalReviews: RunApprovalReviewService,
         @Value("\${ergon.run-supervision.handover.enabled:false}") handoverEnabled: Boolean,
     ) = AssignedRunConsoleService(
         assignments,
@@ -77,6 +120,7 @@ class RunSupervisorConfiguration {
         clock,
         receipts,
         historyReader,
+        approvalReviews,
         handoverEnabled,
     )
 }

@@ -177,6 +177,7 @@ class RunSupervisorServicesTest {
             clock,
             receipts,
             historyReader,
+            RunApprovalReviewService(RunApprovalReviewReader { _, _ -> null }, authorities, false),
         )
 
     private fun command() =

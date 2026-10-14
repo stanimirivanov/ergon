@@ -39,7 +39,7 @@ class PostgresRunSupervisorAssignmentRepository(
                 SELECT TRUE
                 FROM resolution_runs
                 WHERE tenant_id = :tenantId AND run_id = :runId
-                FOR UPDATE
+                FOR NO KEY UPDATE
                 """.trimIndent(),
             ).param("tenantId", tenantId.value)
             .param("runId", runId.value)

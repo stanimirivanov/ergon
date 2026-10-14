@@ -89,7 +89,12 @@ The current slice can:
     exactly replay the originating command, and gate subsequent discovery and
     Console access against current supervision. Recipient IDs are bounded and
     authority-gated; commands are disabled by default until all backend readers
-    are upgraded. No lease, steering, notification or execution permission is added.
+    are upgraded. No lease, steering, notification or execution permission is added; and
+32. review the latest human approval request in the assigned Console and confirm
+    APPROVED/REJECTED with current supervision, exact authority/scope and request
+    validity. Immutable browser command receipts support exact historical replay.
+    Approval commands are disabled by default; they never create a grant, invoke
+    a connector or advance run state. Existing bearer decisions remain compatible.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -183,7 +188,8 @@ GitHub SCM URL retains its factual existing repository name.
 - No compensation engine, failure classification/backoff, autonomous retries,
   simulation lab, or improvement proposal generator.
 - No writable runtime controls, adaptive canvas, or public SDK. The companion
-  UI can confirm supervision handover, not steer execution or grant a lease.
+  UI can confirm supervision handover and exact human approval prerequisites,
+  not steer execution, derive grants or grant a lease.
 - Browser sessions are process-local and have no logout or provider-revocation
   flow; supervisor recovery/forced takeover, follow-up reassignment and
   completion remain undefined.

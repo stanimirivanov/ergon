@@ -302,6 +302,12 @@ class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
             Clock.fixed(at, ZoneOffset.UTC),
             receipts,
             historyReader,
+            org.ergon.controlplane.resolution.application.RunApprovalReviewService(
+                org.ergon.controlplane.resolution.application
+                    .RunApprovalReviewReader { _, _ -> null },
+                authorities,
+                false,
+            ),
         )
 
     @Test
