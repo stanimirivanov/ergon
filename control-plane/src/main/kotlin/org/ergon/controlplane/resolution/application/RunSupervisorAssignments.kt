@@ -64,6 +64,7 @@ data class AssignedRunOverview(
     val stateVersion: Long,
     val stateUpdatedAt: Instant,
     val assignedAt: Instant,
+    val supervisionRevision: RunSupervisionRevision = RunSupervisionRevision(0),
 )
 
 /** An indivisible keyset cursor over immutable assignment order. */
@@ -92,6 +93,8 @@ data class AssignedRunDetail(
     val state: ResolutionRunStateSnapshot,
     val execution: StoredCapabilityInvocationReceipt? = null,
     val transitions: List<RecordedRunTransition> = emptyList(),
+    val supervisionRevision: RunSupervisionRevision = RunSupervisionRevision(0),
+    val handoverSupported: Boolean = false,
 )
 
 /**
@@ -122,14 +125,15 @@ interface RunSupervisorAssignmentRepository {
 
     /**
      * Returns an assignment only when actor, run, tenant, and current resolver
-     * evidence agree at [at]. This is the first private browser-detail lookup.
+     * evidence agree at [at]. Current supervision, not the immutable first
+     * assignee, determines access. This is the first private browser-detail lookup.
      */
     fun findAssigned(
         tenantId: TenantId,
         runId: ResolutionRunId,
         actorId: HumanActorId,
         at: Instant,
-    ): StoredRunSupervisorAssignment?
+    ): CurrentRunSupervision?
 
     /**
      * Lists at most [limit] active runs in immutable assignment order.
@@ -262,6 +266,7 @@ class AssignedRunConsoleService(
     private val clock: Clock,
     private val receipts: CapabilityInvocationReceiptRepository,
     private val historyReader: RecordedRunTransitionReader,
+    private val handoverEnabled: Boolean = false,
 ) {
     /** Lists at most 100 active assigned runs, with no stable total count. */
     fun list(
@@ -343,7 +348,15 @@ class AssignedRunConsoleService(
                     "projected run result occurrence disagrees with its receipt"
                 }
             }
-            AssignedRunDetail(assignment, start, state, execution, history)
+            AssignedRunDetail(
+                assignment.initialAssignment,
+                start,
+                state,
+                execution,
+                history,
+                assignment.revision,
+                handoverEnabled && canHandover(state.state) && assignment.revision.value < MAX_RUN_SUPERVISION_REVISION,
+            )
         }
 }
 

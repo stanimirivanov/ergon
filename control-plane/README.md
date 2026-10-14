@@ -55,6 +55,7 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_HUMAN_IDENTITY_PROVIDER` | Stable provider name paired with the issuer |
 | `ERGON_BROWSER_SESSION_ENABLED` | Enables the confidential OIDC BFF; defaults to `false` |
 | `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED` | Enables internal release after every ownership reader and writer is upgraded; defaults to `false` |
+| `ERGON_RUN_SUPERVISOR_HANDOVER_ENABLED` | Enables confirmed browser handover only after every backend supervision reader is upgraded; defaults to `false` |
 
 The JWT variables are a pair. Protected human operations fail closed when the
 trust mapping is absent. Enabling browser sessions additionally requires the
@@ -129,6 +130,17 @@ scope plus an `ergon_tenant_id` claim equal to the path tenant. Provision that
 credential only to a trusted dispatcher. Other internal routes still require
 an ingress/security design before production exposure. Tenant IDs in paths
 are scope selectors, not credentials.
+
+## Supervision handover rollout
+
+Handover preserves the initial machine assignment and appends revisioned audit
+facts. All upgraded run reads use the current-supervisor projection even when
+new transfers are disabled. Deploy the migration and every projection-aware
+backend reader before enabling `ERGON_RUN_SUPERVISOR_HANDOVER_ENABLED`.
+After any handover, do not downgrade to an original-assignee reader: disable
+new transfers and recover forward. Recipient IDs and historical receipts do
+not grant execution authority or a lease. See
+[handover contracts](../docs/runs.md#hand-over-current-run-supervision).
 
 ## Verify
 

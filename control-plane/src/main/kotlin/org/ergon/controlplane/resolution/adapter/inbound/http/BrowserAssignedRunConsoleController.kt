@@ -18,6 +18,7 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -83,6 +84,20 @@ class BrowserAssignedRunConsoleController(
     matchIfMissing = true,
 )
 class BrowserAssignedRunUnavailableController {
+    @GetMapping("/{runId}/handover-candidates")
+    fun candidatesUnavailable(): ResponseEntity<ProblemDetail> =
+        ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .cacheControl(CacheControl.noStore())
+            .body(unavailableProblem())
+
+    @PostMapping("/{runId}/supervisor-handovers")
+    fun handoverUnavailable(): ResponseEntity<ProblemDetail> =
+        ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .cacheControl(CacheControl.noStore())
+            .body(unavailableProblem())
+
     @GetMapping("/assigned")
     fun listUnavailable(
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
@@ -111,6 +126,7 @@ data class BrowserAssignedRunOverviewResponse(
     val stateVersion: Long,
     val stateUpdatedAt: Instant,
     val assignedAt: Instant,
+    val supervisionRevision: Long,
 )
 
 /** Opaque-as-a-pair cursor for the next assigned-run page. */
@@ -155,6 +171,8 @@ data class BrowserAssignedRunDetailResponse(
     val assignedAt: Instant,
     val execution: BrowserAssignedRunExecutionResponse?,
     val transitions: List<BrowserRecordedRunTransitionResponse>,
+    val supervisionRevision: Long,
+    val handoverSupported: Boolean,
 )
 
 /** Sequence-ordered state facts through the returned state version, not a span tree or proof payload. */
@@ -201,6 +219,7 @@ private fun AssignedRunOverview.toResponse(): BrowserAssignedRunOverviewResponse
         stateVersion = stateVersion,
         stateUpdatedAt = stateUpdatedAt,
         assignedAt = assignedAt,
+        supervisionRevision = supervisionRevision.value,
     )
 
 private fun AssignedRunDetail.toResponse(): BrowserAssignedRunDetailResponse {
@@ -225,6 +244,8 @@ private fun AssignedRunDetail.toResponse(): BrowserAssignedRunDetailResponse {
         assignedAt = assignment.assignment.assignedAt,
         execution = execution?.toBrowserExecution(),
         transitions = transitions.map(RecordedRunTransition::toResponse),
+        supervisionRevision = supervisionRevision.value,
+        handoverSupported = handoverSupported,
     )
 }
 

@@ -111,3 +111,4 @@ benchmarks rather than duplicating them.
 | 0045 | [Assign resolution-run supervisors before browser disclosure](0045-assign-resolution-run-supervisors.md) |
 | 0046 | [Record runtime capability-invocation timing](0046-record-runtime-capability-invocation-timing.md) |
 | 0047 | [Expose sequence-aligned assigned run transitions](0047-expose-sequence-aligned-assigned-run-transitions.md) |
+| 0048 | [Allow revisioned browser supervisor handover](0048-allow-revisioned-browser-supervisor-handover.md) |

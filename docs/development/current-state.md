@@ -12,8 +12,9 @@
   production authorization model.
 - The BFF exposes shared discovery, CSRF-protected claiming, resolver-owned
   active work, owner-scoped case context, and assigned-only active-run
-  discovery/detail snapshots. Assignment is machine-controlled; no live
-  execution tree or lease is implemented.
+  discovery/detail snapshots. Initial assignment is machine-controlled;
+  confirmed browser handover changes current supervision with a separate audit
+  epoch. Handover is disabled by default; no live execution tree or lease exists.
 
 ## Active Ergon slice
 
@@ -82,7 +83,13 @@ The current slice can:
 30. expose the assigned snapshot's complete immutable transition prefix through
     its observed revision, with sanitized state metadata and receipt alignment.
     This is at most two recorded events per attempt, not a multi-step executor
-    or inspected proof payload.
+    or inspected proof payload; and
+31. confirm a revision-checked browser supervisor handover to another current
+    tenant resolver, preserve initial assignment and immutable transfer audit,
+    exactly replay the originating command, and gate subsequent discovery and
+    Console access against current supervision. Recipient IDs are bounded and
+    authority-gated; commands are disabled by default until all backend readers
+    are upgraded. No lease, steering, notification or execution permission is added.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -175,11 +182,11 @@ GitHub SCM URL retains its factual existing repository name.
 - No public production authorization model for internal endpoints.
 - No compensation engine, failure classification/backoff, autonomous retries,
   simulation lab, or improvement proposal generator.
-- No writable resolver console, adaptive canvas, or public SDK. The companion
-  UI has a read-only assigned-run Console.
+- No writable runtime controls, adaptive canvas, or public SDK. The companion
+  UI can confirm supervision handover, not steer execution or grant a lease.
 - Browser sessions are process-local and have no logout or provider-revocation
-  flow; the BFF has no reassignment, completion, or other lifecycle
-  mutation contract yet.
+  flow; supervisor recovery/forced takeover, follow-up reassignment and
+  completion remain undefined.
 
 The intended sequence is maintained in
 [implementation milestones](../roadmap/milestones.md). Update this document

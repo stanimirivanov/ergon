@@ -54,12 +54,14 @@ returns `409`. Missing tenant-scoped runs return `404`.
 This first assignment is an immutable access fact, not a lease, approval,
 capability grant, or permission to steer execution. A machine subject cannot
 be supplied in the request body, and a browser resolver cannot self-assign.
-Existing runs are not backfilled. Reassignment, immediate revocation, and
-handover require a later attributable ownership contract. The assignee's
-current resolver evidence is rechecked on every browser read; an expired
+Existing unassigned runs are not assigned by a migration. The initial assignment
+remains immutable; [confirmed handover](#hand-over-current-run-supervision)
+advances a separate current-supervision epoch. Immediate revocation and forced
+takeover remain unsupported. The current supervisor's resolver evidence is
+rechecked on every browser read; an expired
 attestation stops access even though the historical assignment remains.
 
-With browser OIDC enabled, the assigned resolver can call
+With browser OIDC enabled, the current supervisor can call
 `GET /bff/v1/tenants/{tenantId}/resolution-runs/assigned` for a bounded,
 oldest-assignment-first page. `limit` is `1..100` (default `30`); the
 `afterAssignedAt` and `afterAssignmentId` cursor fields must be supplied
@@ -68,8 +70,8 @@ together. The page includes only `WAITING_FOR_APPROVAL`,
 a current best-effort view, not a point-in-time snapshot or stable total.
 
 `GET /bff/v1/tenants/{tenantId}/resolution-runs/{runId}/console` returns the
-pinned run start, current projected state, and assignment time to that exact
-assignee, including after a terminal transition so polling can show its
+pinned run start, current projected state, and original assignment time to that
+current supervisor, including after a terminal transition so a recheck can show its
 outcome. Missing, unassigned, other-tenant, differently assigned, and
 no-longer-authorized reads share one non-disclosing `404`. The BFF returns
 `no-store` responses and no authority-evidence ID, machine principal, grant,
@@ -127,6 +129,46 @@ not verified resolution. The workbench renders the sanitized receipt and exact
 gateway-call measurement. Neither backend nor UI
 may invent a multi-stage waterfall from this one measured call. See
 [ADR 0046](decisions/0046-record-runtime-capability-invocation-timing.md).
+
+## Hand over current run supervision
+
+With browser sessions enabled, the current supervisor may confirm transfer of
+an active run to another registered tenant resolver. Current resolver authority
+is required for both actors at the command instant. The initial machine
+assignment stays immutable; append-only supervision events and a current
+projection determine subsequent access. Supervision revision is independent
+of runtime state version. The original assignment timestamp and keyset order
+remain unchanged after transfer.
+
+- `GET /bff/v1/tenants/{tenantId}/resolution-runs/{runId}/handover-candidates`
+  requires `expectedSupervisionRevision`, accepts `limit` in 1–100 (default 25)
+  and optional `afterActorId`. It returns bounded `entries` of `actorId`,
+  `nextActorId` and the observed `supervisionRevision`, only after the current
+  supervision gate. These IDs are not provider subjects or display names;
+  eligibility is checked again when confirming.
+- `POST /bff/v1/tenants/{tenantId}/resolution-runs/{runId}/supervisor-handovers`
+  requires session CSRF and body `commandId`, `expectedSupervisionRevision` and
+  `supervisorActorId`. The authenticated session supplies the outgoing actor.
+  First application returns 201; exact originating-actor replay returns 200,
+  with `commandId`, `runId`, `supervisionRevision`, `handedOverAt` and `recordedAt`.
+
+Serialize competing transfer commands and terminal decisions. A stale epoch,
+changed command intent, ineligible recipient or terminal run cannot transfer.
+Another actor cannot retrieve a historical command receipt. Exact replay can
+acknowledge a past transfer after current supervision moved away or returned,
+but requires current outgoing resolver authority and never applies it again.
+The response is a historical receipt, not current ownership or outcome proof.
+
+Console reads now include `supervisionRevision` and `handoverSupported` together.
+Old-server omission is unsupported, not an implicit enabled revision zero.
+Commands are disabled by default. Set
+`ERGON_RUN_SUPERVISOR_HANDOVER_ENABLED=true` only after every backend reader
+uses the current projection. The migration initializes existing and later
+old-style initial assignments without rewriting them. After any handover,
+old backend binaries are unsafe; disable commands and recover forward.
+Handover is not a lease, steering permission, approval, notification or transfer
+of human follow-up ownership. See
+[ADR 0048](decisions/0048-allow-revisioned-browser-supervisor-handover.md).
 
 ## Inspect recorded transition history
 
