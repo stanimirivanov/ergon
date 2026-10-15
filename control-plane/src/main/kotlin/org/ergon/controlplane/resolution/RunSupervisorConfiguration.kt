@@ -8,6 +8,7 @@ import org.ergon.controlplane.resolution.application.ApprovalDecisionRepository
 import org.ergon.controlplane.resolution.application.ApprovalRequestRepository
 import org.ergon.controlplane.resolution.application.AssignedRunConsoleService
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
+import org.ergon.controlplane.resolution.application.PinnedRunEvidenceReader
 import org.ergon.controlplane.resolution.application.RecordedRunTransitionReader
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
@@ -110,6 +111,7 @@ class RunSupervisorConfiguration {
         receipts: CapabilityInvocationReceiptRepository,
         historyReader: RecordedRunTransitionReader,
         approvalReviews: RunApprovalReviewService,
+        pinnedEvidence: PinnedRunEvidenceReader,
         @Value("\${ergon.run-supervision.handover.enabled:false}") handoverEnabled: Boolean,
     ) = AssignedRunConsoleService(
         assignments,
@@ -121,6 +123,7 @@ class RunSupervisorConfiguration {
         receipts,
         historyReader,
         approvalReviews,
+        pinnedEvidence,
         handoverEnabled,
     )
 }

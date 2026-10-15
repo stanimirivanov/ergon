@@ -32,6 +32,7 @@ links from those documents only when the task crosses another boundary.
 - [Delivery strategy](delivery.md) — vertical-slice and extraction policy.
 - [Resolution runs](runs.md) — current durable run and proof semantics.
 - [Human follow-up](human-follow-up.md) — durable work opened from escalation.
+- [Pinned run evidence](pinned-run-evidence.md) — supervisor-scoped bindings and linked sources.
 - [Security policy](../SECURITY.md) — private reporting and change expectations;
   architecture documents the current technical trust boundaries.
 

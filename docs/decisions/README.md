@@ -113,3 +113,4 @@ benchmarks rather than duplicating them.
 | 0047 | [Expose sequence-aligned assigned run transitions](0047-expose-sequence-aligned-assigned-run-transitions.md) |
 | 0048 | [Allow revisioned browser supervisor handover](0048-allow-revisioned-browser-supervisor-handover.md) |
 | 0049 | [Confirm supervisor-scoped browser approval decisions](0049-confirm-supervisor-scoped-approval-decisions.md) |
+| 0050 | [Disclose supervisor-scoped pinned evidence](0050-disclose-supervisor-scoped-pinned-evidence.md) |

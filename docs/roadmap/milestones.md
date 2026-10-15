@@ -172,6 +172,10 @@ separate pull requests because they live in different repositories.
 6. **M06 - Evidence compiler:** Review attributable claims and contradictions
    from the Resolver Console. Compile typed claims, validity, citations, and
    conflict meaning rather than relabeling raw observations as verified facts.
+   The first delivered boundary exposes existing pinned account-access bindings
+   and only their exact linked sources under current supervisor/resolver access;
+   see [ADR 0050](../decisions/0050-disclose-supervisor-scoped-pinned-evidence.md).
+   General claims, confidence, validity and contradiction meaning remain deferred.
 7. **M04 - Guarded Execution and Verification:** Track verification checks and
    accepted outcome proof in the Resolver Console. Display real check state
    and proof provenance, never a synthetic completion count.
