@@ -40,6 +40,10 @@ supervision and resolver authority remain mandatory; later and unbound material
 is excluded. The first 100 bindings are returned with explicit truncation, never
 as confidence or contradiction assessments. No schema/flag change is needed;
 see [pinned evidence](../docs/pinned-run-evidence.md).
+The same protected read now projects one pinned outcome condition, current
+verification and immutable accepted proof with only its exact post-action
+binding/source. MATCHING is not durable acceptance; no browser acceptance
+command or schema/flag is added. See [outcome verification](../docs/run-outcome-verification.md).
 Release remains disabled by default during a mixed-version rollout. Set
 `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED=true` only after every instance serving
 ownership traffic runs the new lifecycle code. Once a release is durable,

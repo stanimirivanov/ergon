@@ -114,3 +114,4 @@ benchmarks rather than duplicating them.
 | 0048 | [Allow revisioned browser supervisor handover](0048-allow-revisioned-browser-supervisor-handover.md) |
 | 0049 | [Confirm supervisor-scoped browser approval decisions](0049-confirm-supervisor-scoped-approval-decisions.md) |
 | 0050 | [Disclose supervisor-scoped pinned evidence](0050-disclose-supervisor-scoped-pinned-evidence.md) |
+| 0051 | [Disclose supervisor-scoped outcome verification](0051-disclose-supervisor-scoped-outcome-verification.md) |

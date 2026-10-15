@@ -48,5 +48,7 @@ No migration, configuration flag, evidence mutation, compiler service or new
 dependency is required. Deploy the additive backend contract before relying on
 it in the UI; older servers remain inspectable with an unsupported message.
 Confidence, validity windows, general claims, contradiction review, proof and
-post-action evidence require their own reviewed contracts. See
+post-action evidence require their own reviewed contracts. The separate
+[outcome verification](run-outcome-verification.md) projection now permits only
+its exact selected post-action citation; this pinned prefix is unchanged. See
 [ADR 0050](decisions/0050-disclose-supervisor-scoped-pinned-evidence.md).

@@ -33,6 +33,7 @@ links from those documents only when the task crosses another boundary.
 - [Resolution runs](runs.md) — current durable run and proof semantics.
 - [Human follow-up](human-follow-up.md) — durable work opened from escalation.
 - [Pinned run evidence](pinned-run-evidence.md) — supervisor-scoped bindings and linked sources.
+- [Outcome verification](run-outcome-verification.md) — current assessments and durable accepted proof.
 - [Security policy](../SECURITY.md) — private reporting and change expectations;
   architecture documents the current technical trust boundaries.
 

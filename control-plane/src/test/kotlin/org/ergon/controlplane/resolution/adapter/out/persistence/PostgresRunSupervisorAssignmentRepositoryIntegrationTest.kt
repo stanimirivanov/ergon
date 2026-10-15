@@ -12,6 +12,7 @@ import org.ergon.controlplane.resolution.application.CapabilityInvocationReceipt
 import org.ergon.controlplane.resolution.application.RecordedRunTransitionReader
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
+import org.ergon.controlplane.resolution.application.RunOutcomeVerificationService
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignment
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentConflictException
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentIdentityGenerator
@@ -311,6 +312,20 @@ class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
             org.ergon.controlplane.resolution.application.PinnedRunEvidenceReader { _, case, boundary ->
                 org.ergon.controlplane.resolution.application
                     .PinnedRunEvidence(case.value, boundary, emptyList(), false)
+            },
+            // This repository fixture deliberately omits the case/contract graph.
+            // The verification service has its own real-graph integration coverage.
+            org.mockito.Mockito.mock(RunOutcomeVerificationService::class.java) {
+                org.ergon.controlplane.resolution.application.RunOutcomeVerification(
+                    org.ergon.controlplane.resolution.application.RunVerificationStatus.NOT_ASSESSED,
+                    org.ergon.contracts.domain.FactCondition(
+                        org.ergon.contracts.domain.ContractFactType
+                            .of("account.access.state"),
+                        org.ergon.contracts.domain.ContractFactValue
+                            .of("ACTIVE"),
+                    ),
+                    reason = "RUN_NOT_VERIFYING",
+                )
             },
         )
 

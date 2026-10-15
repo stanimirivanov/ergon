@@ -42,6 +42,8 @@ class ApprovalDecisionApiIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val jdbcClient: JdbcClient,
     @Autowired transactionManager: PlatformTransactionManager,
+    @Autowired private val console: org.ergon.controlplane.resolution.application.AssignedRunConsoleService,
+    @Autowired private val assignments: org.ergon.controlplane.resolution.application.RunSupervisorAssignmentService,
 ) {
     private val transactions = TransactionTemplate(transactionManager)
 
@@ -50,6 +52,8 @@ class ApprovalDecisionApiIntegrationTest(
         val tenantId = UUID.randomUUID()
         val runId = prepareResolutionRun(tenantId)
         val caseId = caseIdForRun(tenantId, runId)
+        val readVerification = OutcomeConsoleObserver(console, assignments, jdbcClient).assign(tenantId, runId)
+        assertThat(readVerification().status.name).isEqualTo("NOT_ASSESSED")
         val requestId = createApprovalRequest(tenantId, runId)
         val actorId = registerActor(mockMvc, tenantId, "employee-42")
         val evidenceId = attestRequesterAuthority(tenantId, actorId, caseId)
@@ -86,7 +90,7 @@ class ApprovalDecisionApiIntegrationTest(
             jdbcClient,
             CapabilityResultTestContext(tenantId, runId, consumptionId, caseId),
         )
-        assessAndAssertOutcomeProof(mockMvc, jdbcClient, tenantId, runId, caseId)
+        OutcomeProofApiFixture(mockMvc, jdbcClient, tenantId, runId, caseId).assertScenario(readVerification)
 
         mockMvc
             .perform(decide(tenantId, requestId, "employee-42", "REJECTED"))
@@ -745,14 +749,6 @@ private fun expectOutcomeAssessmentNotVerifying(
         .andExpect(jsonPath("$.state").value("WAITING_FOR_APPROVAL"))
 }
 
-private fun assessAndAssertOutcomeProof(
-    mockMvc: MockMvc,
-    jdbcClient: JdbcClient,
-    tenantId: UUID,
-    runId: UUID,
-    caseId: UUID,
-) = OutcomeProofApiFixture(mockMvc, jdbcClient, tenantId, runId, caseId).assertScenario()
-
 private class OutcomeProofApiFixture(
     private val mockMvc: MockMvc,
     private val jdbcClient: JdbcClient,
@@ -760,7 +756,10 @@ private class OutcomeProofApiFixture(
     private val runId: UUID,
     private val caseId: UUID,
 ) {
-    fun assertScenario() {
+    private lateinit var inspect: () -> org.ergon.controlplane.resolution.application.RunOutcomeVerification
+
+    fun assertScenario(readVerification: () -> org.ergon.controlplane.resolution.application.RunOutcomeVerification) {
+        inspect = readVerification
         mockMvc
             .perform(get(RUN_OUTCOME_PROOF_PATH, UUID.randomUUID(), runId))
             .andExpect(status().isNotFound)
@@ -804,12 +803,28 @@ private class OutcomeProofApiFixture(
         } else {
             result.andExpect(jsonPath("$.evidence.actualValue").value(actualValue))
         }
+        val projection = inspect()
+        assertThat(projection.status.name).isEqualTo("PENDING")
+        assertThat(projection.reason).isEqualTo(reason)
+        assertThat(projection.caseStreamVersion).isEqualTo(expectedVersion)
+        assertThat(
+            projection.evidence
+                ?.fact
+                ?.value
+                ?.value,
+        ).isEqualTo(actualValue)
+        assertThat(projection.acceptance).isNull()
     }
 
     private fun expectAccepted(
         observationId: UUID,
         expectedVersion: Long,
     ) {
+        val projection = inspect()
+        assertThat(projection.status.name).isEqualTo("MATCHING")
+        assertThat(projection.evidence?.source?.observationId).isEqualTo(observationId)
+        assertThat(projection.evidence?.fact?.factStreamVersion).isEqualTo(expectedVersion)
+        assertThat(projection.acceptance).isNull()
         mockMvc
             .perform(get(RUN_OUTCOME_PROOF_PATH, tenantId, runId))
             .andExpect(status().isOk)
@@ -860,6 +875,13 @@ private class OutcomeProofApiFixture(
             .andExpect(jsonPath("$.acceptedAt").exists())
             .andExpect(jsonPath("$.recordedAt").exists())
         val eventId = acceptedProofEventId()
+        val projection = inspect()
+        assertThat(projection.status.name).isEqualTo("ACCEPTED")
+        assertThat(projection.caseStreamVersion).isEqualTo(10)
+        assertThat(projection.evidence?.source?.observationId).isEqualTo(observationId)
+        assertThat(projection.acceptance?.runSequence).isEqualTo(2)
+        assertThat(projection.acceptance?.caseClosureStreamVersion).isEqualTo(11)
+        assertThat(inspect()).isEqualTo(projection)
 
         mockMvc
             .perform(post(RUN_OUTCOME_PROOF_ACCEPTANCES_PATH, tenantId, runId))

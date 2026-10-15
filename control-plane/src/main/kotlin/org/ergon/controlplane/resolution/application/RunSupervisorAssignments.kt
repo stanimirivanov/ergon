@@ -97,6 +97,7 @@ data class AssignedRunDetail(
     val handoverSupported: Boolean = false,
     val approvalReview: RunApprovalReview,
     val pinnedEvidence: PinnedRunEvidence,
+    val outcomeVerification: RunOutcomeVerification,
 )
 
 /**
@@ -273,6 +274,7 @@ class AssignedRunConsoleService(
     private val historyReader: RecordedRunTransitionReader,
     private val approvalReviews: RunApprovalReviewService,
     private val pinnedEvidence: PinnedRunEvidenceReader,
+    private val outcomeVerification: RunOutcomeVerificationService,
     private val handoverEnabled: Boolean = false,
 ) {
     /** Lists at most 100 active assigned runs, with no stable total count. */
@@ -308,12 +310,14 @@ class AssignedRunConsoleService(
      * Returns the assigned run even after it reaches a terminal state so a
      * polling console can report completion without inventing a live trace.
      * Only after the gate succeeds are receipt, history and pinned evidence loaded.
-     * Evidence contains historical bindings and their exact sources inside the
-     * pinned case prefix, never later or unbound material. Attribution is not proof.
+     * Pinned evidence contains historical bindings and sources inside the run's
+     * prefix. The separate outcome projection discloses only its selected
+     * post-action citation after the same gate. Attribution alone is not proof.
      * The immutable
      * prefix is bounded to the observed state revision even during concurrent
      * appends, and is checked against the pinned operation and receipt. Recorded
-     * timing and transitions are historical facts, not live spans or inspected proof.
+     * timing and transitions are historical facts, not live spans. Verification
+     * distinguishes a mutable assessment from immutable accepted proof.
      *
      * @throws AssignedRunNotFoundException for absent, other-tenant, other-actor,
      *   unassigned, or no-longer-authorized runs.
@@ -368,6 +372,7 @@ class AssignedRunConsoleService(
                 handoverEnabled && canHandover(state.state) && assignment.revision.value < MAX_RUN_SUPERVISION_REVISION,
                 approvalReviews.review(tenant, start.run, state.state, actor, at),
                 loadPinnedEvidence(tenant, start),
+                outcomeVerification.read(tenant, start.run, state, execution),
             )
         }
 

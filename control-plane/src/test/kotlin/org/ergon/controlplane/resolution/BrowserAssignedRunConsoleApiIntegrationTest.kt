@@ -289,6 +289,17 @@ class BrowserAssignedRunConsoleApiIntegrationTest(
             pinnedEvidence =
                 org.ergon.controlplane.resolution.application
                     .PinnedRunEvidence(CASE_ID.value, 4, emptyList(), false),
+            outcomeVerification =
+                org.ergon.controlplane.resolution.application.RunOutcomeVerification(
+                    org.ergon.controlplane.resolution.application.RunVerificationStatus.NOT_ASSESSED,
+                    org.ergon.contracts.domain.FactCondition(
+                        org.ergon.contracts.domain.ContractFactType
+                            .of("account.access.state"),
+                        org.ergon.contracts.domain.ContractFactValue
+                            .of("ACTIVE"),
+                    ),
+                    reason = "RUN_NOT_VERIFYING",
+                ),
         )
     }
 
