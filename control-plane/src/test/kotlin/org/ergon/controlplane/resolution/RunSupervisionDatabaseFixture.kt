@@ -75,6 +75,7 @@ internal data class RunSupervisionDatabaseFixture(
         ) {
             val jdbc = this
             val caseId = caseSnapshot?.caseId ?: UUID.randomUUID()
+            publishSupervisionTestContract(jdbc, tenant)
             // Earlier capabilities own case/contract construction. Only their
             // source-graph FKs are bypassed; every supervision write runs with
             // ordinary constraints and triggers enabled.
@@ -165,4 +166,28 @@ internal data class RunSupervisionDatabaseFixture(
             }
         }
     }
+}
+
+/** Real immutable contract dependency shared by supervision fixtures, not an invented fallback in production. */
+internal fun publishSupervisionTestContract(
+    jdbc: JdbcClient,
+    tenant: TenantId,
+) {
+    jdbc
+        .sql(
+            """
+            INSERT INTO resolution_contract_revisions (tenant_id, contract_key, revision, schema_id, definition)
+            VALUES (:tenant, 'restore-workspace-access', 1, 'ergon.dev/resolution-contract/v1alpha1', CAST(:definition AS JSONB))
+            ON CONFLICT DO NOTHING
+            """.trimIndent(),
+        ).param("tenant", tenant.value)
+        .param(
+            "definition",
+            """
+            {"applicability":{"fact":"account.access.state","equals":"LOCKED"},
+            "requiredEvidence":["account.access.state"],
+            "steps":[{"id":"unlock-account","capability":"identity.account.unlock","risk":"HIGH","approval":"RESOLVER"}],
+            "outcomeProof":{"fact":"account.access.state","equals":"ACTIVE"}}
+            """.trimIndent(),
+        ).update()
 }

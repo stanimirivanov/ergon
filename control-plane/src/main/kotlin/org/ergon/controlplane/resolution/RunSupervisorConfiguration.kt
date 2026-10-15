@@ -1,6 +1,8 @@
 package org.ergon.controlplane.resolution
 
+import org.ergon.controlplane.cases.application.CaseEventStore
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.resolution.application.ApprovalDecisionIdentityGenerator
 import org.ergon.controlplane.resolution.application.ApprovalDecisionRecords
@@ -16,6 +18,7 @@ import org.ergon.controlplane.resolution.application.RunApprovalCommandRepositor
 import org.ergon.controlplane.resolution.application.RunApprovalDecisionService
 import org.ergon.controlplane.resolution.application.RunApprovalReviewReader
 import org.ergon.controlplane.resolution.application.RunApprovalReviewService
+import org.ergon.controlplane.resolution.application.RunOutcomeVerificationService
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentIdentityGenerator
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentRepository
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentService
@@ -31,6 +34,13 @@ import java.util.UUID
 /** Wires immutable initial assignments, revisioned transfers and current-supervisor browser reads. */
 @Configuration(proxyBeanMethods = false)
 class RunSupervisorConfiguration {
+    @Bean
+    fun runOutcomeVerificationService(
+        contracts: ResolutionContractRevisionRepository,
+        cases: CaseEventStore,
+        transitions: ResolutionRunTransitionRepository,
+    ) = RunOutcomeVerificationService(contracts, cases, transitions)
+
     @Bean
     fun runApprovalReviewService(
         reader: RunApprovalReviewReader,
@@ -112,6 +122,7 @@ class RunSupervisorConfiguration {
         historyReader: RecordedRunTransitionReader,
         approvalReviews: RunApprovalReviewService,
         pinnedEvidence: PinnedRunEvidenceReader,
+        outcomeVerification: RunOutcomeVerificationService,
         @Value("\${ergon.run-supervision.handover.enabled:false}") handoverEnabled: Boolean,
     ) = AssignedRunConsoleService(
         assignments,
@@ -124,6 +135,7 @@ class RunSupervisorConfiguration {
         historyReader,
         approvalReviews,
         pinnedEvidence,
+        outcomeVerification,
         handoverEnabled,
     )
 }

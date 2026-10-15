@@ -154,12 +154,14 @@ data class BrowserAssignedRunPageResponse(
 /**
  * One run's pinned start and current state, not a live execution trace.
  *
- * This projection excludes unlinked/later case evidence, human approval identities,
+ * This projection excludes unrelated later evidence, human approval identities,
  * authorization consumption and connector payloads. Execution is a terminal
  * connector receipt, not a projected transition or independent outcome proof.
  * A null execution means no receipt; null timing means unmeasured, not zero.
  * Transitions form the complete immutable prefix through [stateVersion];
- * a proof-acceptance transition includes no inspected proof evidence.
+ * a proof-acceptance transition includes no inspected proof evidence itself.
+ * The separate outcomeVerification member supplies only its exact selected
+ * post-action citation and distinguishes mutable matching from durable acceptance.
  */
 data class BrowserAssignedRunDetailResponse(
     val runId: UUID,
@@ -185,6 +187,7 @@ data class BrowserAssignedRunDetailResponse(
     val handoverSupported: Boolean,
     val approvalReview: BrowserRunApprovalReview,
     val pinnedEvidence: BrowserPinnedRunEvidence,
+    val outcomeVerification: BrowserRunOutcomeVerification,
 )
 
 /** Sequence-ordered state facts through the returned state version, not a span tree or proof payload. */
@@ -260,6 +263,7 @@ private fun AssignedRunDetail.toResponse(): BrowserAssignedRunDetailResponse {
         handoverSupported = handoverSupported,
         approvalReview = approvalReview.toBrowserReview(),
         pinnedEvidence = pinnedEvidence.toBrowserEvidence(),
+        outcomeVerification = outcomeVerification.toBrowserVerification(),
     )
 }
 

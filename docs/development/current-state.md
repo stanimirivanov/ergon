@@ -99,7 +99,11 @@ The current slice can:
     sources inside an assigned run's pinned case prefix. Current supervision
     and resolver authority gate disclosure; unbound/later material is excluded.
     A bounded 100-binding history reports truncation without inferring latest
-    truth, confidence, contradiction meaning or outcome proof.
+    truth, confidence, contradiction meaning or outcome proof; and
+34. inspect one pinned outcome condition, current post-action assessment and
+    immutable accepted proof with only its exact selected citation. Current
+    supervision and resolver authority gate disclosure. A mutable MATCHING result
+    is not acceptance or closure; there is no browser acceptance command.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -113,6 +117,7 @@ Detailed HTTP semantics live with their capabilities:
 - [capability invocation](../capability-invocations.md)
 - [human follow-up](../human-follow-up.md)
 - [pinned run evidence](../pinned-run-evidence.md)
+- [outcome verification](../run-outcome-verification.md)
 
 ## Runtime and data
 

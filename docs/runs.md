@@ -213,6 +213,11 @@ compensation, and later run transitions remain separate capabilities.
 
 ## Assess outcome proof
 
+The protected assigned Console separately exposes the pinned condition, current
+assessment and exact citation, or durable accepted proof. Its `MATCHING` label
+deliberately distinguishes the internal evaluator's read-only `ACCEPTED` from
+committed acceptance. See [browser verification](run-outcome-verification.md).
+
 For a run in `VERIFYING`, query
 `GET /internal/v1/tenants/{tenantId}/resolution-runs/{runId}/outcome-proof`.
 The response evaluates the pinned contract condition at an exact current case

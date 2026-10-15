@@ -179,6 +179,10 @@ separate pull requests because they live in different repositories.
 7. **M04 - Guarded Execution and Verification:** Track verification checks and
    accepted outcome proof in the Resolver Console. Display real check state
    and proof provenance, never a synthetic completion count.
+   Delivered for the existing single account-access condition: current assessment
+   is distinct from immutable acceptance, with narrowly selected post-action
+   provenance under [ADR 0051](../decisions/0051-disclose-supervisor-scoped-outcome-verification.md).
+   Multi-check verification and new proof types remain separate capabilities.
 8. **M04 - Guarded Execution and Verification:** Steer supervised runs through
    deterministic, auditable commands. Define bounded command and authority
    semantics before enabling the mock's Steer control.

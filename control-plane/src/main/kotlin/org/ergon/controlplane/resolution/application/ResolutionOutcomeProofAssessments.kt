@@ -84,7 +84,7 @@ class ResolutionOutcomeProofAssessmentService(
     }
 }
 
-private fun List<CaseEvent>.toOutcomeEvidence(): List<ResolutionOutcomeEvidence> {
+internal fun List<CaseEvent>.toOutcomeEvidence(): List<ResolutionOutcomeEvidence> {
     val observations =
         mapIndexedNotNull { index, event ->
             (event as? ObservationRecorded)?.let {
