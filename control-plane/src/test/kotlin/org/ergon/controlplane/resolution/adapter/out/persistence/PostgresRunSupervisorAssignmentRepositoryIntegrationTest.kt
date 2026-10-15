@@ -308,6 +308,10 @@ class PostgresRunSupervisorAssignmentRepositoryIntegrationTest(
                 authorities,
                 false,
             ),
+            org.ergon.controlplane.resolution.application.PinnedRunEvidenceReader { _, case, boundary ->
+                org.ergon.controlplane.resolution.application
+                    .PinnedRunEvidence(case.value, boundary, emptyList(), false)
+            },
         )
 
     @Test

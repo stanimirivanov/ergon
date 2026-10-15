@@ -1,6 +1,7 @@
 package org.ergon.controlplane.resolution
 
 import org.ergon.contracts.domain.ApprovalRequirement
+import org.ergon.controlplane.cases.application.CaseWriteResult
 import org.ergon.controlplane.resolution.adapter.out.persistence.PostgresRunSupervisorAssignmentRepository
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignment
 import org.ergon.controlplane.resolution.application.StoredRunSupervisorAssignment
@@ -31,12 +32,13 @@ internal data class RunSupervisionDatabaseFixture(
             jdbc: JdbcClient,
             now: Instant,
             requiredApproval: ApprovalRequirement = ApprovalRequirement.RESOLVER,
+            caseSnapshot: CaseWriteResult? = null,
+            tenant: TenantId = TenantId(UUID.randomUUID()),
         ): RunSupervisionDatabaseFixture {
-            val tenant = TenantId(UUID.randomUUID())
             val run = ResolutionRunId(UUID.randomUUID())
             val actors = List(4) { HumanActorId(UUID.randomUUID()) }
             val evidence = List(4) { ApprovalAuthorityEvidenceId(UUID.randomUUID()) }
-            seedSourceGraph(jdbc, tenant, run, now, requiredApproval)
+            jdbc.seedSourceGraph(tenant, run, now, requiredApproval, caseSnapshot)
             seedActors(jdbc, tenant, actors, evidence, now)
             val initial =
                 PostgresRunSupervisorAssignmentRepository(jdbc).create(
@@ -64,18 +66,32 @@ internal data class RunSupervisionDatabaseFixture(
             )
         }
 
-        private fun seedSourceGraph(
-            jdbc: JdbcClient,
+        private fun JdbcClient.seedSourceGraph(
             tenant: TenantId,
             run: ResolutionRunId,
             now: Instant,
             requiredApproval: ApprovalRequirement,
+            caseSnapshot: CaseWriteResult?,
         ) {
+            val jdbc = this
+            val caseId = caseSnapshot?.caseId ?: UUID.randomUUID()
             // Earlier capabilities own case/contract construction. Only their
             // source-graph FKs are bypassed; every supervision write runs with
             // ordinary constraints and triggers enabled.
             jdbc.sql("SET LOCAL session_replication_role = replica").update()
             try {
+                if (caseSnapshot == null) {
+                    jdbc
+                        .sql(
+                            """
+                            INSERT INTO cases (tenant_id, case_id, goal, status, stream_version, opened_at, updated_at)
+                            VALUES (:tenant, :case, 'Fixture case without bindings', 'OPEN', 1, :at, :at)
+                            """.trimIndent(),
+                        ).param("tenant", tenant.value)
+                        .param("case", caseId)
+                        .param("at", now.atOffset(ZoneOffset.UTC))
+                        .update()
+                }
                 jdbc
                     .sql(
                         """
@@ -83,15 +99,16 @@ internal data class RunSupervisionDatabaseFixture(
                             tenant_id, run_id, case_id, case_stream_version, contract_key, contract_revision,
                             policy_revision, step_id, capability, effective_risk, required_approval, initial_state
                         ) VALUES (
-                            :tenant, :run, :caseId, 1, 'restore-workspace-access', 1,
+                            :tenant, :run, :caseId, :boundary, 'restore-workspace-access', 1,
                             'ergon.dev/policy/access-restoration/v1', 'unlock-account', 'identity.account.unlock',
                             'HIGH', :approval, 'WAITING_FOR_APPROVAL'
                         )
                         """.trimIndent(),
                     ).param("tenant", tenant.value)
+                    .param("boundary", caseSnapshot?.streamVersion ?: 1L)
                     .param("approval", requiredApproval.name)
                     .param("run", run.value)
-                    .param("caseId", UUID.randomUUID())
+                    .param("caseId", caseId)
                     .update()
                 jdbc
                     .sql(

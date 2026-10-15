@@ -286,6 +286,9 @@ class BrowserAssignedRunConsoleApiIntegrationTest(
                     false,
                     null,
                 ),
+            pinnedEvidence =
+                org.ergon.controlplane.resolution.application
+                    .PinnedRunEvidence(CASE_ID.value, 4, emptyList(), false),
         )
     }
 

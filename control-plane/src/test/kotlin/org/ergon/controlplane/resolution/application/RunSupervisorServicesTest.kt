@@ -28,6 +28,7 @@ class RunSupervisorServicesTest {
     private val transitions = Mockito.mock(ResolutionRunTransitionRepository::class.java)
     private val receipts = Mockito.mock(CapabilityInvocationReceiptRepository::class.java)
     private val historyReader = Mockito.mock(RecordedRunTransitionReader::class.java)
+    private val evidenceReader = Mockito.mock(PinnedRunEvidenceReader::class.java)
     private val clock = Clock.fixed(NOW, ZoneOffset.UTC)
     private val transactionRunner =
         object : TransactionRunner {
@@ -115,7 +116,7 @@ class RunSupervisorServicesTest {
     fun `browser detail with lost resolver authority does not query assignments or run data`() {
         assertThatThrownBy { consoleService().get(TENANT_ID.value, RUN_ID.value, ACTOR_ID.value) }
             .isInstanceOf(AssignedRunNotFoundException::class.java)
-        Mockito.verifyNoInteractions(assignments, runs, transitions, receipts, historyReader)
+        Mockito.verifyNoInteractions(assignments, runs, transitions, receipts, historyReader, evidenceReader)
     }
 
     @Test
@@ -128,7 +129,7 @@ class RunSupervisorServicesTest {
         assertThatThrownBy { consoleService().get(TENANT_ID.value, RUN_ID.value, ACTOR_ID.value) }
             .isInstanceOf(AssignedRunNotFoundException::class.java)
         Mockito.verify(assignments).findAssigned(TENANT_ID, RUN_ID, ACTOR_ID, NOW)
-        Mockito.verifyNoInteractions(runs, transitions, receipts, historyReader)
+        Mockito.verifyNoInteractions(runs, transitions, receipts, historyReader, evidenceReader)
     }
 
     @Test
@@ -178,6 +179,7 @@ class RunSupervisorServicesTest {
             receipts,
             historyReader,
             RunApprovalReviewService(RunApprovalReviewReader { _, _ -> null }, authorities, false),
+            evidenceReader,
         )
 
     private fun command() =

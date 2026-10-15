@@ -1,6 +1,9 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
+import org.ergon.controlplane.identity.adapter.inbound.security.InvalidAuthenticatedHumanIdentityException
+import org.ergon.controlplane.identity.adapter.inbound.security.UntrustedHumanIdentityIssuerException
+import org.ergon.controlplane.identity.application.AuthenticatedHumanActorNotRegisteredException
 import org.ergon.controlplane.resolution.application.AssignedRunConsoleService
 import org.ergon.controlplane.resolution.application.AssignedRunCursor
 import org.ergon.controlplane.resolution.application.AssignedRunDetail
@@ -151,7 +154,7 @@ data class BrowserAssignedRunPageResponse(
 /**
  * One run's pinned start and current state, not a live execution trace.
  *
- * This projection excludes case evidence, human approval identities,
+ * This projection excludes unlinked/later case evidence, human approval identities,
  * authorization consumption and connector payloads. Execution is a terminal
  * connector receipt, not a projected transition or independent outcome proof.
  * A null execution means no receipt; null timing means unmeasured, not zero.
@@ -181,6 +184,7 @@ data class BrowserAssignedRunDetailResponse(
     val supervisionRevision: Long,
     val handoverSupported: Boolean,
     val approvalReview: BrowserRunApprovalReview,
+    val pinnedEvidence: BrowserPinnedRunEvidence,
 )
 
 /** Sequence-ordered state facts through the returned state version, not a span tree or proof payload. */
@@ -255,25 +259,50 @@ private fun AssignedRunDetail.toResponse(): BrowserAssignedRunDetailResponse {
         supervisionRevision = supervisionRevision.value,
         handoverSupported = handoverSupported,
         approvalReview = approvalReview.toBrowserReview(),
+        pinnedEvidence = pinnedEvidence.toBrowserEvidence(),
     )
 }
 
-/** Non-disclosing browser problems for malformed cursors and protected run absence. */
+/** Cause-free, no-store problems for read validation, identity rejection and protected run absence. */
 @RestControllerAdvice(assignableTypes = [BrowserAssignedRunConsoleController::class])
 class BrowserAssignedRunConsoleExceptionHandler {
     @ExceptionHandler(AssignedRunNotFoundException::class)
-    fun missing(
-        @Suppress("UNUSED_PARAMETER") exception: AssignedRunNotFoundException,
-    ): ProblemDetail =
-        ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "Assigned resolution run was not found").apply {
-            type = URI.create("urn:ergon:problem:assigned-resolution-run-not-found")
-            title = "Assigned resolution run not found"
-        }
+    fun missing(): ResponseEntity<ProblemDetail> =
+        problem(HttpStatus.NOT_FOUND, "assigned-resolution-run-not-found", "Assigned resolution run not found")
 
     @ExceptionHandler(IllegalArgumentException::class)
-    fun invalid(exception: IllegalArgumentException): ProblemDetail =
-        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.message.orEmpty()).apply {
-            type = URI.create("urn:ergon:problem:invalid-assigned-resolution-run-page")
-            title = "Invalid assigned resolution run page"
-        }
+    fun invalid(): ResponseEntity<ProblemDetail> =
+        problem(HttpStatus.BAD_REQUEST, "invalid-assigned-resolution-run-page", "Invalid assigned resolution run page")
+
+    @ExceptionHandler(AuthenticatedHumanActorNotRegisteredException::class)
+    fun unregistered(): ResponseEntity<ProblemDetail> =
+        problem(
+            HttpStatus.FORBIDDEN,
+            "human-actor-not-registered",
+            "Actor not registered",
+        )
+
+    @ExceptionHandler(UntrustedHumanIdentityIssuerException::class)
+    fun issuer(): ResponseEntity<ProblemDetail> =
+        problem(
+            HttpStatus.FORBIDDEN,
+            "untrusted-human-identity-issuer",
+            "Identity rejected",
+        )
+
+    @ExceptionHandler(InvalidAuthenticatedHumanIdentityException::class)
+    fun identity(): ResponseEntity<ProblemDetail> =
+        problem(HttpStatus.FORBIDDEN, "invalid-authenticated-human-identity", "Identity rejected")
+
+    private fun problem(
+        status: HttpStatus,
+        type: String,
+        detail: String,
+    ): ResponseEntity<ProblemDetail> =
+        ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(
+            ProblemDetail.forStatusAndDetail(status, detail).apply {
+                this.type = URI.create("urn:ergon:problem:$type")
+                title = detail
+            },
+        )
 }

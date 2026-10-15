@@ -94,7 +94,12 @@ The current slice can:
     APPROVED/REJECTED with current supervision, exact authority/scope and request
     validity. Immutable browser command receipts support exact historical replay.
     Approval commands are disabled by default; they never create a grant, invoke
-    a connector or advance run state. Existing bearer decisions remain compatible.
+    a connector or advance run state. Existing bearer decisions remain compatible; and
+33. inspect existing account-access bindings and only their linked connector
+    sources inside an assigned run's pinned case prefix. Current supervision
+    and resolver authority gate disclosure; unbound/later material is excluded.
+    A bounded 100-binding history reports truncation without inferring latest
+    truth, confidence, contradiction meaning or outcome proof.
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -107,6 +112,7 @@ Detailed HTTP semantics live with their capabilities:
 - [authorization grants](../authorization-grants.md)
 - [capability invocation](../capability-invocations.md)
 - [human follow-up](../human-follow-up.md)
+- [pinned run evidence](../pinned-run-evidence.md)
 
 ## Runtime and data
 

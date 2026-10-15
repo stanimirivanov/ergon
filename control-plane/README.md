@@ -34,6 +34,12 @@ member. Assigned snapshots also include the complete immutable transition
 prefix through their state revision, without event identities or proof payloads.
 The companion workbench renders these facts; historical timing, multi-step
 spans and unsupported cost are not inferred.
+Assigned Console reads also disclose existing account-access bindings and only
+their linked connector sources within the run's pinned case prefix. Current
+supervision and resolver authority remain mandatory; later and unbound material
+is excluded. The first 100 bindings are returned with explicit truncation, never
+as confidence or contradiction assessments. No schema/flag change is needed;
+see [pinned evidence](../docs/pinned-run-evidence.md).
 Release remains disabled by default during a mixed-version rollout. Set
 `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED=true` only after every instance serving
 ownership traffic runs the new lifecycle code. Once a release is durable,

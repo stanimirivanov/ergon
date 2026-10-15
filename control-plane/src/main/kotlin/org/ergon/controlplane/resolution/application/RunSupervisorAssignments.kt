@@ -96,6 +96,7 @@ data class AssignedRunDetail(
     val supervisionRevision: RunSupervisionRevision = RunSupervisionRevision(0),
     val handoverSupported: Boolean = false,
     val approvalReview: RunApprovalReview,
+    val pinnedEvidence: PinnedRunEvidence,
 )
 
 /**
@@ -271,6 +272,7 @@ class AssignedRunConsoleService(
     private val receipts: CapabilityInvocationReceiptRepository,
     private val historyReader: RecordedRunTransitionReader,
     private val approvalReviews: RunApprovalReviewService,
+    private val pinnedEvidence: PinnedRunEvidenceReader,
     private val handoverEnabled: Boolean = false,
 ) {
     /** Lists at most 100 active assigned runs, with no stable total count. */
@@ -305,7 +307,10 @@ class AssignedRunConsoleService(
     /**
      * Returns the assigned run even after it reaches a terminal state so a
      * polling console can report completion without inventing a live trace.
-     * Only after the gate succeeds are receipt and history loaded. The immutable
+     * Only after the gate succeeds are receipt, history and pinned evidence loaded.
+     * Evidence contains historical bindings and their exact sources inside the
+     * pinned case prefix, never later or unbound material. Attribution is not proof.
+     * The immutable
      * prefix is bounded to the observed state revision even during concurrent
      * appends, and is checked against the pinned operation and receipt. Recorded
      * timing and transitions are historical facts, not live spans or inspected proof.
@@ -362,8 +367,24 @@ class AssignedRunConsoleService(
                 assignment.revision,
                 handoverEnabled && canHandover(state.state) && assignment.revision.value < MAX_RUN_SUPERVISION_REVISION,
                 approvalReviews.review(tenant, start.run, state.state, actor, at),
+                loadPinnedEvidence(tenant, start),
             )
         }
+
+    private fun loadPinnedEvidence(
+        tenant: TenantId,
+        start: StoredResolutionRunStart,
+    ): PinnedRunEvidence {
+        val run = start.run
+        val evidence =
+            checkNotNull(pinnedEvidence.find(tenant, run.caseId, run.caseStreamVersion)) {
+                "assigned run pinned case evidence is absent"
+            }
+        check(evidence.caseId == run.caseId.value && evidence.caseStreamVersion == run.caseStreamVersion) {
+            "assigned run evidence belongs to another snapshot"
+        }
+        return evidence
+    }
 }
 
 private fun StoredRunSupervisorAssignment.matches(command: AssignRunSupervisorCommand): Boolean =
