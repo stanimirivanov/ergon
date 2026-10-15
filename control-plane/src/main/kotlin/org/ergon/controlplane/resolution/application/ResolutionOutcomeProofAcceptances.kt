@@ -19,6 +19,7 @@ import org.ergon.resolution.domain.ResolutionRunStart
 import org.ergon.resolution.domain.ResolutionRunState
 import org.ergon.resolution.domain.ResolutionRunStateSnapshot
 import java.time.Clock
+import java.time.Instant
 import java.util.UUID
 
 /** Signals that the latest eligible evidence does not satisfy the pinned proof condition. */
@@ -39,15 +40,20 @@ class ResolutionOutcomeProofAcceptedEventFactory(
     private val identities: ResolutionRunEventIdentityGenerator,
     private val clock: Clock,
 ) {
-    /** @return a new terminal event freezing [assessment] for [run]. */
+    /**
+     * Freezes [assessment] for [run] at [acceptedAt], defaulting to the injected
+     * clock for internal callers. Browser orchestration supplies its authority
+     * decision instant explicitly; retain its case-event nanosecond precision.
+     */
     fun create(
         run: ResolutionRunStart,
         state: ResolutionRunStateSnapshot,
         assessment: ResolutionOutcomeProofAssessment.Accepted,
+        acceptedAt: Instant = clock.instant(),
     ): ResolutionOutcomeProofAccepted =
         ResolutionOutcomeProofAccepted.record(
             identities.next(),
-            ResolutionOutcomeProofAcceptanceBasis(run, state, assessment, clock.instant()),
+            ResolutionOutcomeProofAcceptanceBasis(run, state, assessment, acceptedAt),
         )
 }
 
@@ -103,6 +109,23 @@ class ResolutionOutcomeProofCompletion(
     private val eventFactory: ResolutionOutcomeProofAcceptedEventFactory,
     private val caseCloser: ResolutionOutcomeCaseCloser,
 ) {
+    /**
+     * Stages completion at the exact instant used for the caller's authority check.
+     * Caller owns the transaction; invalid temporal/evidence invariants throw
+     * [IllegalArgumentException], and changed case history throws
+     * [ResolutionOutcomeProofChangedException]. No clock is sampled again.
+     */
+    fun stageAt(
+        tenantId: TenantId,
+        run: ResolutionRunStart,
+        state: ResolutionRunStateSnapshot,
+        assessment: ResolutionOutcomeProofAssessment.Accepted,
+        acceptedAt: Instant,
+    ): ResolutionOutcomeProofAccepted =
+        eventFactory.create(run, state, assessment, acceptedAt).also { event ->
+            caseCloser.close(tenantId, run.caseId, event)
+        }
+
     /** @return the accepted-proof event after staging its exact case closure. */
     fun stage(
         tenantId: TenantId,

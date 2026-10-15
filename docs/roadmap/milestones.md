@@ -182,6 +182,9 @@ separate pull requests because they live in different repositories.
    Delivered for the existing single account-access condition: current assessment
    is distinct from immutable acceptance, with narrowly selected post-action
    provenance under [ADR 0051](../decisions/0051-disclose-supervisor-scoped-outcome-verification.md).
+    Confirmed browser finalization binds exact reviewed proof to current supervision
+    and resolver authority, with atomic closure and historical replay under
+    [ADR 0052](../decisions/0052-finalize-reviewed-proof-through-browser.md).
    Multi-check verification and new proof types remain separate capabilities.
 8. **M04 - Guarded Execution and Verification:** Steer supervised runs through
    deterministic, auditable commands. Define bounded command and authority

@@ -21,7 +21,11 @@ import java.net.URI
 
 /** Stable, no-store failure contracts without raw exceptions, incumbent identities, or SQL diagnostics. */
 @RestControllerAdvice(
-    assignableTypes = [BrowserRunSupervisorHandoverController::class, BrowserRunApprovalController::class],
+    assignableTypes = [
+        BrowserRunSupervisorHandoverController::class,
+        BrowserRunApprovalController::class,
+        BrowserRunProofController::class,
+    ],
 )
 class BrowserRunSupervisorHandoverExceptionHandler {
     @ExceptionHandler(AssignedRunNotFoundException::class)

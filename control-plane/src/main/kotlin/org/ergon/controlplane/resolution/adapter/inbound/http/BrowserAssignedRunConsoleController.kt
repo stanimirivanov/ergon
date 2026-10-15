@@ -87,6 +87,13 @@ class BrowserAssignedRunConsoleController(
     matchIfMissing = true,
 )
 class BrowserAssignedRunUnavailableController {
+    @PostMapping("/{runId}/proof-finalizations")
+    fun proofUnavailable(): ResponseEntity<ProblemDetail> =
+        ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .cacheControl(CacheControl.noStore())
+            .body(unavailableProblem())
+
     @PostMapping("/{runId}/approval-requests/{requestId}/decisions")
     fun approvalUnavailable(): ResponseEntity<ProblemDetail> =
         ResponseEntity
@@ -188,6 +195,7 @@ data class BrowserAssignedRunDetailResponse(
     val approvalReview: BrowserRunApprovalReview,
     val pinnedEvidence: BrowserPinnedRunEvidence,
     val outcomeVerification: BrowserRunOutcomeVerification,
+    val proofFinalizationSupported: Boolean,
 )
 
 /** Sequence-ordered state facts through the returned state version, not a span tree or proof payload. */
@@ -264,6 +272,7 @@ private fun AssignedRunDetail.toResponse(): BrowserAssignedRunDetailResponse {
         approvalReview = approvalReview.toBrowserReview(),
         pinnedEvidence = pinnedEvidence.toBrowserEvidence(),
         outcomeVerification = outcomeVerification.toBrowserVerification(),
+        proofFinalizationSupported = proofFinalizationSupported,
     )
 }
 

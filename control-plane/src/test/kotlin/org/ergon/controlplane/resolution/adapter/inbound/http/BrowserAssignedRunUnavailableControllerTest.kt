@@ -2,6 +2,8 @@ package org.ergon.controlplane.resolution.adapter.inbound.http
 
 import org.junit.jupiter.api.Test
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
@@ -25,6 +27,12 @@ class BrowserAssignedRunUnavailableControllerTest {
         mockMvc
             .perform(get("/bff/v1/tenants/{tenantId}/resolution-runs/{runId}/console", tenantId, runId))
             .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.type").value(problemType))
+
+        mockMvc
+            .perform(post("/bff/v1/tenants/{tenantId}/resolution-runs/{runId}/proof-finalizations", tenantId, runId))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(header().string("Cache-Control", "no-store"))
             .andExpect(jsonPath("$.type").value(problemType))
     }
 }

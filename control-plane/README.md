@@ -5,7 +5,9 @@
 The Spring Boot control plane persists Ergon resolution and human follow-up
 facts. A trusted machine can now record one initial run supervisor; only that
 assigned resolver can discover active runs and read their recorded start and
-current state through the browser BFF. This is read access, not a control lease.
+current state through the browser BFF. Separately enabled commands confirm human
+prerequisites, transfer supervision and finalize exact reviewed outcome proof.
+Assignment is neither a control lease nor capability-execution authority.
 
 ## Purpose
 
@@ -42,8 +44,10 @@ as confidence or contradiction assessments. No schema/flag change is needed;
 see [pinned evidence](../docs/pinned-run-evidence.md).
 The same protected read now projects one pinned outcome condition, current
 verification and immutable accepted proof with only its exact post-action
-binding/source. MATCHING is not durable acceptance; no browser acceptance
-command or schema/flag is added. See [outcome verification](../docs/run-outcome-verification.md).
+binding/source. MATCHING is not durable acceptance. A separate session/CSRF
+command accepts exact reviewed matching proof, atomically closes the case and
+records an attributed replay receipt. It defaults off and never invokes a
+connector. See [outcome verification](../docs/run-outcome-verification.md).
 Release remains disabled by default during a mixed-version rollout. Set
 `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED=true` only after every instance serving
 ownership traffic runs the new lifecycle code. Once a release is durable,
@@ -67,6 +71,7 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED` | Enables internal release after every ownership reader and writer is upgraded; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_HANDOVER_ENABLED` | Enables confirmed browser handover only after every backend supervision reader is upgraded; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_APPROVAL_ENABLED` | Enables supervisor-scoped confirmed human decisions after the additive schema/backend deployment; defaults to `false` |
+| `ERGON_RUN_PROOF_FINALIZATION_ENABLED` | Enables exact reviewed proof acceptance after additive schema/backend deployment; defaults to `false` |
 
 The JWT variables are a pair. Protected human operations fail closed when the
 trust mapping is absent. Enabling browser sessions additionally requires the
