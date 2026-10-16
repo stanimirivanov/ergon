@@ -66,10 +66,17 @@ internal class RunProofTestFixture(
         fixture: RunSupervisionDatabaseFixture,
         state: AccountAccessState,
     ) {
+        // Upgrade fixtures run before the current supervision mapper's columns
+        // exist; the source run identity is enough to append genuine evidence.
         val caseId =
-            console
-                .get(fixture.tenant.value, fixture.run.value, fixture.outgoing.value)
-                .start.run.caseId
+            CaseId(
+                jdbc
+                    .sql("SELECT case_id FROM resolution_runs WHERE tenant_id = :tenant AND run_id = :run")
+                    .param("tenant", fixture.tenant.value)
+                    .param("run", fixture.run.value)
+                    .query(UUID::class.java)
+                    .single(),
+            )
         val current = checkNotNull(timelines.find(fixture.tenant, caseId))
         val observed =
             cases.recordConnectorObservation(

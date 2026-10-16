@@ -111,11 +111,18 @@ The current slice can:
     [outcome verification](../run-outcome-verification.md); and
 36. admit and execute the exact approved pinned capability through a separate
     default-off, session/CSRF browser command. Immutable admission/attempt audit
-    commits with grant/consumption before I/O. Exact replay never dispatches;
+    commits with grant/consumption before I/O. Replay of admitted intent never dispatches;
     explicit recovery reuses the original consumption key with current authority
     and supervision fencing. Execution and proof remain separate. See
-    [execution/recovery](../run-capability-execution.md). The dependent UI/guide
-    is not yet delivered in this backend-only change.
+    [execution/recovery](../run-capability-execution.md). Its dependent UI and
+    executable guide are merged; and
+37. confirm an eligible failed run's fresh successor through a separately
+    default-off browser retry command. Current planning, runtime retry, atomic
+    successor supervision and exact command audit share one transaction. Nothing
+    inherits execution authority and no connector is invoked. Every assignment
+    reader must support nullable machine provenance before enabling; after first
+    use preserve audit and recover forward. The dependent retry UI and guide wait
+    for backend review/merge. See [browser retry](../run-supervisor-retry.md).
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -130,6 +137,7 @@ Detailed HTTP semantics live with their capabilities:
 - [human follow-up](../human-follow-up.md)
 - [pinned run evidence](../pinned-run-evidence.md)
 - [outcome verification](../run-outcome-verification.md)
+- [confirmed failed-run retry](../run-supervisor-retry.md)
 
 ## Runtime and data
 
@@ -210,9 +218,9 @@ GitHub SCM URL retains its factual existing repository name.
 - No public production authorization model for internal endpoints.
 - No compensation engine, failure classification/backoff, autonomous retries,
   simulation lab, or improvement proposal generator.
-- No writable runtime controls, adaptive canvas, or public SDK. The companion
-  UI can confirm supervision handover and exact human approval prerequisites,
-  not steer execution, derive grants or grant a lease.
+- No general pause/cancel/branch controls, adaptive canvas, or public SDK.
+  Narrow supervisor-confirmed execution, proof finalization and failed-run retry
+  do not establish general steering or a lease. Retry UI awaits backend merge.
 - Browser sessions are process-local and have no logout or provider-revocation
   flow; supervisor recovery/forced takeover, follow-up reassignment and
   completion remain undefined.

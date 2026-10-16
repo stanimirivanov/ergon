@@ -83,7 +83,8 @@ class PostgresRunSupervisorAssignmentRepository(
                 """
                 SELECT assignment.assignment_id, assignment.run_id, assignment.supervisor_actor_id,
                     assignment.authority_evidence_id, assignment.command_id, assignment.assigning_machine_subject,
-                    assignment.assigned_at, assignment.recorded_at, current.supervisor_actor_id AS current_actor_id,
+                    assignment.assigned_at, assignment.recorded_at, assignment.retry_command_id,
+                    current.supervisor_actor_id AS current_actor_id,
                     current.supervision_revision, current.supervised_at
                 FROM resolution_run_supervisor_assignments assignment
                 JOIN resolution_run_current_supervision current
@@ -189,11 +190,11 @@ class PostgresRunSupervisorAssignmentRepository(
                     INSERT INTO resolution_run_supervisor_assignments (
                         tenant_id, assignment_id, run_id, supervisor_actor_id,
                         authority_evidence_id, assigning_machine_subject,
-                        command_id, assigned_at
+                        command_id, assigned_at, retry_command_id
                     ) VALUES (
                         :tenantId, :assignmentId, :runId, :actorId,
                         :authorityEvidenceId, :machineSubject,
-                        :commandId, :assignedAt
+                        :commandId, :assignedAt, :retryCommandId
                     )
                     ON CONFLICT DO NOTHING
                     RETURNING recorded_at
@@ -205,6 +206,7 @@ class PostgresRunSupervisorAssignmentRepository(
                 .param("authorityEvidenceId", assignment.authorityEvidenceId.value)
                 .param("machineSubject", assignment.assigningMachineSubject)
                 .param("commandId", assignment.commandId)
+                .param("retryCommandId", assignment.retryCommandId)
                 .param("assignedAt", assignment.assignedAt.atOffset(ZoneOffset.UTC))
                 .query(OffsetDateTime::class.java)
                 .optional()
@@ -224,7 +226,8 @@ class PostgresRunSupervisorAssignmentRepository(
                 command_id,
                 assigning_machine_subject,
                 assigned_at,
-                recorded_at
+                recorded_at,
+                retry_command_id
             FROM resolution_run_supervisor_assignments assignment
             WHERE assignment.tenant_id = :tenantId
                 $extraPredicate
@@ -245,9 +248,10 @@ private data class RunSupervisorAssignmentRow(
     val supervisorActorId: UUID,
     val authorityEvidenceId: UUID,
     val commandId: UUID,
-    val assigningMachineSubject: String,
+    val assigningMachineSubject: String?,
     val assignedAt: OffsetDateTime,
     val recordedAt: OffsetDateTime,
+    val retryCommandId: UUID?,
 ) {
     fun toStoredAssignment(): StoredRunSupervisorAssignment =
         StoredRunSupervisorAssignment(
@@ -259,6 +263,7 @@ private data class RunSupervisorAssignmentRow(
                 commandId = commandId,
                 assigningMachineSubject = assigningMachineSubject,
                 assignedAt = assignedAt.toInstant(),
+                retryCommandId = retryCommandId,
             ),
             recordedAt.toInstant(),
         )

@@ -78,6 +78,12 @@ class ResolutionRunRetryStateException(
 class ResolutionRunRetryPlanChangedException :
     RuntimeException("current plan changes the failed contract, step, or capability; retry requires the same operation")
 
+/** A reviewed caller must reconfirm when current planning changes even if the operation itself is unchanged. */
+class ResolutionRunRetryReviewChangedException :
+    RuntimeException(
+        "current retry plan differs from the exact reviewed inputs",
+    )
+
 /** Signals that the exact retry policy revision refuses another successor. */
 class ResolutionRunRetryLimitReachedException(
     val policyRevision: ResolutionRetryPolicyRevision,
@@ -108,11 +114,15 @@ class ResolutionRunRetryService(
      * new attempt retains operation meaning but begins with fresh requirements;
      * no approval, grant, consumption, receipt, or connector call is copied.
      * Replay returns the original successor even if the case has since advanced.
+     * [expectedPlan], when supplied by a reviewed caller, must equal the newly
+     * evaluated plan in full; internal callers may omit this additional fence.
      * [actorId] must originate from a verified tenant-scoped bearer identity.
      *
      * @throws ResolutionRunNotFoundException when [failedRunId] is absent from [tenantId].
      * @throws ResolutionRunRetryStateException unless the run is `ACTION_FAILED`.
      * @throws ResolutionRunRetryPlanChangedException when the pinned operation changed.
+     * @throws ResolutionRunRetryReviewChangedException when a supplied [expectedPlan]
+     * no longer matches current planning.
      * @throws ResolutionRunRetryLimitReachedException when the retry policy has
      *   reached its total attempt limit.
      * @throws ResolutionRunNotReadyException when current evidence is not ready.
@@ -127,6 +137,7 @@ class ResolutionRunRetryService(
         failedRunId: UUID,
         expectedCaseVersion: Long,
         actorId: UUID,
+        expectedPlan: ResolutionRunPlan? = null,
     ): ResolutionRunRetryExecution {
         require(expectedCaseVersion > 0) { "If-Match version must be positive" }
         return transactionRunner.required {
@@ -155,6 +166,7 @@ class ResolutionRunRetryService(
             val eligibility = retryPolicy.requireEligible(failedRun.attemptNumber)
             val plan = records.planning.plan(tenantId, failedRun.caseId.value).toRunPlan(expectedCaseVersion)
             plan.requireSameOperation(failedRun)
+            plan.requireReviewed(expectedPlan)
             val (replacement, event) =
                 try {
                     val replacement = ResolutionRunStart.retry(runIdentities.next(), failedRun, plan)
@@ -174,6 +186,10 @@ class ResolutionRunRetryService(
             ResolutionRunRetryExecution(storedRun, recording)
         }
     }
+}
+
+private fun ResolutionRunPlan.requireReviewed(expectedPlan: ResolutionRunPlan?) {
+    if (expectedPlan != null && this != expectedPlan) throw ResolutionRunRetryReviewChangedException()
 }
 
 private fun ResolutionRetryPolicy.requireEligible(sourceAttemptNumber: Int): ResolutionRetryEligibility.Eligible =

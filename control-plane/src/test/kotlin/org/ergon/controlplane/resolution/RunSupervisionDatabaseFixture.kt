@@ -2,7 +2,6 @@ package org.ergon.controlplane.resolution
 
 import org.ergon.contracts.domain.ApprovalRequirement
 import org.ergon.controlplane.cases.application.CaseWriteResult
-import org.ergon.controlplane.resolution.adapter.out.persistence.PostgresRunSupervisorAssignmentRepository
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignment
 import org.ergon.controlplane.resolution.application.StoredRunSupervisorAssignment
 import org.ergon.identity.domain.HumanActorId
@@ -41,7 +40,8 @@ internal data class RunSupervisionDatabaseFixture(
             jdbc.seedSourceGraph(tenant, run, now, requiredApproval, caseSnapshot)
             seedActors(jdbc, tenant, actors, evidence, now)
             val initial =
-                PostgresRunSupervisorAssignmentRepository(jdbc).create(
+                seedMachineAssignment(
+                    jdbc,
                     tenant,
                     RunSupervisorAssignment(
                         UUID.randomUUID(),
@@ -64,6 +64,36 @@ internal data class RunSupervisionDatabaseFixture(
                 evidence[1],
                 initial,
             )
+        }
+
+        private fun seedMachineAssignment(
+            jdbc: JdbcClient,
+            tenant: TenantId,
+            assignment: RunSupervisorAssignment,
+        ): StoredRunSupervisorAssignment {
+            // Released-schema upgrade fixtures must use that writer's original
+            // columns, not the current adapter's expanded provenance mapping.
+            val recordedAt =
+                jdbc
+                    .sql(
+                        """
+                        INSERT INTO resolution_run_supervisor_assignments (
+                            tenant_id, assignment_id, run_id, supervisor_actor_id, authority_evidence_id,
+                            command_id, assigning_machine_subject, assigned_at
+                        ) VALUES (:tenant, :id, :run, :actor, :evidence, :command, :subject, :at)
+                        RETURNING recorded_at
+                        """.trimIndent(),
+                    ).param("tenant", tenant.value)
+                    .param("id", assignment.id)
+                    .param("run", assignment.runId.value)
+                    .param("actor", assignment.supervisorActorId.value)
+                    .param("evidence", assignment.authorityEvidenceId.value)
+                    .param("command", assignment.commandId)
+                    .param("subject", assignment.assigningMachineSubject)
+                    .param("at", assignment.assignedAt.atOffset(ZoneOffset.UTC))
+                    .query(java.time.OffsetDateTime::class.java)
+                    .single()
+            return StoredRunSupervisorAssignment(assignment, recordedAt.toInstant())
         }
 
         private fun JdbcClient.seedSourceGraph(
