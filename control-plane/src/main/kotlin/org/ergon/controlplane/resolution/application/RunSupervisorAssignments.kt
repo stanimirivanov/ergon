@@ -98,6 +98,7 @@ data class AssignedRunDetail(
     val approvalReview: RunApprovalReview,
     val pinnedEvidence: PinnedRunEvidence,
     val outcomeVerification: RunOutcomeVerification,
+    val proofFinalizationSupported: Boolean = false,
 )
 
 /**
@@ -276,6 +277,7 @@ class AssignedRunConsoleService(
     private val pinnedEvidence: PinnedRunEvidenceReader,
     private val outcomeVerification: RunOutcomeVerificationService,
     private val handoverEnabled: Boolean = false,
+    private val proofFinalizationEnabled: Boolean = false,
 ) {
     /** Lists at most 100 active assigned runs, with no stable total count. */
     fun list(
@@ -373,6 +375,7 @@ class AssignedRunConsoleService(
                 approvalReviews.review(tenant, start.run, state.state, actor, at),
                 loadPinnedEvidence(tenant, start),
                 outcomeVerification.read(tenant, start.run, state, execution),
+                proofFinalizationEnabled,
             )
         }
 

@@ -103,7 +103,12 @@ The current slice can:
 34. inspect one pinned outcome condition, current post-action assessment and
     immutable accepted proof with only its exact selected citation. Current
     supervision and resolver authority gate disclosure. A mutable MATCHING result
-    is not acceptance or closure; there is no browser acceptance command.
+    is not acceptance or closure; and
+35. accept exact reviewed matching proof through a supervisor-authorized,
+    CSRF-protected browser command. Run completion, case closure and attributed
+    command replay receipt commit atomically. This defaults off under
+    `ERGON_RUN_PROOF_FINALIZATION_ENABLED` and never invokes a connector. See
+    [outcome verification](../run-outcome-verification.md).
 
 Detailed HTTP semantics live with their capabilities:
 

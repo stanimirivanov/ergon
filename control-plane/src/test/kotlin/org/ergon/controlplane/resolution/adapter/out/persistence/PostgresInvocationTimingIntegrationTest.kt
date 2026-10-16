@@ -2,6 +2,7 @@ package org.ergon.controlplane.resolution.adapter.out.persistence
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.awaitility.Awaitility.await
 import org.ergon.cases.domain.CaseId
 import org.ergon.contracts.domain.CapabilityName
 import org.ergon.contracts.domain.ResolutionStepId
@@ -23,9 +24,12 @@ import org.ergon.resolution.domain.ResolutionPolicyRevision
 import org.ergon.resolution.domain.ResolutionRunId
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.dao.DataAccessException
+import org.springframework.dao.DuplicateKeyException
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.jdbc.datasource.DriverManagerDataSource
@@ -39,8 +43,10 @@ import org.testcontainers.utility.DockerImageName
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import javax.sql.DataSource
 
@@ -106,6 +112,104 @@ class PostgresInvocationTimingIntegrationTest(
             ).isIn(100L, 200L)
             assertThat(receipts.find(tenant, consumption.id)).isEqualTo(results[0].storedReceipt)
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `receipt writers wait for the consumption transaction and recover its commit or rollback`(rollback: Boolean) {
+        val tenant = TenantId(UUID.randomUUID())
+        val consumption = consumption()
+        seedConsumption(dataSource, tenant, consumption)
+        val workerPid = CompletableFuture<Int>()
+        lateinit var pending: Future<CapabilityInvocationExecution>
+        Executors.newSingleThreadExecutor().use { executor ->
+            val first =
+                TransactionTemplate(DataSourceTransactionManager(dataSource)).execute { status ->
+                    // This lock permits FK KEY SHARE checks. Only receipt-write
+                    // serialization, not INSERT's parent check, must wait here.
+                    jdbc
+                        .sql(
+                            """
+                            SELECT authorization_consumption_id
+                            FROM capability_authorization_consumptions
+                            WHERE tenant_id = :tenant AND authorization_consumption_id = :consumption
+                            FOR NO KEY UPDATE
+                            """.trimIndent(),
+                        ).param("tenant", tenant.value)
+                        .param("consumption", consumption.id.value)
+                        .query(UUID::class.java)
+                        .single()
+                    val ownerPid = jdbc.sql("SELECT pg_backend_pid()").query(Int::class.java).single()
+                    pending =
+                        executor.submit<CapabilityInvocationExecution> {
+                            transactions.required {
+                                workerPid.complete(jdbc.sql("SELECT pg_backend_pid()").query(Int::class.java).single())
+                                receipts.createOrFind(tenant, receipt(consumption, 200L))
+                            }
+                        }
+                    val pid = workerPid.get(10, TimeUnit.SECONDS)
+                    await().atMost(10, TimeUnit.SECONDS).until {
+                        pending.isDone ||
+                            jdbc
+                                .sql("SELECT :owner = ANY(pg_blocking_pids(:worker))")
+                                .param("owner", ownerPid)
+                                .param("worker", pid)
+                                .query(Boolean::class.java)
+                                .single()
+                    }
+                    assertThat(pending.isDone).describedAs("writer must wait before inserting a receipt").isFalse()
+                    receipts.createOrFind(tenant, receipt(consumption, 100L)).also {
+                        if (rollback) status.setRollbackOnly()
+                    }
+                }
+            val second = pending.get(20, TimeUnit.SECONDS)
+            assertThat(first.created).isTrue()
+            assertThat(second.created).isEqualTo(rollback)
+            if (!rollback) assertThat(second.storedReceipt).isEqualTo(first.storedReceipt)
+            assertThat(
+                second.storedReceipt.receipt.timing
+                    ?.elapsedNanoseconds,
+            ).isEqualTo(if (rollback) 200L else 100L)
+            assertThat(receipts.find(tenant, consumption.id)).isEqualTo(second.storedReceipt)
+        }
+    }
+
+    @Test
+    fun `another consumption cannot reuse a provider operation and a failed write leaves the winner unchanged`() {
+        val tenant = TenantId(UUID.randomUUID())
+        val first = consumption()
+        val second = consumption()
+        seedConsumption(dataSource, tenant, first)
+        seedConsumption(dataSource, tenant, second)
+        val winner = transactions.required { receipts.createOrFind(tenant, receipt(first, 100L)) }
+        val conflicting =
+            CapabilityInvocationReceipt.complete(
+                second,
+                CapabilityInvocationResult(
+                    CapabilityInvocationOutcome.SUCCEEDED,
+                    winner.storedReceipt.receipt.providerOperationReference,
+                ),
+                NOW.plusSeconds(1),
+                CapabilityInvocationTiming(NOW, 200L),
+            )
+
+        assertThatThrownBy { transactions.required { receipts.createOrFind(tenant, conflicting) } }
+            .isInstanceOf(DuplicateKeyException::class.java)
+            .hasStackTraceContaining("uq_capability_invocation_receipts_provider_operation")
+        assertThat(receipts.find(tenant, first.id)).isEqualTo(winner.storedReceipt)
+        assertThat(receipts.find(tenant, second.id)).isNull()
+    }
+
+    @Test
+    fun `receipt persistence rejects autocommit so serialization lasts until the application commits`() {
+        val tenant = TenantId(UUID.randomUUID())
+        val consumption = consumption()
+        seedConsumption(dataSource, tenant, consumption)
+
+        assertThatThrownBy { receipts.createOrFind(tenant, receipt(consumption, 100L)) }
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessage("capability invocation receipt persistence requires an active transaction")
+        assertThat(receipts.find(tenant, consumption.id)).isNull()
     }
 
     @Test

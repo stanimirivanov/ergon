@@ -74,10 +74,17 @@ interface CapabilityInvocationReceiptRepository {
     /**
      * Stores [receipt], or returns the concurrently stored receipt for the same consumption.
      *
+     * Call inside [TransactionRunner.required] with an already persisted consumption.
+     * Implementations serialize competing receipt writes until that transaction
+     * completes; callers must not hold this boundary across connector I/O.
+     * Other consumptions reusing a provider operation remain integrity failures,
+     * not successful replay.
+     *
      * @return an execution whose `created` flag is true only for the transaction
      *   that inserted the immutable row.
      *   The losing caller receives the winner's entire receipt, including its
      *   timing or unmeasured status; measurements are never merged/backfilled.
+     * @throws IllegalStateException when no application transaction is active.
      */
     fun createOrFind(
         tenantId: TenantId,

@@ -53,12 +53,49 @@ assessment. Inconsistent durable attribution fails closed. A concurrent acceptan
 does not enter an earlier observed state prefix; explicit recheck obtains a new
 snapshot. These are not continuous monitoring or revocation guarantees.
 
+## Confirm exact reviewed proof
+
+`POST /bff/v1/tenants/{tenantId}/resolution-runs/{runId}/proof-finalizations`
+requires an authenticated session and CSRF. Its body is `commandId`,
+`expectedSupervisionRevision`, `expectedRunVersion`, `expectedCaseVersion`,
+`factId` and `observationId`. Actor, resolver attestation, contract and time remain
+server-owned. First application requires current supervision, tenant-wide
+RESOLVER authority and VERIFYING at the reviewed run revision. Reassessment must
+still match the exact case version and both identities. Changed evidence, even
+another matching fact, requires a new review and returns conflict rather than
+substituting proof. Concurrent case appends roll back the operation.
+
+First acceptance returns 201; exact replay returns 200 with identical persisted
+timestamps. Both acknowledge `commandId`, `runId`, `supervisionRevision`,
+`expectedRunVersion`, `assessedCaseVersion`, `factId`, `observationId`,
+`runSequence`, `caseClosureStreamVersion`, `acceptedAt`, `recordedAt`. Acceptance,
+run completion, case closure and attributed receipt commit atomically. Replay
+requires the original actor and current resolver authority, not continued
+supervision; it never closes twice or adopts an existing internal acceptance.
+The receipt is historical, not present authority or permission to disclose proof.
+
+Stable no-store problems are `run-proof-finalization-conflict` (409),
+`run-proof-finalization-disabled` (503), `invalid-run-proof-finalization` (400),
+and the existing neutral `assigned-resolution-run-not-found` (404). Existing
+identity, session and CSRF problems remain unchanged. The client never retries
+automatically: uncertain results may be replayed only with unchanged intent.
+
 ## Deployment and limits
 
-No migration, backfill, flag or new dependency. Deploy backend before UI. Omitted
+The read projection needs no new dependency. Deploy backend before UI. Omitted
 projection on an older server means unsupported; explicit null or malformed
 proof rejects the entire UI resource. Application rollback removes disclosure
-without altering evidence or acceptance. The browser has no acceptance command.
+without altering evidence or acceptance.
+
+Browser finalization additionally needs V20261015120000 and
+`ERGON_RUN_PROOF_FINALIZATION_ENABLED=true` (default false). Deploy schema/code
+before enabling. The migration scans/locks acceptance rows for an exact evidence
+unique key; assess size, disk, WAL and lock time. No backfill. Disable the flag
+for application rollback; retain all receipts and durable closures. The additive
+`proofFinalizationSupported` Console field distinguishes unsupported omission from
+disabled false; enabled true does not itself establish matching proof or authority.
+Existing internal acceptance semantics remain unchanged. See
+[ADR 0052](decisions/0052-finalize-reviewed-proof-through-browser.md).
 
 Only one existing proof condition is supported: no synthetic check count,
 confidence, generalized contradiction, retry or compensation is inferred.

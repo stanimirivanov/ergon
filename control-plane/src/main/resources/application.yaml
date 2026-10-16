@@ -15,6 +15,8 @@ spring:
 
 ergon:
   run-supervision:
+    proof-finalization:
+      enabled: ${ERGON_RUN_PROOF_FINALIZATION_ENABLED:false}
     approval:
       enabled: ${ERGON_RUN_SUPERVISOR_APPROVAL_ENABLED:false}
     handover:

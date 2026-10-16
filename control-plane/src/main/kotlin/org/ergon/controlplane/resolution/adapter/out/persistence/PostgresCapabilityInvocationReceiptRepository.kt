@@ -20,6 +20,7 @@ import org.ergon.resolution.domain.ResolutionRunId
 import org.springframework.jdbc.core.DataClassRowMapper
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -78,6 +79,10 @@ class PostgresCapabilityInvocationReceiptRepository(
         tenantId: TenantId,
         receipt: CapabilityInvocationReceipt,
     ): CapabilityInvocationExecution {
+        check(TransactionSynchronizationManager.isActualTransactionActive()) {
+            "capability invocation receipt persistence requires an active transaction"
+        }
+        lockConsumption(tenantId, receipt.authorizationConsumptionId)
         val recordedAt = insert(tenantId, receipt)
         if (recordedAt != null) {
             return CapabilityInvocationExecution(
@@ -90,6 +95,28 @@ class PostgresCapabilityInvocationReceiptRepository(
                 "conflicting capability invocation receipt was not visible"
             }
         return CapabilityInvocationExecution(existing, created = false)
+    }
+
+    private fun lockConsumption(
+        tenantId: TenantId,
+        consumptionId: CapabilityAuthorizationConsumptionId,
+    ) {
+        // ON CONFLICT arbitrates only the consumption key, not the provider/run
+        // unique indexes. Serialize same-consumption writers before INSERT so
+        // those indexes cannot race. The immutable parent exists before I/O;
+        // NO KEY UPDATE permits the KEY SHARE locks taken by receipt FKs.
+        jdbcClient
+            .sql(
+                """
+                SELECT authorization_consumption_id
+                FROM capability_authorization_consumptions
+                WHERE tenant_id = :tenantId AND authorization_consumption_id = :consumptionId
+                FOR NO KEY UPDATE
+                """.trimIndent(),
+            ).param("tenantId", tenantId.value)
+            .param("consumptionId", consumptionId.value)
+            .query(UUID::class.java)
+            .single()
     }
 
     private fun insert(
