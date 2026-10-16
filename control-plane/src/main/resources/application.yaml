@@ -15,6 +15,8 @@ spring:
 
 ergon:
   run-supervision:
+    execution:
+      enabled: ${ERGON_RUN_SUPERVISOR_EXECUTION_ENABLED:false}
     proof-finalization:
       enabled: ${ERGON_RUN_PROOF_FINALIZATION_ENABLED:false}
     approval:

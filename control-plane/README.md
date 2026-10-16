@@ -6,7 +6,8 @@ The Spring Boot control plane persists Ergon resolution and human follow-up
 facts. A trusted machine can now record one initial run supervisor; only that
 assigned resolver can discover active runs and read their recorded start and
 current state through the browser BFF. Separately enabled commands confirm human
-prerequisites, transfer supervision and finalize exact reviewed outcome proof.
+prerequisites, transfer supervision, admit approved pinned-capability execution
+and finalize exact reviewed outcome proof.
 Assignment is neither a control lease nor capability-execution authority.
 
 ## Purpose
@@ -72,6 +73,7 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_RUN_SUPERVISOR_HANDOVER_ENABLED` | Enables confirmed browser handover only after every backend supervision reader is upgraded; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_APPROVAL_ENABLED` | Enables supervisor-scoped confirmed human decisions after the additive schema/backend deployment; defaults to `false` |
 | `ERGON_RUN_PROOF_FINALIZATION_ENABLED` | Enables exact reviewed proof acceptance after additive schema/backend deployment; defaults to `false` |
+| `ERGON_RUN_SUPERVISOR_EXECUTION_ENABLED` | Enables confirmed pinned-capability admission and explicit recovery after additive schema/backend deployment; defaults to `false` |
 
 The JWT variables are a pair. Protected human operations fail closed when the
 trust mapping is absent. Enabling browser sessions additionally requires the
@@ -166,6 +168,16 @@ they never grant, execute or advance a run. Deploy the additive approval-command
 migration before enabling the separate approval flag. Disable commands for an
 application rollback without deleting immutable decisions/receipts. Existing
 bearer decisions remain compatible. See [approval contracts](../docs/approvals.md).
+
+## Browser execution rollout
+
+Supervisor-confirmed execution has a separate default-off flag. Deploy the
+additive command/attempt audit schema before enabling it. Admission, grant and
+consumption commit before connector I/O. Replaying intent is acknowledgement
+only; recovery uses an explicit new attempt and the original provider key.
+Successful execution reaches VERIFYING, never case closure. Disable the flag
+for rollback, retaining reservations and immutable audit. See
+[execution contracts and recovery limits](../docs/run-capability-execution.md).
 
 ## Verify
 
