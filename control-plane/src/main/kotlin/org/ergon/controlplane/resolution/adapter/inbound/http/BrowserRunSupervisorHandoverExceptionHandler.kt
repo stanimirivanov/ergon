@@ -25,6 +25,7 @@ import java.net.URI
         BrowserRunSupervisorHandoverController::class,
         BrowserRunApprovalController::class,
         BrowserRunProofController::class,
+        BrowserRunExecutionController::class,
     ],
 )
 class BrowserRunSupervisorHandoverExceptionHandler {

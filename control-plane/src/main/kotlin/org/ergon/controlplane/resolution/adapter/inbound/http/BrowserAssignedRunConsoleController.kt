@@ -87,6 +87,20 @@ class BrowserAssignedRunConsoleController(
     matchIfMissing = true,
 )
 class BrowserAssignedRunUnavailableController {
+    @GetMapping("/{runId}/execution-review")
+    fun executionReviewUnavailable(): ResponseEntity<ProblemDetail> =
+        ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .cacheControl(CacheControl.noStore())
+            .body(unavailableProblem())
+
+    @PostMapping("/{runId}/execution-commands", "/{runId}/execution-commands/{commandId}/attempts")
+    fun executionUnavailable(): ResponseEntity<ProblemDetail> =
+        ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .cacheControl(CacheControl.noStore())
+            .body(unavailableProblem())
+
     @PostMapping("/{runId}/proof-finalizations")
     fun proofUnavailable(): ResponseEntity<ProblemDetail> =
         ResponseEntity

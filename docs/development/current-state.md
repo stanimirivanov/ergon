@@ -108,7 +108,14 @@ The current slice can:
     CSRF-protected browser command. Run completion, case closure and attributed
     command replay receipt commit atomically. This defaults off under
     `ERGON_RUN_PROOF_FINALIZATION_ENABLED` and never invokes a connector. See
-    [outcome verification](../run-outcome-verification.md).
+    [outcome verification](../run-outcome-verification.md); and
+36. admit and execute the exact approved pinned capability through a separate
+    default-off, session/CSRF browser command. Immutable admission/attempt audit
+    commits with grant/consumption before I/O. Exact replay never dispatches;
+    explicit recovery reuses the original consumption key with current authority
+    and supervision fencing. Execution and proof remain separate. See
+    [execution/recovery](../run-capability-execution.md). The dependent UI/guide
+    is not yet delivered in this backend-only change.
 
 Detailed HTTP semantics live with their capabilities:
 

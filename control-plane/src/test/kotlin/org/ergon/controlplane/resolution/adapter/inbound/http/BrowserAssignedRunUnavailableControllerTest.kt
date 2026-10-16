@@ -34,5 +34,16 @@ class BrowserAssignedRunUnavailableControllerTest {
             .andExpect(status().isServiceUnavailable)
             .andExpect(header().string("Cache-Control", "no-store"))
             .andExpect(jsonPath("$.type").value(problemType))
+
+        mockMvc
+            .perform(get("/bff/v1/tenants/{tenantId}/resolution-runs/{runId}/execution-review", tenantId, runId))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(header().string("Cache-Control", "no-store"))
+        for (suffix in listOf("execution-commands", "execution-commands/${UUID.randomUUID()}/attempts")) {
+            mockMvc
+                .perform(post("/bff/v1/tenants/$tenantId/resolution-runs/$runId/$suffix"))
+                .andExpect(status().isServiceUnavailable)
+                .andExpect(header().string("Cache-Control", "no-store"))
+        }
     }
 }
