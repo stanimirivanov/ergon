@@ -18,6 +18,19 @@ terminal result in a second transaction. Concurrent or crash retries can reach
 the connector, but all carry the same idempotency key and therefore address one
 provider operation. Database uniqueness retains one immutable receipt.
 
+Receipt persistence locks the tenant-scoped consumption row with `FOR NO KEY
+UPDATE` until the application transaction commits or rolls back. This serializes
+same-consumption inserts before they reach the receipt's separate consumption,
+provider-operation and run unique indexes; a consumption-only `ON CONFLICT`
+target does not arbitrate the other indexes. A waiting writer returns the whole
+committed winner or inserts its own result after a rollback. The lock is acquired
+only after connector I/O and permits foreign-key `KEY SHARE` checks. Repository
+writes without an active transaction fail before SQL. Different consumptions
+within the same tenant and connector cannot reuse a provider-operation reference.
+No schema or HTTP contract changes are needed.
+During a rolling deployment, older writers still lack this serialization;
+upgrade every receipt-writing instance to eliminate the race.
+
 The first adapter supports `identity-stub` with
 `identity.account.unlock`. It is deterministic and needs no network or
 credentials. The local-only `identity-stub-failure` route deterministically
