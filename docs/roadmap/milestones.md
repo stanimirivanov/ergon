@@ -195,8 +195,11 @@ separate pull requests because they live in different repositories.
    The next bounded extension confirms an eligible failed run's fresh successor
    and atomically assigns its supervision to the confirming current supervisor
    under [ADR 0054](../decisions/0054-confirm-supervisor-retry-and-successor-supervision.md).
-   Its dependent UI and guide follow backend review/merge; browser exhausted-run
-   escalation needs a separate authority decision.
+   Its dependent UI and guide are merged. The maintainer-approved exhausted-run
+   escalation boundary now confirms exact reviewed runtime exhaustion and
+   atomically opens unassigned human work under
+   [ADR 0055](../decisions/0055-confirm-supervisor-exhausted-run-escalation.md).
+   Its dependent UI and executable guide follow backend review/merge.
    General pause/cancel/branch, leases and compensation are not implemented.
 
 The concept images are a visual direction, not source data. The first two

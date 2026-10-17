@@ -50,9 +50,9 @@ the Ergon rewrite boundary. They remain useful history but are not authority for
 new Ergon behavior. Ergon decisions begin at 0006. ADRs 0001–0041 retain their
 published legacy structures; ADR 0042 and later MUST use the current template.
 
-The latest published high-water mark is ADR 0054. The checker retains a minimum
+The latest published high-water mark is ADR 0055. The checker retains a minimum
 number independently of directory contents, so deletion does not permit reuse.
-The next new decision is 0055 unless concurrent work has already allocated it.
+The next new decision is 0056 unless concurrent work has already allocated it.
 
 ## Template
 
@@ -118,3 +118,4 @@ benchmarks rather than duplicating them.
 | 0052 | [Finalize reviewed proof through the browser](0052-finalize-reviewed-proof-through-browser.md) |
 | 0053 | [Confirm supervisor capability execution and explicit recovery](0053-confirm-supervisor-capability-execution.md) |
 | 0054 | [Confirm supervisor retry and atomic successor supervision](0054-confirm-supervisor-retry-and-successor-supervision.md) |
+| 0055 | [Confirm supervisor-scoped exhausted-run escalation](0055-confirm-supervisor-exhausted-run-escalation.md) |

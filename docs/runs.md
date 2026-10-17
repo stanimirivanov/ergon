@@ -298,6 +298,10 @@ The current supervisor may separately confirm a reviewed browser retry that
 atomically assigns only its newly created successor to the same actor. It uses
 the existing policy/requirements, not the internal bearer route, and copies no
 execution authorization. See [confirmed browser retry](run-supervisor-retry.md).
+
+The separately approved [browser escalation](run-supervisor-escalation.md)
+confirms exact exhausted-retry intent under current supervisor/resolver gates.
+It opens unassigned human work, not another run, current ownership or case closure.
 This is distinct from [uncertain invocation recovery](run-capability-execution.md).
 
 ## Escalate exhausted recovery

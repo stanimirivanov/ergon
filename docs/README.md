@@ -36,6 +36,7 @@ links from those documents only when the task crosses another boundary.
 - [Outcome verification](run-outcome-verification.md) — current assessments and durable accepted proof.
 - [Confirmed capability execution](run-capability-execution.md) — attributed admission, invocation and explicit recovery.
 - [Confirmed failed-run retry](run-supervisor-retry.md) — exact reviewed successor creation and atomic supervision.
+- [Confirmed exhausted-run escalation](run-supervisor-escalation.md) — explicit terminal recovery and unassigned human work.
 - [Security policy](../SECURITY.md) — private reporting and change expectations;
   architecture documents the current technical trust boundaries.
 

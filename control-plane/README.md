@@ -77,6 +77,7 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_RUN_PROOF_FINALIZATION_ENABLED` | Enables exact reviewed proof acceptance after additive schema/backend deployment; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_EXECUTION_ENABLED` | Enables confirmed pinned-capability admission and explicit recovery after additive schema/backend deployment; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_RETRY_ENABLED` | Enables confirmed failed-run successors and atomic supervision after every assignment reader is upgraded; defaults to `false` |
+| `ERGON_RUN_SUPERVISOR_ESCALATION_ENABLED` | Enables confirmed exhausted-run escalation and atomic unassigned follow-up after additive schema/backend deployment; defaults to `false` |
 
 The JWT variables are a pair. Protected human operations fail closed when the
 trust mapping is absent. Enabling browser sessions additionally requires the
@@ -191,6 +192,17 @@ all nullable-provenance assignment readers before enabling the separate retry fl
 After first use, disabling commands is safe but downgrading to old non-null
 machine-subject mappers is not; retain audit and recover forward. The dependent UI
 and guide follow backend review/merge. See [retry contracts](../docs/run-supervisor-retry.md).
+
+## Browser exhausted-run escalation rollout
+
+Confirmed exhausted-run escalation separately defaults off. Deploy V20261017120000
+before enabling its flag. Audit, terminal runtime transition and unassigned work
+commit together; no case closure, claim or connector invocation occurs. Supporting
+source-key validation scans events/work under write-conflicting locks: budget
+sizes, lock windows, WAL and disk. Disable new commands for behavioral rollback,
+preserve all history and recover forward. Existing internal writers remain
+compatible. UI and guide wait for backend review/merge. See
+[escalation contracts](../docs/run-supervisor-escalation.md).
 
 ## Verify
 

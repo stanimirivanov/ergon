@@ -121,8 +121,14 @@ The current slice can:
     successor supervision and exact command audit share one transaction. Nothing
     inherits execution authority and no connector is invoked. Every assignment
     reader must support nullable machine provenance before enabling; after first
-    use preserve audit and recover forward. The dependent retry UI and guide wait
-    for backend review/merge. See [browser retry](../run-supervisor-retry.md).
+    use preserve audit and recover forward. The dependent retry UI and guide are
+    merged. See [browser retry](../run-supervisor-retry.md); and
+38. confirm exhausted failed-run escalation through a separately default-off
+    supervisor/resolver BFF command. Exact reviewed exhaustion, runtime terminal
+    transition, unassigned human work and attributed command audit commit together.
+    Replay acknowledges creation without current access or ownership. No case
+    state change or connector invocation occurs. The dependent UI and guide wait
+    for backend review/merge. See [browser escalation](../run-supervisor-escalation.md).
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -138,6 +144,7 @@ Detailed HTTP semantics live with their capabilities:
 - [pinned run evidence](../pinned-run-evidence.md)
 - [outcome verification](../run-outcome-verification.md)
 - [confirmed failed-run retry](../run-supervisor-retry.md)
+- [confirmed exhausted-run escalation](../run-supervisor-escalation.md)
 
 ## Runtime and data
 

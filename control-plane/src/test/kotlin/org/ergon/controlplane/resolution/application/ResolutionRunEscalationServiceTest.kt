@@ -45,6 +45,7 @@ import org.mockito.Mockito.verifyNoMoreInteractions
 import org.mockito.Mockito.`when`
 import java.time.Clock
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -121,7 +122,30 @@ class ResolutionRunEscalationServiceTest {
             .thenReturn(ResolutionRunStateSnapshot(run.id, state, version, NOW))
     }
 
-    private fun service() =
+    @Test
+    fun `authority expiring during the state lock wait cannot authorize escalation`() {
+        prepare(finalAttempt, ResolutionRunState.ACTION_FAILED, 1)
+        val time = MutableEscalationClock(NOW)
+        `when`(transitions.lockState(TENANT, finalAttempt.id)).thenAnswer {
+            time.at = NOW.plusSeconds(61)
+            ResolutionRunStateSnapshot(finalAttempt.id, ResolutionRunState.ACTION_FAILED, 1, NOW)
+        }
+        val thrown = catchThrowable { service(time).escalate(TENANT.value, finalAttempt.id.value, ACTOR.value) }
+        assertThat(thrown).isInstanceOf(CurrentResolutionRecoveryAuthorityNotFoundException::class.java)
+        verifyNoMoreInteractions(escalations, followUps)
+    }
+
+    private class MutableEscalationClock(
+        var at: Instant,
+    ) : Clock() {
+        override fun instant(): Instant = at
+
+        override fun getZone(): ZoneId = ZoneOffset.UTC
+
+        override fun withZone(zone: ZoneId): Clock = Clock.fixed(at, zone)
+    }
+
+    private fun service(clock: Clock = Clock.fixed(NOW, ZoneOffset.UTC)) =
         ResolutionRunEscalationService(
             ResolutionRunEscalationRecords(runs, transitions, escalations, followUps, authorities),
             ResolutionRetryPolicy.define(RETRY_REVISION, 2),
@@ -132,7 +156,7 @@ class ResolutionRunEscalationServiceTest {
             object : TransactionRunner {
                 override fun <T : Any> required(block: () -> T): T = block()
             },
-            Clock.fixed(NOW, ZoneOffset.UTC),
+            clock,
         )
 
     private fun evidence() =
