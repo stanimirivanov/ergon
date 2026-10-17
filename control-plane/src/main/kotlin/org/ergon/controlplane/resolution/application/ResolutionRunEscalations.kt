@@ -93,6 +93,9 @@ class ResolutionRunRetryBudgetAvailableException(
         "retry policy ${policyRevision.value} still permits a successor after attempt $sourceAttemptNumber",
     )
 
+/** Runtime exhaustion no longer matches the browser's exact reviewed decision. */
+class ResolutionRunEscalationReviewChangedException : RuntimeException("reviewed escalation policy changed")
+
 /** Terminates exhausted automated recovery as explicit, attributable human follow-up. */
 class ResolutionRunEscalationService(
     private val records: ResolutionRunEscalationRecords,
@@ -108,6 +111,8 @@ class ResolutionRunEscalationService(
      * First recording changes run state and atomically opens one durable human
      * follow-up item. The case remains open and no assignment, notification,
      * compensation, or capability invocation occurs.
+     * [expectedDenial], when supplied by browser confirmation, fences the exact
+     * runtime exhaustion decision; ordinary internal callers retain run-based replay.
      *
      * @throws ResolutionRunNotFoundException when [runId] is absent from [tenantId].
      * @throws ResolutionRunEscalationStateException unless the run is `ACTION_FAILED`.
@@ -115,23 +120,28 @@ class ResolutionRunEscalationService(
      *   permits another attempt.
      * @throws CurrentResolutionRecoveryAuthorityNotFoundException when the actor
      *   lacks current tenant-wide resolver evidence.
+     * @throws ResolutionRunEscalationReviewChangedException when current policy
+     *   denial differs from [expectedDenial].
      */
     fun escalate(
         tenantId: UUID,
         runId: UUID,
         actorId: UUID,
+        expectedDenial: ResolutionRetryEligibility.Denied? = null,
     ): ResolutionRunEscalationResult =
         transactionRunner.required {
             val scopedTenantId = TenantId(tenantId)
             val scopedRunId = ResolutionRunId(runId)
             // Match PostgreSQL precision so the first response and durable replay agree.
-            val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
-            val authority = records.requireRecoveryAuthority(scopedTenantId, HumanActorId(actorId), now)
+            records.requireRecoveryAuthority(scopedTenantId, HumanActorId(actorId), clock.instant())
             val run = records.requireRun(scopedTenantId, scopedRunId)
             val state =
                 checkNotNull(records.transitions.lockState(scopedTenantId, scopedRunId)) {
                     "resolution run current-state projection is missing"
                 }
+            // A state-lock wait must not retain authority or time evaluated before that wait.
+            val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
+            val authority = records.requireRecoveryAuthority(scopedTenantId, HumanActorId(actorId), now)
             records.escalations.find(scopedTenantId, scopedRunId)?.let { existing ->
                 check(state.state == ResolutionRunState.ESCALATED && state.version == 2L) {
                     "resolution run escalation contradicts its current-state projection"
@@ -149,6 +159,9 @@ class ResolutionRunEscalationService(
                 throw ResolutionRunEscalationStateException(state.state.name)
             }
             val denial = retryPolicy.requireExhausted(run.attemptNumber)
+            if (expectedDenial != null && expectedDenial != denial) {
+                throw ResolutionRunEscalationReviewChangedException()
+            }
             val event = createEscalation(run, state, authority, denial, now)
             val escalation = records.escalations.append(scopedTenantId, event)
             val followUp =

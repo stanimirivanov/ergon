@@ -46,6 +46,7 @@ class BrowserAssignedRunUnavailableControllerTest {
         val suffixes =
             listOf(
                 "retry-commands",
+                "escalation-commands",
                 "execution-commands",
                 "execution-commands/${UUID.randomUUID()}/attempts",
             )
@@ -55,5 +56,10 @@ class BrowserAssignedRunUnavailableControllerTest {
                 .andExpect(status().isServiceUnavailable)
                 .andExpect(header().string("Cache-Control", "no-store"))
         }
+        mockMvc
+            .perform(get("/bff/v1/tenants/$tenantId/resolution-runs/$runId/escalation-review"))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(header().string("Cache-Control", "no-store"))
+            .andExpect(jsonPath("$.type").value(problemType))
     }
 }

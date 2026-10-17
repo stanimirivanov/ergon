@@ -15,6 +15,8 @@ spring:
 
 ergon:
   run-supervision:
+    escalation:
+      enabled: ${ERGON_RUN_SUPERVISOR_ESCALATION_ENABLED:false}
     retry:
       enabled: ${ERGON_RUN_SUPERVISOR_RETRY_ENABLED:false}
     execution:
