@@ -26,7 +26,8 @@ internal const val MAX_RUN_SUPERVISION_REVISION = 9_007_199_254_740_990L
  * Current access relationship paired with the unchanged initial assignment.
  *
  * [supervisorActorId] is current, while [initialAssignment] retains the original
- * machine-attributed assignee and discovery order. Neither record grants execution authority.
+ * attributed assignee and discovery order. Initial provenance is either a machine
+ * subject or an atomic browser retry command. Neither record grants execution authority.
  */
 data class CurrentRunSupervision(
     val initialAssignment: StoredRunSupervisorAssignment,

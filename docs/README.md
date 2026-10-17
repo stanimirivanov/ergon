@@ -35,6 +35,7 @@ links from those documents only when the task crosses another boundary.
 - [Pinned run evidence](pinned-run-evidence.md) — supervisor-scoped bindings and linked sources.
 - [Outcome verification](run-outcome-verification.md) — current assessments and durable accepted proof.
 - [Confirmed capability execution](run-capability-execution.md) — attributed admission, invocation and explicit recovery.
+- [Confirmed failed-run retry](run-supervisor-retry.md) — exact reviewed successor creation and atomic supervision.
 - [Security policy](../SECURITY.md) — private reporting and change expectations;
   architecture documents the current technical trust boundaries.
 

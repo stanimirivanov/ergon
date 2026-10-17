@@ -292,6 +292,14 @@ classification, backoff, and compensation remain separate policy capabilities.
 Exhaustion leaves the final run `ACTION_FAILED` and the case open; it does not
 imply resolution or automatically escalate it.
 
+## Confirm a browser retry
+
+The current supervisor may separately confirm a reviewed browser retry that
+atomically assigns only its newly created successor to the same actor. It uses
+the existing policy/requirements, not the internal bearer route, and copies no
+execution authorization. See [confirmed browser retry](run-supervisor-retry.md).
+This is distinct from [uncertain invocation recovery](run-capability-execution.md).
+
 ## Escalate exhausted recovery
 
 Call

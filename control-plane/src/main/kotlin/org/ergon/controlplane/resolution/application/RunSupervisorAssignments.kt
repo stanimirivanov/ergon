@@ -23,6 +23,8 @@ internal const val MAX_ASSIGNED_RUN_PAGE_SIZE = 100
  * The assignee was a resolver when this fact was recorded. That historical
  * evidence does not authorize a later read: the reader must also have current
  * resolver evidence and remain the exact assignee.
+ * Machine-created assignments retain their verified subject; browser-retry
+ * assignments instead retain [retryCommandId] and must commit with its receipt.
  */
 data class RunSupervisorAssignment(
     val id: UUID,
@@ -30,16 +32,25 @@ data class RunSupervisorAssignment(
     val supervisorActorId: HumanActorId,
     val authorityEvidenceId: ApprovalAuthorityEvidenceId,
     val commandId: UUID,
-    val assigningMachineSubject: String,
+    val assigningMachineSubject: String?,
     val assignedAt: Instant,
+    /** Present only for an atomic browser-retry successor assignment; never a machine identity. */
+    val retryCommandId: UUID? = null,
 ) {
     init {
+        require((assigningMachineSubject == null) == (retryCommandId != null)) {
+            "assignment requires exactly one machine or browser-retry provenance"
+        }
         require(
-            assigningMachineSubject.isNotBlank() &&
-                assigningMachineSubject.length <= MAX_ASSIGNING_MACHINE_SUBJECT_LENGTH,
+            assigningMachineSubject == null ||
+                (
+                    assigningMachineSubject.isNotBlank() &&
+                        assigningMachineSubject.length <= MAX_ASSIGNING_MACHINE_SUBJECT_LENGTH
+                ),
         ) {
             "assigning machine subject must contain 1..$MAX_ASSIGNING_MACHINE_SUBJECT_LENGTH characters"
         }
+        require(retryCommandId == null || retryCommandId == commandId) { "retry assignment must retain its command" }
     }
 }
 

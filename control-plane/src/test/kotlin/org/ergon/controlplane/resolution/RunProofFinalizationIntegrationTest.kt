@@ -98,13 +98,23 @@ class RunProofFinalizationIntegrationTest(
         }
         // Exercise the supported upgrade with actual case closure and acceptance,
         // not an empty table or a fabricated acceptance that bypasses its constraints.
-        val command = fixtures.command(fixtures.seed())
-        legacy.accept(command.tenantId, command.runId)
-        val before = console.get(command.tenantId, command.runId, command.actorId).outcomeVerification
+        val fixture = fixtures.seed()
+        val before = legacy.accept(fixture.tenant.value, fixture.run.value).storedEvent
         upgraded.migrate()
         upgraded.validate()
-        assertThat(console.get(command.tenantId, command.runId, command.actorId).outcomeVerification).isEqualTo(before)
-        assertThat(count("resolution_run_proof_commands", command)).isZero()
+        assertThat(legacy.accept(fixture.tenant.value, fixture.run.value).storedEvent).isEqualTo(before)
+        assertThat(
+            console
+                .get(fixture.tenant.value, fixture.run.value, fixture.outgoing.value)
+                .outcomeVerification.status.name,
+        ).isEqualTo("ACCEPTED")
+        assertThat(
+            jdbc
+                .sql("SELECT COUNT(*) FROM resolution_run_proof_commands WHERE tenant_id = :tenant")
+                .param("tenant", fixture.tenant.value)
+                .query(Int::class.java)
+                .single(),
+        ).isZero()
     }
 
     @Test

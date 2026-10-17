@@ -15,6 +15,8 @@ spring:
 
 ergon:
   run-supervision:
+    retry:
+      enabled: ${ERGON_RUN_SUPERVISOR_RETRY_ENABLED:false}
     execution:
       enabled: ${ERGON_RUN_SUPERVISOR_EXECUTION_ENABLED:false}
     proof-finalization:

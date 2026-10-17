@@ -191,7 +191,12 @@ separate pull requests because they live in different repositories.
    semantics before enabling the mock's Steer control.
    Backend admission/execution and explicit recovery of the existing approved
    pinned step now follow [ADR 0053](../decisions/0053-confirm-supervisor-capability-execution.md).
-   Browser UI and executable-guide consumption follow after backend review/merge.
+   Browser execution/recovery and its executable guide are merged.
+   The next bounded extension confirms an eligible failed run's fresh successor
+   and atomically assigns its supervision to the confirming current supervisor
+   under [ADR 0054](../decisions/0054-confirm-supervisor-retry-and-successor-supervision.md).
+   Its dependent UI and guide follow backend review/merge; browser exhausted-run
+   escalation needs a separate authority decision.
    General pause/cancel/branch, leases and compensation are not implemented.
 
 The concept images are a visual direction, not source data. The first two
