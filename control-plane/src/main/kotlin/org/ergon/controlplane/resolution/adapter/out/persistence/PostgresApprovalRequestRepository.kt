@@ -4,7 +4,6 @@ import org.ergon.contracts.domain.ResolutionStepId
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.resolution.application.ActiveApprovalRequestExistsException
 import org.ergon.controlplane.resolution.application.ApprovalRequestRepository
-import org.ergon.controlplane.resolution.application.ResolutionRunNotFoundException
 import org.ergon.controlplane.resolution.application.StoredApprovalRequest
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthority
@@ -74,7 +73,14 @@ class PostgresApprovalRequestRepository(
     override fun lockForDecision(
         tenantId: TenantId,
         requestId: ApprovalRequestId,
-    ): StoredApprovalRequest? = find(tenantId, requestId, forUpdate = true)
+    ): StoredApprovalRequest? {
+        PostgresRunWriteFence(jdbcClient).lockSource(
+            tenantId,
+            "SELECT run_id FROM resolution_approval_requests WHERE tenant_id = :tenant AND approval_request_id = :id",
+            requestId.value,
+        )
+        return find(tenantId, requestId, forUpdate = true)
+    }
 
     private fun find(
         tenantId: TenantId,
@@ -110,23 +116,7 @@ class PostgresApprovalRequestRepository(
         tenantId: TenantId,
         runId: ResolutionRunId,
     ) {
-        val found =
-            jdbcClient
-                .sql(
-                    """
-                    SELECT run_id
-                    FROM resolution_runs
-                    WHERE tenant_id = :tenantId AND run_id = :runId
-                    FOR UPDATE
-                    """.trimIndent(),
-                ).param("tenantId", tenantId.value)
-                .param("runId", runId.value)
-                .query(UUID::class.java)
-                .optional()
-                .isPresent
-        if (!found) {
-            throw ResolutionRunNotFoundException(runId.value)
-        }
+        PostgresRunWriteFence(jdbcClient).lock(tenantId, runId.value)
     }
 
     private fun findLatest(

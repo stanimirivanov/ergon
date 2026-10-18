@@ -48,8 +48,13 @@ class PostgresApprovalDecisionRepository(
     override fun lockForAuthorization(
         tenantId: TenantId,
         decisionId: ApprovalDecisionId,
-    ): StoredApprovalDecision? =
-        jdbcClient
+    ): StoredApprovalDecision? {
+        PostgresRunWriteFence(jdbcClient).lockSource(
+            tenantId,
+            "SELECT run_id FROM resolution_approval_decisions WHERE tenant_id = :tenant AND approval_decision_id = :id",
+            decisionId.value,
+        )
+        return jdbcClient
             .sql(
                 """
                 SELECT
@@ -73,6 +78,7 @@ class PostgresApprovalDecisionRepository(
             .optional()
             .getOrNull()
             ?.toStoredDecision()
+    }
 
     override fun create(
         tenantId: TenantId,

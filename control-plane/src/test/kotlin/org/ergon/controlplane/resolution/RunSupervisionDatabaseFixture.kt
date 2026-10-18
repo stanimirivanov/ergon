@@ -105,6 +105,8 @@ internal data class RunSupervisionDatabaseFixture(
         ) {
             val jdbc = this
             val caseId = caseSnapshot?.caseId ?: UUID.randomUUID()
+            val initialState =
+                if (requiredApproval == ApprovalRequirement.NONE) "READY_FOR_AUTHORIZATION" else "WAITING_FOR_APPROVAL"
             publishSupervisionTestContract(jdbc, tenant)
             // Earlier capabilities own case/contract construction. Only their
             // source-graph FKs are bypassed; every supervision write runs with
@@ -132,10 +134,12 @@ internal data class RunSupervisionDatabaseFixture(
                         ) VALUES (
                             :tenant, :run, :caseId, :boundary, 'restore-workspace-access', 1,
                             'ergon.dev/policy/access-restoration/v1', 'unlock-account', 'identity.account.unlock',
-                            'HIGH', :approval, 'WAITING_FOR_APPROVAL'
+                            :risk, :approval, :initialState
                         )
                         """.trimIndent(),
                     ).param("tenant", tenant.value)
+                    .param("risk", if (requiredApproval == ApprovalRequirement.NONE) "LOW" else "HIGH")
+                    .param("initialState", initialState)
                     .param("boundary", caseSnapshot?.streamVersion ?: 1L)
                     .param("approval", requiredApproval.name)
                     .param("run", run.value)
@@ -145,9 +149,10 @@ internal data class RunSupervisionDatabaseFixture(
                     .sql(
                         """
                         INSERT INTO resolution_run_states (tenant_id, run_id, state, version, updated_at)
-                        VALUES (:tenant, :run, 'WAITING_FOR_APPROVAL', 0, :at)
+                        VALUES (:tenant, :run, :initialState, 0, :at)
                         """.trimIndent(),
                     ).param("tenant", tenant.value)
+                    .param("initialState", initialState)
                     .param("run", run.value)
                     .param("at", now.atOffset(ZoneOffset.UTC))
                     .update()

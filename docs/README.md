@@ -37,6 +37,7 @@ links from those documents only when the task crosses another boundary.
 - [Confirmed capability execution](run-capability-execution.md) — attributed admission, invocation and explicit recovery.
 - [Confirmed failed-run retry](run-supervisor-retry.md) — exact reviewed successor creation and atomic supervision.
 - [Confirmed exhausted-run escalation](run-supervisor-escalation.md) — explicit terminal recovery and unassigned human work.
+- [Untouched-run cancellation](run-supervisor-cancellation.md) — confirmed termination before any authorization.
 - [Security policy](../SECURITY.md) — private reporting and change expectations;
   architecture documents the current technical trust boundaries.
 

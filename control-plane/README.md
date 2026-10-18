@@ -78,6 +78,7 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_RUN_SUPERVISOR_EXECUTION_ENABLED` | Enables confirmed pinned-capability admission and explicit recovery after additive schema/backend deployment; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_RETRY_ENABLED` | Enables confirmed failed-run successors and atomic supervision after every assignment reader is upgraded; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_ESCALATION_ENABLED` | Enables confirmed exhausted-run escalation and atomic unassigned follow-up after additive schema/backend deployment; defaults to `false` |
+| `ERGON_RUN_SUPERVISOR_CANCELLATION_ENABLED` | Enables untouched-run cancellation only after every state reader/writer fence and dependent UI is upgraded; defaults to `false` |
 
 The JWT variables are a pair. Protected human operations fail closed when the
 trust mapping is absent. Enabling browser sessions additionally requires the
@@ -203,6 +204,17 @@ sizes, lock windows, WAL and disk. Disable new commands for behavioral rollback,
 preserve all history and recover forward. Existing internal writers remain
 compatible. UI and guide wait for backend review/merge. See
 [escalation contracts](../docs/run-supervisor-escalation.md).
+
+## Untouched-run cancellation rollout
+
+Untouched-run cancellation has a separate default-off rollout: deploy
+all backend fences/readers first with `spring.flyway.target=20261017120000`, then
+remove that target to install V20261018120000. Alternatively quiesce writes across
+schema-and-code deployment. New run-locking triggers must not meet old child-first
+writers, even while commands are off; writer downgrade is unsafe after DDL.
+Deploy compatible UI readers before enabling commands. It rejects even unconsumed grants and does not stop provider
+work. Retain audit and recover forward after first use; see
+[cancellation and recovery](../docs/run-supervisor-cancellation.md).
 
 ## Verify
 

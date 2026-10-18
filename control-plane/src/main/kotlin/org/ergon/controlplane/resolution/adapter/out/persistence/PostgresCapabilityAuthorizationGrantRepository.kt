@@ -48,8 +48,16 @@ class PostgresCapabilityAuthorizationGrantRepository(
     override fun lockForConsumption(
         tenantId: TenantId,
         grantId: CapabilityAuthorizationGrantId,
-    ): StoredCapabilityAuthorizationGrant? =
-        jdbcClient
+    ): StoredCapabilityAuthorizationGrant? {
+        PostgresRunWriteFence(jdbcClient).lockSource(
+            tenantId,
+            """
+            SELECT run_id FROM capability_authorization_grants
+            WHERE tenant_id = :tenant AND authorization_grant_id = :id
+            """.trimIndent(),
+            grantId.value,
+        )
+        return jdbcClient
             .sql(
                 """
                 SELECT
@@ -74,6 +82,7 @@ class PostgresCapabilityAuthorizationGrantRepository(
             .optional()
             .getOrNull()
             ?.toStoredGrant()
+    }
 
     override fun create(
         tenantId: TenantId,

@@ -194,6 +194,15 @@ The browser withdraws history with the other private context on recheck or
 failed access; explicit recheck obtains a newer snapshot. See
 [ADR 0047](decisions/0047-expose-sequence-aligned-assigned-run-transitions.md).
 
+## Cancel an untouched run
+
+An untouched run may instead be explicitly terminated as CANCELLED under the
+separately enabled [supervisor cancellation](run-supervisor-cancellation.md)
+contract. Its sequence-one RUN_CANCELLED has no capability receipt, leaves the
+case open and is not provider cancellation. Existing active discovery excludes
+it; exact protected Console reads retain terminal history. Deploy compatible
+state/event readers before enabling this command.
+
 ## Record a capability result
 
 After invocation has made a terminal receipt durable, call

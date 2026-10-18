@@ -38,6 +38,8 @@ interface ApprovalDecisionRepository {
      *
      * The lock must be retained through grant insertion so concurrent derivations
      * cannot both pass an application-level existence check.
+     * Acquire the shared run-cancellation fence before the decision lock, and
+     * reject cancelled runs with [ResolutionRunCancelledException].
      *
      * @return the tenant-scoped decision, or `null` when it is absent.
      */

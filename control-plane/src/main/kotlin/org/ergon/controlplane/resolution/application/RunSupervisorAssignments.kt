@@ -7,6 +7,7 @@ import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthority
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
+import org.ergon.resolution.domain.ResolutionRunEventType
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunState
 import org.ergon.resolution.domain.ResolutionRunStateSnapshot
@@ -366,7 +367,9 @@ class AssignedRunConsoleService(
                         receipt.capability == start.run.capability,
                 ) { "assigned run execution belongs to another pinned operation" }
             }
-            if (history.isNotEmpty()) {
+            if (history.firstOrNull()?.type == ResolutionRunEventType.RUN_CANCELLED) {
+                check(execution == null) { "cancelled run has a connector receipt" }
+            } else if (history.isNotEmpty()) {
                 val receipt = checkNotNull(execution?.receipt) { "projected run result has no receipt" }
                 check(history.first().type.name == "CAPABILITY_${receipt.outcome.name}") {
                     "projected run result disagrees with its receipt"

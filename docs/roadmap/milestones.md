@@ -199,8 +199,12 @@ separate pull requests because they live in different repositories.
    escalation boundary now confirms exact reviewed runtime exhaustion and
    atomically opens unassigned human work under
    [ADR 0055](../decisions/0055-confirm-supervisor-exhausted-run-escalation.md).
-   Its dependent UI and executable guide follow backend review/merge.
-   General pause/cancel/branch, leases and compensation are not implemented.
+   Its dependent UI and executable guide are merged. The next approved bounded
+   command cancels only untouched runs before any authorization, under
+   [ADR 0056](../decisions/0056-cancel-untouched-supervised-runs.md).
+   Backend cancellation is independently default-off; its dependent UI and guide
+   follow backend review/merge. General pause/branch, leases, compensation and
+   cancellation of already authorized or in-flight work are not implemented.
 
 The concept images are a visual direction, not source data. The first two
 issues do not promise lease countdowns, live spans, cost totals, verified
