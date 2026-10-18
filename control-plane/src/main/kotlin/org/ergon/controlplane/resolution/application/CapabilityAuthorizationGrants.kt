@@ -28,6 +28,8 @@ interface CapabilityAuthorizationGrantRepository {
 
     /**
      * Retrieves and locks [grantId] through an attempted consumption.
+     * Acquire its run-cancellation fence first; cancelled runs reject new
+     * consumption with [ResolutionRunCancelledException].
      *
      * @return the tenant-scoped grant, or `null` when it is absent.
      */

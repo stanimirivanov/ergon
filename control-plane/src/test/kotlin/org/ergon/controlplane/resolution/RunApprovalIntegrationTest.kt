@@ -2,10 +2,13 @@ package org.ergon.controlplane.resolution
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.assertj.core.api.Assertions.catchThrowable
+import org.awaitility.Awaitility.await
 import org.ergon.contracts.domain.ApprovalRequirement
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
+import org.ergon.controlplane.resolution.application.ApprovalDecisionAlreadyExistsException
 import org.ergon.controlplane.resolution.application.ApprovalDecisionIdentityGenerator
 import org.ergon.controlplane.resolution.application.ApprovalDecisionRecords
 import org.ergon.controlplane.resolution.application.ApprovalDecisionRepository
@@ -67,6 +70,7 @@ import java.util.concurrent.Callable
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 @SpringBootTest(
     properties = [
@@ -349,29 +353,49 @@ class RunApprovalIntegrationTest(
     }
 
     @Test
-    fun `legacy decision foreign key checks complete while the shared run command lock is held`() {
+    fun `legacy decision waits at the run fence without holding a request lock needed by browser approval`() {
         val fixture = seed()
         val command = command(fixture)
+        val legacyBackend = AtomicInteger()
         Executors.newSingleThreadExecutor().use { executor ->
-            transactions.required {
-                check(assignmentRecords.lockRun(fixture.tenant, fixture.run))
-                // A FOR UPDATE run lock would block INSERT's KEY SHARE request,
-                // creating a cycle once browser approval waits for the request.
-                executor
-                    .submit(
-                        Callable {
-                            legacy.decide(
-                                fixture.tenant.value,
-                                command.requestId,
-                                fixture.other.value,
-                                ApprovalDecisionOutcome.REJECTED,
-                            )
-                        },
-                    ).get(20, TimeUnit.SECONDS)
-            }
+            val waiting =
+                transactions.required {
+                    check(assignmentRecords.lockRun(fixture.tenant, fixture.run))
+                    val legacyAttempt =
+                        executor.submit(
+                            Callable {
+                                catchThrowable {
+                                    transactions.required {
+                                        val pid = jdbc.sql("SELECT pg_backend_pid()").query(Int::class.java).single()
+                                        legacyBackend.set(pid)
+                                        legacy.decide(
+                                            fixture.tenant.value,
+                                            command.requestId,
+                                            fixture.other.value,
+                                            ApprovalDecisionOutcome.REJECTED,
+                                        )
+                                    }
+                                }
+                            },
+                        )
+                    // Observe the real PostgreSQL lock wait, not thread scheduling or a sleep.
+                    await().atMost(20, TimeUnit.SECONDS).until {
+                        legacyBackend.get() != 0 &&
+                            jdbc
+                                .sql("SELECT CARDINALITY(pg_blocking_pids(:pid)) > 0")
+                                .param("pid", legacyBackend.get())
+                                .query(Boolean::class.java)
+                                .single()
+                    }
+                    // The legacy waiter must not hold the child lock: browser approval
+                    // can finish under this run fence and its FK checks remain compatible.
+                    assertThat(approvals.decide(command).created).isTrue()
+                    legacyAttempt
+                }
+            assertThat(waiting.get(20, TimeUnit.SECONDS))
+                .isInstanceOf(ApprovalDecisionAlreadyExistsException::class.java)
         }
-        assertThatThrownBy { approvals.decide(command) }.isInstanceOf(RunApprovalConflictException::class.java)
-        assertThat(commandCount(fixture)).isZero()
+        assertThat(commandCount(fixture)).isEqualTo(1)
     }
 
     private fun approvalServiceAt(

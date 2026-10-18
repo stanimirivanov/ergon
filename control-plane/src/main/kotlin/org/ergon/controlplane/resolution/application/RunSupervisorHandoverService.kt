@@ -145,5 +145,6 @@ internal fun canHandover(state: ResolutionRunState): Boolean =
         ResolutionRunState.VERIFIED_RESOLVED,
         ResolutionRunState.SUPERSEDED,
         ResolutionRunState.ESCALATED,
+        ResolutionRunState.CANCELLED,
         -> false
     }

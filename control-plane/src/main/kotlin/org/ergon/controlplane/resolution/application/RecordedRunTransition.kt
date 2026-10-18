@@ -30,6 +30,10 @@ data class RecordedRunTransition(
         require(sequence in 1..2) { "recorded transition sequence must be in 1..2" }
         val validShape =
             when (type) {
+                ResolutionRunEventType.RUN_CANCELLED -> {
+                    sequence == 1L && isInitial(fromState) && toState == ResolutionRunState.CANCELLED
+                }
+
                 ResolutionRunEventType.CAPABILITY_SUCCEEDED -> {
                     sequence == 1L && isInitial(fromState) && toState == ResolutionRunState.VERIFYING
                 }

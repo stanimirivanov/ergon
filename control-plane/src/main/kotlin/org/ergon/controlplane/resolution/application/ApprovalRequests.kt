@@ -53,6 +53,8 @@ interface ApprovalRequestRepository {
      *
      * The lock must be retained through decision insertion so concurrent responses
      * cannot both observe an undecided request.
+     * Serialize with run cancellation before acquiring the request lock; a
+     * cancelled run rejects new decisions with [ResolutionRunCancelledException].
      *
      * @return the tenant-scoped request, or `null` when it is absent.
      */

@@ -127,8 +127,14 @@ The current slice can:
     supervisor/resolver BFF command. Exact reviewed exhaustion, runtime terminal
     transition, unassigned human work and attributed command audit commit together.
     Replay acknowledges creation without current access or ownership. No case
-    state change or connector invocation occurs. The dependent UI and guide wait
-    for backend review/merge. See [browser escalation](../run-supervisor-escalation.md).
+    state change or connector invocation occurs. The dependent UI and guide are
+    merged. See [browser escalation](../run-supervisor-escalation.md); and
+39. confirm untouched-run cancellation through a separate default-off supervisor/
+    resolver BFF command. One RUN_CANCELLED event, terminal state and attributed
+    exact-command audit commit together before any durable grant or execution
+    record. Legacy approval/authorization writers share the run fence. No provider,
+    case, proof, retry-budget or human-work change occurs. UI and guide follow
+    backend review/merge. See [cancellation](../run-supervisor-cancellation.md).
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -145,6 +151,7 @@ Detailed HTTP semantics live with their capabilities:
 - [outcome verification](../run-outcome-verification.md)
 - [confirmed failed-run retry](../run-supervisor-retry.md)
 - [confirmed exhausted-run escalation](../run-supervisor-escalation.md)
+- [untouched-run cancellation](../run-supervisor-cancellation.md)
 
 ## Runtime and data
 
