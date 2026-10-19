@@ -111,6 +111,8 @@ class RunExecutionIntegrationTest(
     @Autowired private val gateway: RunExecutionTestConnector,
     @Autowired private val flyway: Flyway,
 ) {
+    private val fixtures = RunExecutionTestFixture(jdbc, transactions, requests, decisions, NOW)
+
     @BeforeEach
     fun upgradeWithExistingApprovedGrant() =
         synchronized(postgres) {
@@ -120,10 +122,10 @@ class RunExecutionIntegrationTest(
                     .version
                     .toString() == "20261015120000"
             ) {
-                val command = seed().second
+                val command = fixtures.seed().second
                 val grant = prerequisites.grants.authorize(command.tenantId, command.decisionId)
                 val before = grantCount(command.tenantId)
-                val oldExecuted = seed().second
+                val oldExecuted = fixtures.seed().second
                 val oldGrant = prerequisites.grants.authorize(oldExecuted.tenantId, oldExecuted.decisionId)
                 val oldConsumption = prerequisites.consumptions.consume(oldExecuted.tenantId, oldGrant.grant.id.value)
                 val oldInvocation =
@@ -160,7 +162,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `confirmed execution commits before IO and exact replay preserves one historical result`() {
-        val (fixture, command) = seed()
+        val (fixture, command) = fixtures.seed()
         mvc
             .perform(get(base(command) + "/execution-review").with(session(fixture.outgoing)))
             .andExpect(status().isOk)
@@ -202,7 +204,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `uncertain connector completion requires a new explicit attempt with the same provider key`() {
-        val (_, command) = seed()
+        val (_, command) = fixtures.seed()
         val calls =
             java.util.concurrent.atomic
                 .AtomicInteger()
@@ -223,7 +225,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `a committed reservation survives process loss before invocation without replay silently dispatching`() {
-        val (_, command) = seed()
+        val (_, command) = fixtures.seed()
         assertThat(admissionsAt().admit(command).dispatch).isTrue()
         assertThat(gateway.calls(command.tenantId)).isZero()
         assertThat(executions.execute(command).status).isEqualTo(RunExecutionStatus.INCOMPLETE)
@@ -234,7 +236,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `a recorded receipt without projection is repaired without repeating connector IO`() {
-        val (_, command) = seed()
+        val (_, command) = fixtures.seed()
         val admitted = admissionsAt().admit(command)
         invocationAt().invoke(command.tenantId, admitted.stored.consumptionId.value)
         assertThat(executions.execute(command).status).isEqualTo(RunExecutionStatus.RESULT_RECORDED)
@@ -244,7 +246,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `handover denies dispatch and foreign adoption while handback requires a fresh recovery epoch`() {
-        val (fixture, command) = seed()
+        val (fixture, command) = fixtures.seed()
         admissionsAt().admit(command)
         handover(fixture, fixture.outgoing, fixture.incoming, 0)
         assertThat(executions.execute(command).status).isEqualTo(RunExecutionStatus.INCOMPLETE)
@@ -267,7 +269,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `concurrent duplicate and competing commands cannot admit another provider operation`() {
-        val (_, command) = seed()
+        val (_, command) = fixtures.seed()
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
         gateway.onCall(command.tenantId) {
@@ -295,7 +297,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `stale review disabled mode expired evidence and changed intent cause no admission or effect`() {
-        val (fixture, command) = seed()
+        val (fixture, command) = fixtures.seed()
         for (invalid in listOf(
             command.copy(expectedSupervisionRevision = RunSupervisionRevision(1)),
             command.copy(decisionId = UUID.randomUUID()),
@@ -322,7 +324,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `session CSRF tenant and validation failures are safe and cannot dispatch`() {
-        val (fixture, command) = seed()
+        val (fixture, command) = fixtures.seed()
         mvc.perform(post(base(command) + "/execution-commands")).andExpect(status().isUnauthorized)
         mvc
             .perform(
@@ -349,7 +351,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `audit foreign key rejection rolls back grant consumption command and attempt before IO`() {
-        val (_, command) = seed()
+        val (_, command) = fixtures.seed()
         val broken =
             object : RunExecutionCommandRepository by commands {
                 override fun recordAttempt(
@@ -380,7 +382,12 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `rejected prerequisites and absent routes cannot reserve or invoke a capability`() {
-        for (command in listOf(seed(outcome = ApprovalDecisionOutcome.REJECTED).second, seed(route = false).second)) {
+        val unavailableCommands =
+            listOf(
+                fixtures.seed(outcome = ApprovalDecisionOutcome.REJECTED).second,
+                fixtures.seed(route = false).second,
+            )
+        for (command in unavailableCommands) {
             assertThatThrownBy { executions.execute(command) }.isInstanceOf(RunExecutionConflictException::class.java)
             assertThat(grantCount(command.tenantId)).isZero()
             assertThat(count("capability_authorization_consumptions", command.tenantId)).isZero()
@@ -390,7 +397,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `terminal connector failure is recorded truthfully rather than treated as uncertain or verified`() {
-        val (_, command) = seed(connector = "identity-stub-failure")
+        val (_, command) = fixtures.seed(connector = "identity-stub-failure")
         val result = executions.execute(command)
         assertThat(result.status).isEqualTo(RunExecutionStatus.COMPLETED)
         assertThat(
@@ -412,7 +419,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `browser recovery has its own exact replay and stale new attempts cannot dispatch again`() {
-        val (_, command) = seed()
+        val (_, command) = fixtures.seed()
         admissionsAt().admit(command)
         val recovery = resume(command)
         val path = base(command) + "/execution-commands/${command.commandId}/attempts"
@@ -455,7 +462,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `handover after admission cannot cancel an already reserved external effect`() {
-        val (fixture, command) = seed()
+        val (fixture, command) = fixtures.seed()
         gateway.onCall(command.tenantId) { handover(fixture, fixture.outgoing, fixture.incoming, 0) }
         assertThat(executions.execute(command).status).isEqualTo(RunExecutionStatus.COMPLETED)
         assertThat(executions.execute(command).status).isEqualTo(RunExecutionStatus.COMPLETED)
@@ -467,9 +474,9 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `a tenant command identity cannot be rebound to another run or actor`() {
-        val (_, first) = seed()
+        val (_, first) = fixtures.seed()
         admissionsAt().admit(first)
-        val (_, other) = seed(tenant = TenantId(first.tenantId))
+        val (_, other) = fixtures.seed(tenant = TenantId(first.tenantId))
         assertThatThrownBy { executions.execute(other.copy(commandId = first.commandId)) }
             .isInstanceOf(AssignedRunNotFoundException::class.java)
         assertThat(gateway.calls(first.tenantId)).isZero()
@@ -478,7 +485,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `distinct explicitly admitted concurrent recoveries still address one provider operation`() {
-        val (_, command) = seed()
+        val (_, command) = fixtures.seed()
         admissionsAt().admit(command)
         val entered = CountDownLatch(2)
         val release = CountDownLatch(1)
@@ -509,7 +516,7 @@ class RunExecutionIntegrationTest(
 
     @Test
     fun `receipt persistence failure propagates without fabricating an outcome or losing admission`() {
-        val (_, command) = seed()
+        val (_, command) = fixtures.seed()
         val failingReceipts =
             object : CapabilityInvocationReceiptRepository by receipts {
                 override fun createOrFind(
@@ -544,44 +551,6 @@ class RunExecutionIntegrationTest(
         assertThat(count("capability_invocation_receipts", command.tenantId)).isZero()
         assertThat(executions.resume(resume(command)).status).isEqualTo(RunExecutionStatus.COMPLETED)
         assertThat(gateway.operationCount(command.tenantId)).isEqualTo(1)
-    }
-
-    private fun seed(
-        outcome: ApprovalDecisionOutcome = ApprovalDecisionOutcome.APPROVED,
-        route: Boolean = true,
-        connector: String = "identity-stub",
-        tenant: TenantId = TenantId(UUID.randomUUID()),
-    ): Pair<RunSupervisionDatabaseFixture, ExecuteRunCommand> {
-        val fixture = transactions.required { RunSupervisionDatabaseFixture.seed(jdbc, NOW, tenant = tenant) }
-        if (route) {
-            jdbc
-                .sql(
-                    """INSERT INTO tenant_capability_routes (tenant_id, capability, connector)
-            VALUES (:tenant, 'identity.account.unlock', :connector) ON CONFLICT DO NOTHING""",
-                ).param("tenant", fixture.tenant.value)
-                .param("connector", connector)
-                .update()
-        }
-        val request = requests.request(fixture.tenant.value, fixture.run.value).stored.request
-        val decision =
-            decisions
-                .decide(
-                    fixture.tenant.value,
-                    request.id.value,
-                    fixture.outgoing.value,
-                    outcome,
-                ).decision
-        return fixture to
-            ExecuteRunCommand(
-                fixture.tenant.value,
-                fixture.run.value,
-                fixture.outgoing.value,
-                UUID.randomUUID(),
-                RunSupervisionRevision(0),
-                0,
-                request.id.value,
-                decision.id.value,
-            )
     }
 
     private fun admissionsAt(

@@ -155,6 +155,11 @@ separate pull requests because they live in different repositories.
    [ADR 0047](../decisions/0047-expose-sequence-aligned-assigned-run-transitions.md).
    A multi-step executor and real cost attribution remain separate runtime
    capabilities; this receipt measurement does not deliver that whole waterfall.
+   A bounded read-only admission-history projection now exposes existing initial
+   and recovery admissions under current supervision/resolver authority, across
+   handovers and terminal runs. These are not causal spans or per-call results;
+   see [ADR 0058](../decisions/0058-disclose-supervisor-scoped-execution-admissions.md).
+   Dependent UI and guide follow backend review/merge.
 4. **M05 - Human follow-up and resolver console:** Add exclusive supervisor
    control, conflict visibility, and explicit handover. Assignment alone is
    not an expiring lease or permission to steer a run.

@@ -30,7 +30,7 @@ class BrowserRunExecutionExceptionHandler {
         problem(
             HttpStatus.SERVICE_UNAVAILABLE,
             "run-execution-unavailable",
-            "Execution acknowledgement is unavailable",
+            "Execution information is unavailable",
         )
 
     @ExceptionHandler(

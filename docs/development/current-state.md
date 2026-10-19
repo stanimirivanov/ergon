@@ -143,7 +143,12 @@ The current slice can:
     defaults off under `ERGON_RUN_CONTROL_ENABLED`; deploy schema, all writers
     and compatible UI before enabling. Control loss does not revoke admitted
     work. The dependent UI/guide waits for backend review/merge. See
-    [control rollout](../operations/browser-run-control.md).
+    [control rollout](../operations/browser-run-control.md); and
+41. expose bounded browser execution-admission history to the current supervisor
+    with current resolver authority, including prior epochs and terminal runs.
+    Admissions are not spans or outcomes; private identities/replay coordinates
+    remain hidden. UI and guide follow backend review/merge. See
+    [admissions](../run-capability-execution.md#inspect-recorded-admissions).
 
 Detailed HTTP semantics live with their capabilities:
 

@@ -6,6 +6,7 @@ import org.ergon.controlplane.resolution.application.ExecuteRunCommand
 import org.ergon.controlplane.resolution.application.ResumeRunExecutionCommand
 import org.ergon.controlplane.resolution.application.RunControlFence
 import org.ergon.controlplane.resolution.application.RunExecutionAcknowledgement
+import org.ergon.controlplane.resolution.application.RunExecutionHistoryService
 import org.ergon.controlplane.resolution.application.RunExecutionReview
 import org.ergon.controlplane.resolution.application.RunExecutionReviewService
 import org.ergon.controlplane.resolution.application.RunExecutionService
@@ -34,7 +35,38 @@ class BrowserRunExecutionController(
     private val actors: AuthenticatedHumanActorResolver,
     private val executions: RunExecutionService,
     private val reviews: RunExecutionReviewService,
+    private val history: RunExecutionHistoryService,
 ) {
+    /** Read-only admission facts across supervision epochs; never recovery authority or a live execution trace. */
+    @GetMapping("/execution-history")
+    fun history(
+        @PathVariable tenantId: UUID,
+        @PathVariable runId: UUID,
+        @AuthenticationPrincipal principal: OidcUser,
+    ): ResponseEntity<BrowserRunExecutionHistory> {
+        val actor =
+            actors
+                .resolve(tenantId, principal)
+                .actor.id.value
+        val result = history.get(tenantId, runId, actor)
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(
+            BrowserRunExecutionHistory(
+                result.observedAt,
+                result.supervisionRevision.value,
+                result.admissions != null,
+                result.admissions?.entries.orEmpty().map {
+                    BrowserRunExecutionAdmission(
+                        it.kind.name,
+                        it.supervisionRevision.value,
+                        it.admittedAt,
+                        it.recordedAt,
+                    )
+                },
+                result.admissions?.truncated ?: false,
+            ),
+        )
+    }
+
     /** Eligibility is an observation, not an authorization token or a provider health claim. */
     @GetMapping("/execution-review")
     fun review(
@@ -163,4 +195,24 @@ data class BrowserRunExecutionReceipt(
     val runSequence: Long?,
     val completedAt: Instant?,
     val resultRecordedAt: Instant?,
+)
+
+/** Bounded snapshot; false [commandRecorded] says nothing about internal-machine execution or external effects. */
+data class BrowserRunExecutionHistory(
+    val observedAt: Instant,
+    val supervisionRevision: Long,
+    val commandRecorded: Boolean,
+    val entries: List<BrowserRunExecutionAdmission>,
+    val truncated: Boolean,
+)
+
+/**
+ * Times describe admission/recording only. Ordering and elapsed differences
+ * must not be interpreted as dispatch spans.
+ */
+data class BrowserRunExecutionAdmission(
+    val kind: String,
+    val supervisionRevision: Long,
+    val admittedAt: Instant,
+    val recordedAt: Instant,
 )
