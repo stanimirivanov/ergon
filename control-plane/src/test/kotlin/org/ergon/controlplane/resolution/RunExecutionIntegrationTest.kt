@@ -93,6 +93,7 @@ import java.util.concurrent.TimeUnit
 class RunExecutionIntegrationTest(
     @Autowired private val jdbc: JdbcClient,
     @Autowired private val transactions: TransactionRunner,
+    @Autowired private val controlGate: org.ergon.controlplane.resolution.application.RunCommandControlGate,
     @Autowired private val mvc: MockMvc,
     @Autowired private val executions: RunExecutionService,
     @Autowired private val requests: ApprovalRequestService,
@@ -597,6 +598,7 @@ class RunExecutionIntegrationTest(
         transactions,
         Clock.fixed(at, ZoneOffset.UTC),
         enabled,
+        controls = controlGate,
     )
 
     private fun invocationAt(at: Instant = NOW) =

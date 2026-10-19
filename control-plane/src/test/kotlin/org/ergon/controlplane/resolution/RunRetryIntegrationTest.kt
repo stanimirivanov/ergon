@@ -96,6 +96,7 @@ import java.util.concurrent.TimeUnit
 class RunRetryIntegrationTest(
     @Autowired private val jdbc: JdbcClient,
     @Autowired private val transactions: TransactionRunner,
+    @Autowired private val controlGate: org.ergon.controlplane.resolution.application.RunCommandControlGate,
     @Autowired private val mvc: MockMvc,
     @Autowired private val service: RunRetryService,
     @Autowired private val reviews: RunRetryReviewService,
@@ -600,6 +601,7 @@ class RunRetryIntegrationTest(
         transactions,
         executionClock,
         enabled,
+        controls = controlGate,
     )
 
     private fun clock(at: Instant = RunRetryTestFixture.NOW) = Clock.fixed(at, ZoneOffset.UTC)

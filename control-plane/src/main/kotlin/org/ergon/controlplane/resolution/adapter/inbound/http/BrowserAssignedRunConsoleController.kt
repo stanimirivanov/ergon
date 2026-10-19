@@ -87,7 +87,12 @@ class BrowserAssignedRunConsoleController(
     matchIfMissing = true,
 )
 class BrowserAssignedRunUnavailableController {
-    @GetMapping("/{runId}/execution-review", "/{runId}/retry-review", "/{runId}/escalation-review")
+    @GetMapping(
+        "/{runId}/execution-review",
+        "/{runId}/retry-review",
+        "/{runId}/escalation-review",
+        "/{runId}/control",
+    )
     fun executionReviewUnavailable(): ResponseEntity<ProblemDetail> =
         ResponseEntity
             .status(HttpStatus.SERVICE_UNAVAILABLE)
@@ -99,6 +104,7 @@ class BrowserAssignedRunUnavailableController {
         "/{runId}/execution-commands/{commandId}/attempts",
         "/{runId}/retry-commands",
         "/{runId}/escalation-commands",
+        "/{runId}/control-commands",
     )
     fun executionUnavailable(): ResponseEntity<ProblemDetail> =
         ResponseEntity

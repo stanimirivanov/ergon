@@ -20,6 +20,7 @@ import org.ergon.controlplane.resolution.application.RunApprovalCommandRepositor
 import org.ergon.controlplane.resolution.application.RunApprovalDecisionService
 import org.ergon.controlplane.resolution.application.RunApprovalReviewReader
 import org.ergon.controlplane.resolution.application.RunApprovalReviewService
+import org.ergon.controlplane.resolution.application.RunCommandControlGate
 import org.ergon.controlplane.resolution.application.RunOutcomeVerificationService
 import org.ergon.controlplane.resolution.application.RunProofCommandRepository
 import org.ergon.controlplane.resolution.application.RunProofFinalizationService
@@ -51,6 +52,7 @@ class RunSupervisorConfiguration {
         transactions: TransactionRunner,
         clock: Clock,
         @Value("\${ergon.run-supervision.proof-finalization.enabled:false}") enabled: Boolean,
+        controls: RunCommandControlGate,
     ) = RunProofFinalizationService(
         assignments,
         authorities,
@@ -62,6 +64,7 @@ class RunSupervisorConfiguration {
         transactions,
         clock,
         enabled,
+        controls,
     )
 
     @Bean
@@ -93,6 +96,7 @@ class RunSupervisorConfiguration {
         transactions: TransactionRunner,
         clock: Clock,
         @Value("\${ergon.run-supervision.approval.enabled:false}") enabled: Boolean,
+        controls: RunCommandControlGate,
     ) = RunApprovalDecisionService(
         ApprovalDecisionRecords(requests, runs, authorities, decisions),
         assignments,
@@ -103,6 +107,7 @@ class RunSupervisorConfiguration {
         transactions,
         clock,
         enabled,
+        controls,
     )
 
     @Bean
@@ -116,6 +121,7 @@ class RunSupervisorConfiguration {
         transactions: TransactionRunner,
         clock: Clock,
         @Value("\${ergon.run-supervision.handover.enabled:false}") handoverEnabled: Boolean,
+        controls: RunCommandControlGate,
     ) = RunSupervisorHandoverService(
         assignments,
         handovers,
@@ -125,6 +131,7 @@ class RunSupervisorConfiguration {
         transactions,
         clock,
         handoverEnabled,
+        controls,
     )
 
     @Bean

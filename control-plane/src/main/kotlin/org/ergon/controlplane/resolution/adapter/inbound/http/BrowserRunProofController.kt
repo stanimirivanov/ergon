@@ -1,7 +1,9 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
+import jakarta.servlet.http.HttpSession
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.resolution.application.FinalizeRunProofCommand
+import org.ergon.controlplane.resolution.application.RunControlFence
 import org.ergon.controlplane.resolution.application.RunProofFinalizationConflictException
 import org.ergon.controlplane.resolution.application.RunProofFinalizationDisabledException
 import org.ergon.controlplane.resolution.application.RunProofFinalizationService
@@ -40,6 +42,7 @@ class BrowserRunProofController(
         @PathVariable runId: UUID,
         @AuthenticationPrincipal principal: OidcUser,
         @RequestBody body: BrowserRunProofRequest,
+        session: HttpSession,
     ): ResponseEntity<BrowserRunProofReceipt> {
         val actor = actors.resolve(tenantId, principal)
         val result =
@@ -55,6 +58,7 @@ class BrowserRunProofController(
                     factId = body.factId,
                     observationId = body.observationId,
                 ),
+                body.control.forSession(session),
             )
         val stored = result.stored
         val command = stored.command
@@ -119,6 +123,7 @@ data class BrowserRunProofRequest(
     val expectedCaseVersion: Long,
     val factId: UUID,
     val observationId: UUID,
+    val control: RunControlFence? = null,
 )
 
 /** Historical acceptance and closure acknowledgement, not current access or a fresh external-system check. */

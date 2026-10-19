@@ -90,6 +90,7 @@ class RunApprovalIntegrationTest(
     @Autowired private val mvc: MockMvc,
     @Autowired private val jdbc: JdbcClient,
     @Autowired private val transactions: TransactionRunner,
+    @Autowired private val controlGate: org.ergon.controlplane.resolution.application.RunCommandControlGate,
     @Autowired private val approvals: RunApprovalDecisionService,
     @Autowired private val requests: ApprovalRequestService,
     @Autowired private val console: AssignedRunConsoleService,
@@ -414,6 +415,7 @@ class RunApprovalIntegrationTest(
             transactions,
             clock,
             enabled,
+            controls = controlGate,
         )
 
     private fun requesterEvidence(

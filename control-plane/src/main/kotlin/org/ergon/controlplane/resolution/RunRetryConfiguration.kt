@@ -3,6 +3,7 @@ package org.ergon.controlplane.resolution
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryRecords
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryService
+import org.ergon.controlplane.resolution.application.RunCommandControlGate
 import org.ergon.controlplane.resolution.application.RunRetryCommandRepository
 import org.ergon.controlplane.resolution.application.RunRetryReviewService
 import org.ergon.controlplane.resolution.application.RunRetryService
@@ -41,5 +42,17 @@ class RunRetryConfiguration {
         transactions: TransactionRunner,
         clock: Clock,
         @Value("\${ergon.run-supervision.retry.enabled:false}") enabled: Boolean,
-    ) = RunRetryService(assignments, commands, records, reviews, retries, identities, transactions, clock, enabled)
+        controls: RunCommandControlGate,
+    ) = RunRetryService(
+        assignments,
+        commands,
+        records,
+        reviews,
+        retries,
+        identities,
+        transactions,
+        clock,
+        enabled,
+        controls,
+    )
 }

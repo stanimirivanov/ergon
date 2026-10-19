@@ -1,8 +1,10 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
+import jakarta.servlet.http.HttpSession
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.resolution.application.RetrySupervisedRunCommand
 import org.ergon.controlplane.resolution.application.ReviewedRunRetryPlan
+import org.ergon.controlplane.resolution.application.RunControlFence
 import org.ergon.controlplane.resolution.application.RunRetryReview
 import org.ergon.controlplane.resolution.application.RunRetryReviewService
 import org.ergon.controlplane.resolution.application.RunRetryService
@@ -58,6 +60,7 @@ class BrowserRunRetryController(
         @PathVariable runId: UUID,
         @AuthenticationPrincipal principal: OidcUser,
         @RequestBody body: BrowserRunRetryRequest,
+        session: HttpSession,
     ): ResponseEntity<BrowserRunRetryReceipt> {
         val result =
             retries.retry(
@@ -74,6 +77,7 @@ class BrowserRunRetryController(
                     body.maximumAttempts,
                     body.plan,
                 ),
+                body.control.forSession(session),
             )
         val stored = result.stored
         return ResponseEntity
@@ -105,6 +109,7 @@ data class BrowserRunRetryRequest(
     val retryPolicyRevision: String,
     val maximumAttempts: Int,
     val plan: ReviewedRunRetryPlan,
+    val control: RunControlFence? = null,
 )
 
 /** Frozen acknowledgement, not the successor's current state or current supervision permission. */

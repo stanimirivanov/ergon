@@ -1,7 +1,9 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
+import jakarta.servlet.http.HttpSession
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.resolution.application.HandoverRunSupervisorCommand
+import org.ergon.controlplane.resolution.application.RunControlFence
 import org.ergon.controlplane.resolution.application.RunSupervisionRevision
 import org.ergon.controlplane.resolution.application.RunSupervisorHandoverService
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -69,6 +71,7 @@ class BrowserRunSupervisorHandoverController(
         @PathVariable runId: UUID,
         @AuthenticationPrincipal principal: OidcUser,
         @RequestBody request: BrowserRunSupervisorHandoverRequest,
+        session: HttpSession,
     ): ResponseEntity<BrowserRunSupervisorHandoverResponse> {
         val actor = actors.resolve(tenantId, principal)
         val recording =
@@ -81,6 +84,7 @@ class BrowserRunSupervisorHandoverController(
                     request.commandId,
                     RunSupervisionRevision(request.expectedSupervisionRevision),
                 ),
+                request.control.forSession(session),
             )
         val fact = recording.stored.handover
         return ResponseEntity
@@ -115,6 +119,7 @@ data class BrowserRunSupervisorHandoverRequest(
     val commandId: UUID,
     val expectedSupervisionRevision: Long,
     val supervisorActorId: UUID,
+    val control: RunControlFence? = null,
 )
 
 /** Historical transfer acknowledgement, not a claim of current ownership or a private audit payload. */

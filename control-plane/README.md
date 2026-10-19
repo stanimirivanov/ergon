@@ -216,6 +216,15 @@ Deploy compatible UI readers before enabling commands. It rejects even unconsume
 work. Retain audit and recover forward after first use; see
 [cancellation and recovery](../docs/run-supervisor-cancellation.md).
 
+## Browser control rollout
+
+The exclusive browser control gate defaults off. Deploy V20261018210000, all
+backend command writers and compatible UI before quiescing commands and enabling
+`ergon.run-supervision.control.enabled` (`ERGON_RUN_CONTROL_ENABLED`). Control
+does not replace human/capability authority or revoke admitted provider work.
+Preserve immutable lease/admission history and original uncertain intent; see
+[control API and rollout](../docs/operations/browser-run-control.md).
+
 ## Verify
 
 Docker must be running so Testcontainers executes PostgreSQL tests.

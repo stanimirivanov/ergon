@@ -1,7 +1,9 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
+import jakarta.servlet.http.HttpSession
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.resolution.application.EscalateSupervisedRunCommand
+import org.ergon.controlplane.resolution.application.RunControlFence
 import org.ergon.controlplane.resolution.application.RunEscalationReview
 import org.ergon.controlplane.resolution.application.RunEscalationReviewService
 import org.ergon.controlplane.resolution.application.RunEscalationService
@@ -56,6 +58,7 @@ class BrowserRunEscalationController(
         @PathVariable runId: UUID,
         @AuthenticationPrincipal principal: OidcUser,
         @RequestBody body: BrowserRunEscalationRequest,
+        session: HttpSession,
     ): ResponseEntity<BrowserRunEscalationReceipt> {
         val result =
             escalations.escalate(
@@ -73,6 +76,7 @@ class BrowserRunEscalationController(
                     body.maximumAttempts,
                     body.reason,
                 ),
+                body.control.forSession(session),
             )
         val stored = result.stored
         val command = stored.command
@@ -109,6 +113,7 @@ data class BrowserRunEscalationRequest(
     val retryPolicyRevision: String,
     val maximumAttempts: Int,
     val reason: ResolutionRunEscalationReason,
+    val control: RunControlFence? = null,
 )
 
 /**

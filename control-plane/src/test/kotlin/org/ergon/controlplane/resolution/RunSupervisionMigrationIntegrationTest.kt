@@ -17,6 +17,42 @@ import java.util.UUID
 @Testcontainers(disabledWithoutDocker = true)
 class RunSupervisionMigrationIntegrationTest {
     @Test
+    fun `control upgrade preserves released supervision and decisions without fabricating leases`() {
+        val schema = "control_upgrade_${UUID.randomUUID().toString().replace("-", "") }"
+        flyway(schema).target("20261018120000").load().migrate()
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.schema = schema
+            connection.autoCommit = false
+            val jdbc = JdbcClient.create(SingleConnectionDataSource(connection, true))
+            val fixture = RunSupervisionDatabaseFixture.seed(jdbc, NOW)
+            insertLegacyDecision(jdbc, fixture)
+            connection.commit()
+            val upgraded = flyway(schema).load()
+            upgraded.migrate()
+            upgraded.validate()
+            val assignments = PostgresRunSupervisorAssignmentRepository(jdbc)
+            assertThat(assignments.findAssigned(fixture.tenant, fixture.run, fixture.outgoing, NOW)?.revision?.value)
+                .isZero()
+            assertThat(jdbc.sql("SELECT COUNT(*) FROM resolution_approval_decisions").query(Int::class.java).single())
+                .isEqualTo(1)
+            val controlTables =
+                listOf(
+                    "resolution_run_control_events",
+                    "resolution_run_control_heads",
+                    "resolution_run_control_admissions",
+                )
+            for (table in controlTables) {
+                assertThat(jdbc.sql("SELECT COUNT(*) FROM $table").query(Int::class.java).single()).isZero()
+            }
+            // Unchanged trusted writers remain usable: the browser flag is not a global executor fence.
+            insertLegacyDecision(jdbc, RunSupervisionDatabaseFixture.seed(jdbc, NOW))
+            connection.commit()
+            assertThat(jdbc.sql("SELECT COUNT(*) FROM resolution_approval_decisions").query(Int::class.java).single())
+                .isEqualTo(2)
+        }
+    }
+
+    @Test
     fun `approval command upgrade preserves legacy decisions and supports unchanged bearer writers`() {
         val schema = "approval_upgrade_${UUID.randomUUID().toString().replace("-", "") }"
         flyway(schema).target("20261014072706").load().migrate()

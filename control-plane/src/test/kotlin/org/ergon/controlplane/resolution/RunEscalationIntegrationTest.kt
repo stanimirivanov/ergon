@@ -88,6 +88,7 @@ import java.util.UUID
 class RunEscalationIntegrationTest(
     @Autowired private val jdbc: JdbcClient,
     @Autowired private val transactions: TransactionRunner,
+    @Autowired private val controlGate: org.ergon.controlplane.resolution.application.RunCommandControlGate,
     @Autowired private val mvc: MockMvc,
     @Autowired private val service: RunEscalationService,
     @Autowired private val reviews: RunEscalationReviewService,
@@ -132,6 +133,7 @@ class RunEscalationIntegrationTest(
                 transactions,
                 Clock.fixed(RunRetryTestFixture.NOW, ZoneOffset.UTC),
                 true,
+                controls = controlGate,
             )
         assertThat(replay.escalate(original).stored).isEqualTo(first)
         send(original).andExpect(status().isOk).andExpect(jsonPath("$.creationStatus").value("OPEN"))
@@ -191,6 +193,7 @@ class RunEscalationIntegrationTest(
         transactions,
         Clock.fixed(at, ZoneOffset.UTC),
         enabled,
+        controls = controlGate,
     )
 
     private fun count(

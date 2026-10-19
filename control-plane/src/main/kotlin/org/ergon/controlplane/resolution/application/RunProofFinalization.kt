@@ -96,20 +96,35 @@ class RunProofFinalizationService(
     private val transactions: TransactionRunner,
     private val clock: Clock,
     private val enabled: Boolean,
+    private val controls: RunCommandControlGate,
 ) {
     /**
      * Reassesses exact evidence before first acceptance. Changed versions, identities,
      * pending proof or an already completed internal acceptance require a new review.
      * Exact replay requires the original actor and current tenant-wide RESOLVER
      * authority, but not continued supervision; it cannot apply a second closure.
+     * [control] retains the original public fence and trusted session binding; expiry rolls back provisional case
+     * closure.
+     * @throws RunControlRequiredException when enforced first admission lacks control.
+     * @throws RunControlConflictException for expired/mismatched control or changed replay fence.
      *
      * @throws AssignedRunNotFoundException for private absence, lost access or foreign receipts.
      * @throws RunProofFinalizationConflictException for stale intent or evidence.
      * @throws RunProofFinalizationDisabledException while rollout is disabled.
      */
-    fun finalizeProof(command: FinalizeRunProofCommand): RunProofFinalizationRecording =
+    fun finalizeProof(
+        command: FinalizeRunProofCommand,
+        control: RunCommandControl? = null,
+    ): RunProofFinalizationRecording =
         transactions.required {
             if (!enabled) throw RunProofFinalizationDisabledException()
+            val key =
+                RunControlCommandKey(
+                    command.tenantId,
+                    command.runId,
+                    RunControlCommandKind.PROOF,
+                    command.commandId,
+                )
             val tenant = TenantId(command.tenantId)
             val run = ResolutionRunId(command.runId)
             val actor = HumanActorId(command.actorId)
@@ -122,9 +137,12 @@ class RunProofFinalizationService(
                     throw AssignedRunNotFoundException()
                 }
                 if (stored.command != command) throw RunProofFinalizationConflictException()
+                controls.replay(key, control)
                 return@required RunProofFinalizationRecording(stored, created = false)
             }
-            recordFirst(command, tenant, run, actor)
+            recordFirst(command, tenant, run, actor).also {
+                controls.admit(key, command.actorId, command.expectedSupervisionRevision, control)
+            }
         }
 
     private fun recordFirst(

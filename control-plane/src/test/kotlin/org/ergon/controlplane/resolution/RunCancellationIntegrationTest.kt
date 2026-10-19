@@ -78,6 +78,7 @@ import java.util.UUID
 class RunCancellationIntegrationTest(
     @Autowired private val jdbc: JdbcClient,
     @Autowired private val transactions: TransactionRunner,
+    @Autowired private val controlGate: org.ergon.controlplane.resolution.application.RunCommandControlGate,
     @Autowired private val mvc: MockMvc,
     @Autowired private val service: RunCancellationService,
     @Autowired private val records: RunCancellationRecords,
@@ -390,6 +391,7 @@ class RunCancellationIntegrationTest(
                 transactions,
                 clock,
                 true,
+                controls = controlGate,
             )
         val command = command(fixture)
         assertThatThrownBy { delayed.cancel(command) }.isInstanceOf(AssignedRunNotFoundException::class.java)
@@ -461,7 +463,14 @@ class RunCancellationIntegrationTest(
         sources: RunCancellationRecords = records,
         enabled: Boolean = true,
         at: Instant = NOW,
-    ) = RunCancellationService(sources, identities, transactions, Clock.fixed(at, ZoneOffset.UTC), enabled)
+    ) = RunCancellationService(
+        sources,
+        identities,
+        transactions,
+        Clock.fixed(at, ZoneOffset.UTC),
+        enabled,
+        controls = controlGate,
+    )
 
     private fun base(command: CancelSupervisedRunCommand): String {
         val tenantPath = "/bff/v1/tenants/${command.tenantId}"

@@ -7,6 +7,7 @@ import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepo
 import org.ergon.controlplane.resolution.application.RunCancellationRecords
 import org.ergon.controlplane.resolution.application.RunCancellationRepository
 import org.ergon.controlplane.resolution.application.RunCancellationService
+import org.ergon.controlplane.resolution.application.RunCommandControlGate
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentRepository
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
@@ -25,11 +26,13 @@ class RunCancellationConfiguration {
     ) = RunCancellationRecords(assignments, authorities, transitions, cancellations)
 
     @Bean
+    @Suppress("LongParameterList") // Explicit transaction, time, event identity and mandatory browser fence owners.
     fun runCancellationService(
         records: RunCancellationRecords,
         identities: ResolutionRunEventIdentityGenerator,
         transactions: TransactionRunner,
         clock: Clock,
         @Value("\${ergon.run-supervision.cancellation.enabled:false}") enabled: Boolean,
-    ) = RunCancellationService(records, identities, transactions, clock, enabled)
+        controls: RunCommandControlGate,
+    ) = RunCancellationService(records, identities, transactions, clock, enabled, controls)
 }

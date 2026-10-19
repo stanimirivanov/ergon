@@ -39,17 +39,32 @@ class RunExecutionAdmissionService(
     private val transactions: TransactionRunner,
     private val clock: Clock,
     private val enabled: Boolean,
+    private val controls: RunCommandControlGate,
 ) {
     /**
      * Admits the exact reviewed approved step, or acknowledges original intent without dispatch.
      * Foreign command identities are neutral absence. Existing internal grants are
      * conflicts, never silently attributed to a newly supplied browser command.
+     * [control] is checked after reservation lock waits; failure rolls back grant, consumption and dispatch
+     * admission together.
+     * @throws RunControlRequiredException when enforced first admission lacks control.
+     * @throws RunControlConflictException for expired/mismatched control or changed replay fence.
      * @throws AssignedRunNotFoundException for absent/private runs or foreign intent.
      * @throws RunExecutionConflictException for stale or unavailable prerequisites.
      * @throws RunExecutionDisabledException while the separate rollout flag is off.
      */
-    fun admit(command: ExecuteRunCommand): RunExecutionAdmission =
+    fun admit(
+        command: ExecuteRunCommand,
+        control: RunCommandControl? = null,
+    ): RunExecutionAdmission =
         transactions.required {
+            val key =
+                RunControlCommandKey(
+                    command.tenantId,
+                    command.runId,
+                    RunControlCommandKind.EXECUTION,
+                    command.commandId,
+                )
             val tenant = TenantId(command.tenantId)
             val run = ResolutionRunId(command.runId)
             gate(tenant, run, HumanActorId(command.actorId))
@@ -58,6 +73,7 @@ class RunExecutionAdmissionService(
                 requireOwner(it, command.actorId, command.runId)
                 requireResolver(tenant, HumanActorId(command.actorId))
                 if (it.command != command) throw RunExecutionConflictException()
+                controls.replay(key, control)
                 return@required RunExecutionAdmission(it, dispatch = false)
             }
             val attempt = command.firstAttempt()
@@ -91,6 +107,7 @@ class RunExecutionAdmissionService(
             val evidence = requireResolver(tenant, HumanActorId(command.actorId), admittedAt)
             val stored = commands.recordCommand(command, consumption, checked)
             commands.recordAttempt(attempt, checked, evidence, admittedAt)
+            controls.admit(key, command.actorId, command.expectedSupervisionRevision, control)
             RunExecutionAdmission(stored, dispatch = true)
         }
 
@@ -99,9 +116,30 @@ class RunExecutionAdmissionService(
      * supervising at the reviewed epoch, may admit a new attempt. Exact attempt
      * replay never dispatches, even after handover; handback needs the new epoch.
      * Already projected results cannot admit another attempt.
+     * A new attempt needs current [control]; replay retains its original fence but neither renews nor dispatches.
+     * @throws RunControlRequiredException when enforced new recovery lacks control.
+     * @throws RunControlConflictException for expired/mismatched control or changed historical fence.
      */
-    fun resume(command: ResumeRunExecutionCommand): RunExecutionAdmission =
+    fun resume(
+        command: ResumeRunExecutionCommand,
+        control: RunCommandControl? = null,
+    ): RunExecutionAdmission =
         transactions.required {
+            // The first attempt shares the command UUID and its single admission.
+            // Acknowledging it through the recovery route must not invent another admission.
+            val kind =
+                if (command.attemptId == command.commandId) {
+                    RunControlCommandKind.EXECUTION
+                } else {
+                    RunControlCommandKind.EXECUTION_RECOVERY
+                }
+            val key =
+                RunControlCommandKey(
+                    command.tenantId,
+                    command.runId,
+                    kind,
+                    command.attemptId,
+                )
             val tenant = TenantId(command.tenantId)
             val run = ResolutionRunId(command.runId)
             gate(tenant, run, HumanActorId(command.actorId))
@@ -115,6 +153,7 @@ class RunExecutionAdmissionService(
                     throw AssignedRunNotFoundException()
                 }
                 if (it.command != command) throw RunExecutionConflictException()
+                controls.replay(key, control)
                 return@required RunExecutionAdmission(stored, dispatch = false)
             }
             requireState(tenant, run, command.expectedRunVersion)
@@ -122,6 +161,7 @@ class RunExecutionAdmissionService(
             val at = clock.instant().truncatedTo(ChronoUnit.MICROS)
             val evidence = requireResolver(tenant, HumanActorId(command.actorId), at)
             commands.recordAttempt(command, current, evidence, at)
+            controls.admit(key, command.actorId, command.expectedSupervisionRevision, control)
             RunExecutionAdmission(stored, dispatch = true)
         }
 

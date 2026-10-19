@@ -25,10 +25,16 @@ class RunExecutionService(
     private val clock: Clock,
 ) {
     /** First admission may invoke; identical command replay never does, even while incomplete. */
-    fun execute(command: ExecuteRunCommand): RunExecutionAcknowledgement = finish(admissions.admit(command))
+    fun execute(
+        command: ExecuteRunCommand,
+        control: RunCommandControl? = null,
+    ): RunExecutionAcknowledgement = finish(admissions.admit(command, control))
 
     /** A distinct explicitly confirmed attempt may invoke only the original reserved operation. */
-    fun resume(command: ResumeRunExecutionCommand): RunExecutionAcknowledgement = finish(admissions.resume(command))
+    fun resume(
+        command: ResumeRunExecutionCommand,
+        control: RunCommandControl? = null,
+    ): RunExecutionAcknowledgement = finish(admissions.resume(command, control))
 
     private fun finish(admission: RunExecutionAdmission): RunExecutionAcknowledgement {
         val stored = admission.stored

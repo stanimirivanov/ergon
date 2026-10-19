@@ -144,6 +144,15 @@ tables unless an ADR establishes a replay requirement.
 - All storage keys, searches, joins, cache keys, and capabilities preserve
   tenant scope.
 
+## Browser control
+
+Browser control is a selective application coordination boundary, not a global
+runtime lease. An exclusive session lease fences new supervisor commands after
+database lock waits; exact historical acknowledgement never renews control.
+Human/capability authority remains independent, and admitted connector work is
+not revoked on control loss. See [ADR 0057](decisions/0057-fence-browser-run-control.md)
+and the [staged rollout](operations/browser-run-control.md).
+
 ## Contract and event compatibility
 
 Resolution runs pin immutable revisions. Published contract revisions, event

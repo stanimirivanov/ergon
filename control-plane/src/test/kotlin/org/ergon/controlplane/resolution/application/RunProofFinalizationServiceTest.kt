@@ -131,5 +131,6 @@ class RunProofFinalizationServiceTest {
             },
             Clock.fixed(now, ZoneOffset.UTC),
             enabled,
+            controls = Mockito.mock(RunCommandControlGate::class.java),
         )
 }
