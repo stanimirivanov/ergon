@@ -14,6 +14,18 @@ class BrowserAssignedRunUnavailableControllerTest {
     private val mockMvc = MockMvcBuilders.standaloneSetup(BrowserAssignedRunUnavailableController()).build()
 
     @Test
+    fun `control routes report no-store unavailability when browser sessions are disabled`() {
+        val base = "/bff/v1/tenants/${UUID.randomUUID()}/resolution-runs/${UUID.randomUUID()}"
+        for (request in listOf(get("$base/control"), post("$base/control-commands"))) {
+            mockMvc
+                .perform(request)
+                .andExpect(status().isServiceUnavailable)
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.type").value("urn:ergon:problem:browser-authentication-unavailable"))
+        }
+    }
+
+    @Test
     fun `assigned run reads fail closed when browser sessions are disabled`() {
         val tenantId = UUID.randomUUID()
         val runId = UUID.randomUUID()

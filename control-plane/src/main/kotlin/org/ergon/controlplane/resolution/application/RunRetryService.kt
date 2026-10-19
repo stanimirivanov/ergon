@@ -29,6 +29,7 @@ class RunRetryService(
     private val transactions: TransactionRunner,
     private val clock: Clock,
     private val enabled: Boolean,
+    private val controls: RunCommandControlGate,
 ) {
     /**
      * Atomically supersedes a failed run, creates its sole fresh successor, and attributes successor supervision.
@@ -36,15 +37,28 @@ class RunRetryService(
      * Exact replay belongs only to the originating actor with current resolver evidence, even after handover.
      * It acknowledges history without changing supervision. The actor must come from a verified session.
      * Runtime planning conflicts propagate as typed errors mapped to the same BFF conflict.
+     * [control] is the predecessor's original browser fence/session binding. The successor inherits no lease.
+     * @throws RunControlRequiredException when enforced first admission lacks control.
+     * @throws RunControlConflictException for expired/mismatched control or changed replay fence.
      *
      * @throws RunRetryDisabledException while rollout is disabled.
      * @throws AssignedRunNotFoundException for missing/foreign context, expired authority or another actor's receipt.
      * @throws RunRetryConflictException for changed intent, stale snapshots,
      * exhausted policy or unrelated existing retry.
      */
-    fun retry(command: RetrySupervisedRunCommand): RunRetryCommandRecording =
+    fun retry(
+        command: RetrySupervisedRunCommand,
+        control: RunCommandControl? = null,
+    ): RunRetryCommandRecording =
         transactions.required {
             if (!enabled) throw RunRetryDisabledException()
+            val key =
+                RunControlCommandKey(
+                    command.tenantId,
+                    command.runId,
+                    RunControlCommandKind.RETRY,
+                    command.commandId,
+                )
             val tenant = TenantId(command.tenantId)
             val run = ResolutionRunId(command.runId)
             val actor = HumanActorId(command.actorId)
@@ -52,7 +66,7 @@ class RunRetryService(
             commands.lockCommand(tenant, command.commandId)
             requireAuthority(tenant, actor)
             commands.find(tenant, command.commandId)?.let { stored ->
-                return@required replay(command, stored)
+                return@required replay(command, stored).also { controls.replay(key, control) }
             }
             val state = checkNotNull(records.transitions.lockState(tenant, run)) { "run state is absent" }
             val current =
@@ -67,7 +81,9 @@ class RunRetryService(
             val result = retries.retry(tenant.value, run.value, plan.caseStreamVersion, actor.value, plan)
             // Never adopt an internal retry or an earlier unrelated command, even if it names the same successor.
             if (!result.recording.created) throw RunRetryConflictException()
-            record(command, current, result)
+            record(command, current, result).also {
+                controls.admit(key, command.actorId, command.expectedSupervisionRevision, control)
+            }
         }
 
     private fun replay(

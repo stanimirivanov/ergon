@@ -1,8 +1,10 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
+import jakarta.servlet.http.HttpSession
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.resolution.application.ExecuteRunCommand
 import org.ergon.controlplane.resolution.application.ResumeRunExecutionCommand
+import org.ergon.controlplane.resolution.application.RunControlFence
 import org.ergon.controlplane.resolution.application.RunExecutionAcknowledgement
 import org.ergon.controlplane.resolution.application.RunExecutionReview
 import org.ergon.controlplane.resolution.application.RunExecutionReviewService
@@ -54,6 +56,7 @@ class BrowserRunExecutionController(
         @PathVariable runId: UUID,
         @AuthenticationPrincipal principal: OidcUser,
         @RequestBody body: BrowserRunExecutionRequest,
+        session: HttpSession,
     ): ResponseEntity<BrowserRunExecutionReceipt> {
         val actor =
             actors
@@ -71,18 +74,21 @@ class BrowserRunExecutionController(
                     body.requestId,
                     body.decisionId,
                 ),
+                body.control.forSession(session),
             )
         return acknowledge(result, body.commandId)
     }
 
     /** A new attempt UUID and current epoch permit recovery of the original reservation, not fresh authorization. */
     @PostMapping("/execution-commands/{commandId}/attempts")
+    @Suppress("LongParameterList") // Keep path identity, principal, immutable intent and session provenance explicit.
     fun resume(
         @PathVariable tenantId: UUID,
         @PathVariable runId: UUID,
         @PathVariable commandId: UUID,
         @AuthenticationPrincipal principal: OidcUser,
         @RequestBody body: BrowserRunExecutionAttemptRequest,
+        session: HttpSession,
     ): ResponseEntity<BrowserRunExecutionReceipt> {
         val actor =
             actors
@@ -99,6 +105,7 @@ class BrowserRunExecutionController(
                     RunSupervisionRevision(body.expectedSupervisionRevision),
                     body.expectedRunVersion,
                 ),
+                body.control.forSession(session),
             )
         return acknowledge(result, body.attemptId)
     }
@@ -134,12 +141,14 @@ data class BrowserRunExecutionRequest(
     val expectedRunVersion: Long,
     val requestId: UUID,
     val decisionId: UUID,
+    val control: RunControlFence? = null,
 )
 
 data class BrowserRunExecutionAttemptRequest(
     val attemptId: UUID,
     val expectedSupervisionRevision: Long,
     val expectedRunVersion: Long,
+    val control: RunControlFence? = null,
 )
 
 /** Historical sequence-one acknowledgement, not current state, independent proof, or permission to retry. */

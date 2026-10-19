@@ -1,9 +1,11 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
+import jakarta.servlet.http.HttpSession
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.resolution.application.CancelSupervisedRunCommand
 import org.ergon.controlplane.resolution.application.RunCancellationReview
 import org.ergon.controlplane.resolution.application.RunCancellationService
+import org.ergon.controlplane.resolution.application.RunControlFence
 import org.ergon.controlplane.resolution.application.RunSupervisionRevision
 import org.ergon.resolution.domain.ResolutionRunCancellationReason
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -57,6 +59,7 @@ class BrowserRunCancellationController(
         @PathVariable runId: UUID,
         @AuthenticationPrincipal principal: OidcUser,
         @RequestBody body: BrowserRunCancellationRequest,
+        session: HttpSession,
     ): ResponseEntity<BrowserRunCancellationReceipt> {
         val result =
             cancellations.cancel(
@@ -70,6 +73,7 @@ class BrowserRunCancellationController(
                     RunSupervisionRevision(body.expectedSupervisionRevision),
                     body.expectedRunVersion,
                 ),
+                body.control.forSession(session),
             )
         val stored = result.stored
         return ResponseEntity
@@ -94,6 +98,7 @@ data class BrowserRunCancellationRequest(
     val commandId: UUID,
     val expectedSupervisionRevision: Long,
     val expectedRunVersion: Long,
+    val control: RunControlFence? = null,
 )
 
 /** Historical acknowledgement only, without private attribution or restored access. */

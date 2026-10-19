@@ -1,5 +1,6 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
+import jakarta.servlet.http.HttpSession
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.resolution.application.DecideRunApprovalCommand
 import org.ergon.controlplane.resolution.application.RunApprovalAuthorityMissingException
@@ -7,6 +8,7 @@ import org.ergon.controlplane.resolution.application.RunApprovalConflictExceptio
 import org.ergon.controlplane.resolution.application.RunApprovalDecisionService
 import org.ergon.controlplane.resolution.application.RunApprovalDisabledException
 import org.ergon.controlplane.resolution.application.RunApprovalReview
+import org.ergon.controlplane.resolution.application.RunControlFence
 import org.ergon.controlplane.resolution.application.RunSupervisionRevision
 import org.ergon.resolution.domain.ApprovalDecisionOutcome
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -38,12 +40,14 @@ class BrowserRunApprovalController(
 ) {
     /** The session supplies actor identity; exact revision and command identity fence stale/uncertain intent. */
     @PostMapping
+    @Suppress("LongParameterList") // Keep HTTP path, verified principal, reviewed intent and server session explicit.
     fun decide(
         @PathVariable tenantId: UUID,
         @PathVariable runId: UUID,
         @PathVariable requestId: UUID,
         @AuthenticationPrincipal principal: OidcUser,
         @RequestBody body: BrowserRunApprovalRequest,
+        session: HttpSession,
     ): ResponseEntity<BrowserRunApprovalReceipt> {
         val actor = actors.resolve(tenantId, principal)
         val result =
@@ -57,6 +61,7 @@ class BrowserRunApprovalController(
                     RunSupervisionRevision(body.expectedSupervisionRevision),
                     body.outcome,
                 ),
+                body.control.forSession(session),
             )
         val decision = result.stored.decision
         return ResponseEntity
@@ -125,6 +130,7 @@ data class BrowserRunApprovalRequest(
     val commandId: UUID,
     val expectedSupervisionRevision: Long,
     val outcome: ApprovalDecisionOutcome,
+    val control: RunControlFence? = null,
 )
 
 /** Exact historical acknowledgement, not present authority, authorization or proof of execution. */

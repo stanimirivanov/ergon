@@ -161,8 +161,9 @@ separate pull requests because they live in different repositories.
    Confirmed browser handover now uses immutable supervision epochs and a
    current access projection under
    [ADR 0048](../decisions/0048-allow-revisioned-browser-supervisor-handover.md).
-   Exclusive leases and fenced steering remain separate runtime capabilities;
-   no countdown is inferred from this transfer.
+   Browser control leases now have a separate default-off backend under
+   [ADR 0057](../decisions/0057-fence-browser-run-control.md); no lease countdown
+   is inferred from a supervision transfer.
 5. **M03 - Human authority and policy:** Review and decide pending capability
    prerequisites from the Resolver Console. Bind browser actions to current
    approval and deterministic gate contracts, not the recorded policy label.
@@ -203,8 +204,13 @@ separate pull requests because they live in different repositories.
    command cancels only untouched runs before any authorization, under
    [ADR 0056](../decisions/0056-cancel-untouched-supervised-runs.md).
    Backend cancellation is independently default-off; its dependent UI and guide
-   follow backend review/merge. General pause/branch, leases, compensation and
+   follow backend review/merge. General pause/branch, compensation and
    cancellation of already authorized or in-flight work are not implemented.
+10. **M05 - Human follow-up and resolver console:** Exclusive authenticated-session
+    control now fences all seven browser command families with 120-second leases,
+    immutable admission audit and exact historical recovery. Backend protection
+    defaults off. UI and executable guide follow backend review/merge before
+    rollout; there is no forced takeover, autonomous renewal or runtime cancellation.
 
 The concept images are a visual direction, not source data. The first two
 issues do not promise lease countdowns, live spans, cost totals, verified

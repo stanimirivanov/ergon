@@ -110,6 +110,7 @@ class RunCancellationService(
     private val transactions: TransactionRunner,
     private val clock: Clock,
     private val enabled: Boolean,
+    private val controls: RunCommandControlGate,
 ) {
     /**
      * Fresh supervisor/resolver review, including disabled and terminal context.
@@ -154,13 +155,27 @@ class RunCancellationService(
      * First application requires the current reviewed supervisor epoch. Exact replay
      * requires the original actor and current resolver evidence, not supervision.
      * An unchanged explicit uncertain replay may first apply an absent command.
+     * [control] supplies trusted session binding plus the exact original fence; never replace it during uncertain
+     * replay.
+     * @throws RunControlRequiredException when a new command lacks control while enforcement is enabled.
+     * @throws RunControlConflictException for expired/mismatched control or a changed historical fence.
      * @throws RunCancellationDisabledException while commands are off, including replay.
      * @throws AssignedRunNotFoundException for absent/foreign context or missing current resolver authority.
      * @throws RunCancellationConflictException for changed intent, epoch, state or authorization history.
      */
-    fun cancel(command: CancelSupervisedRunCommand): RunCancellationRecording =
+    fun cancel(
+        command: CancelSupervisedRunCommand,
+        control: RunCommandControl? = null,
+    ): RunCancellationRecording =
         transactions.required {
             if (!enabled) throw RunCancellationDisabledException()
+            val key =
+                RunControlCommandKey(
+                    command.tenantId,
+                    command.runId,
+                    RunControlCommandKind.CANCELLATION,
+                    command.commandId,
+                )
             val tenant = TenantId(command.tenantId)
             val run = ResolutionRunId(command.runId)
             val actor = HumanActorId(command.actorId)
@@ -172,6 +187,7 @@ class RunCancellationService(
                     throw AssignedRunNotFoundException()
                 }
                 if (stored.command != command) throw RunCancellationConflictException()
+                controls.replay(key, control)
                 return@required RunCancellationRecording(stored, created = false)
             }
             val state = checkNotNull(records.transitions.lockState(tenant, run)) { "run state is absent" }
@@ -202,6 +218,7 @@ class RunCancellationService(
                         event.occurredAt,
                     ),
                 )
+            controls.admit(key, command.actorId, command.expectedSupervisionRevision, control)
             RunCancellationRecording(stored, created = true)
         }
 

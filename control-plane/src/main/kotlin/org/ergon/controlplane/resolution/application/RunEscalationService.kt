@@ -26,25 +26,42 @@ class RunEscalationService(
     private val transactions: TransactionRunner,
     private val clock: Clock,
     private val enabled: Boolean,
+    private val controls: RunCommandControlGate,
 ) {
     /**
      * First application requires current supervision/resolver authority and exact reviewed exhaustion.
      * Replay requires the original actor and current resolver authority, not continued supervision;
      * its historical work identity never confers current case or follow-up access.
+     * [control] retains the original fence and trusted session binding; failed admission rolls back terminal work
+     * creation.
+     * @throws RunControlRequiredException when enforced first admission lacks control.
+     * @throws RunControlConflictException for expired/mismatched control or changed replay fence.
      * @throws RunEscalationDisabledException while commands are disabled, including replay.
      * @throws AssignedRunNotFoundException for missing/foreign context or expired authority.
      * @throws RunEscalationConflictException for changed intent, epoch, state, policy or prior escalation.
      */
-    fun escalate(command: EscalateSupervisedRunCommand): RunEscalationCommandRecording =
+    fun escalate(
+        command: EscalateSupervisedRunCommand,
+        control: RunCommandControl? = null,
+    ): RunEscalationCommandRecording =
         transactions.required {
             if (!enabled) throw RunEscalationDisabledException()
+            val key =
+                RunControlCommandKey(
+                    command.tenantId,
+                    command.runId,
+                    RunControlCommandKind.ESCALATION,
+                    command.commandId,
+                )
             val tenant = TenantId(command.tenantId)
             val run = ResolutionRunId(command.runId)
             val actor = HumanActorId(command.actorId)
             if (!assignments.lockRun(tenant, run)) throw AssignedRunNotFoundException()
             commands.lockCommand(tenant, command.commandId)
             requireAuthority(tenant, actor)
-            commands.find(tenant, command.commandId)?.let { return@required replay(command, it) }
+            commands.find(tenant, command.commandId)?.let {
+                return@required replay(command, it).also { controls.replay(key, control) }
+            }
             val state = checkNotNull(records.transitions.lockState(tenant, run)) { "run state is absent" }
             val current =
                 assignments.findAssigned(tenant, run, actor, clock.instant())
@@ -75,6 +92,7 @@ class RunEscalationService(
                         result.escalation.storedEvent.recordedAt,
                     ),
                 )
+            controls.admit(key, command.actorId, command.expectedSupervisionRevision, control)
             RunEscalationCommandRecording(stored, created = true)
         }
 

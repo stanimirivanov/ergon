@@ -238,6 +238,7 @@ class RunSupervisorHandoverServiceTest {
             transactions,
             Clock.fixed(NOW, ZoneOffset.UTC),
             enabled,
+            controls = Mockito.mock(RunCommandControlGate::class.java),
         )
 
     companion object {

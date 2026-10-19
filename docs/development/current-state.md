@@ -14,7 +14,9 @@
   active work, owner-scoped case context, and assigned-only active-run
   discovery/detail snapshots. Initial assignment is machine-controlled;
   confirmed browser handover changes current supervision with a separate audit
-  epoch. Handover is disabled by default; no live execution tree or lease exists.
+  epoch. Browser control now has a separately default-off backend lease/fence;
+  UI/countdown and guide updates follow backend review/merge. No live multi-step
+  execution tree is inferred. See [control rollout](../operations/browser-run-control.md).
 
 ## Active Ergon slice
 
@@ -134,7 +136,14 @@ The current slice can:
     exact-command audit commit together before any durable grant or execution
     record. Legacy approval/authorization writers share the run fence. No provider,
     case, proof, retry-budget or human-work change occurs. UI and guide follow
-    backend review/merge. See [cancellation](../run-supervisor-cancellation.md).
+    backend review/merge. See [cancellation](../run-supervisor-cancellation.md); and
+40. coordinate exclusive authenticated-session browser control with fixed
+    120-second leases, monotonic acquisition fences, exact lifecycle receipts
+    and immutable admissions across all seven browser command families. Protection
+    defaults off under `ERGON_RUN_CONTROL_ENABLED`; deploy schema, all writers
+    and compatible UI before enabling. Control loss does not revoke admitted
+    work. The dependent UI/guide waits for backend review/merge. See
+    [control rollout](../operations/browser-run-control.md).
 
 Detailed HTTP semantics live with their capabilities:
 
@@ -152,6 +161,7 @@ Detailed HTTP semantics live with their capabilities:
 - [confirmed failed-run retry](../run-supervisor-retry.md)
 - [confirmed exhausted-run escalation](../run-supervisor-escalation.md)
 - [untouched-run cancellation](../run-supervisor-cancellation.md)
+- [exclusive browser control](../operations/browser-run-control.md)
 
 ## Runtime and data
 

@@ -16,6 +16,7 @@ import org.ergon.controlplane.resolution.application.ResolutionRunCapabilityResu
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
 import org.ergon.controlplane.resolution.application.RunApprovalReviewReader
+import org.ergon.controlplane.resolution.application.RunCommandControlGate
 import org.ergon.controlplane.resolution.application.RunExecutionAdmissionService
 import org.ergon.controlplane.resolution.application.RunExecutionCommandRepository
 import org.ergon.controlplane.resolution.application.RunExecutionPrerequisites
@@ -51,6 +52,7 @@ class RunExecutionConfiguration {
         transactions: TransactionRunner,
         clock: Clock,
         @Value("\${ergon.run-supervision.execution.enabled:false}") enabled: Boolean,
+        controls: RunCommandControlGate,
     ) = RunExecutionAdmissionService(
         assignments,
         authorities,
@@ -61,6 +63,7 @@ class RunExecutionConfiguration {
         transactions,
         clock,
         enabled,
+        controls,
     )
 
     @Bean

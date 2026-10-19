@@ -87,19 +87,33 @@ class RunApprovalDecisionService(
     private val transactions: TransactionRunner,
     private val clock: Clock,
     private val enabled: Boolean,
+    private val controls: RunCommandControlGate,
 ) {
     /**
      * Applies a first command or acknowledges its originating actor's exact historical receipt.
      * Replay requires current resolver evidence but neither current supervision nor
      * still-current approval evidence; it performs no new decision after a handback.
+     * [control] is trusted session context with the original public fence, not approval authority.
+     * @throws RunControlRequiredException when enforced first admission lacks control.
+     * @throws RunControlConflictException for expired/mismatched control or changed replay fence.
      * @throws AssignedRunNotFoundException for private absence, non-owner or foreign receipts.
      * @throws RunApprovalConflictException for stale epochs, changed intent, expiry, answered or non-waiting requests.
      * @throws RunApprovalAuthorityMissingException for absent exact request authority/scope.
      * @throws RunApprovalDisabledException while commands are disabled.
      */
-    fun decide(command: DecideRunApprovalCommand): RunApprovalRecording =
+    fun decide(
+        command: DecideRunApprovalCommand,
+        control: RunCommandControl? = null,
+    ): RunApprovalRecording =
         transactions.required {
             if (!enabled) throw RunApprovalDisabledException()
+            val key =
+                RunControlCommandKey(
+                    command.tenantId,
+                    command.runId,
+                    RunControlCommandKind.APPROVAL,
+                    command.commandId,
+                )
             val tenant = TenantId(command.tenantId)
             val run = ResolutionRunId(command.runId)
             val actor = HumanActorId(command.actorId)
@@ -111,9 +125,11 @@ class RunApprovalDecisionService(
             commands.lockCommand(tenant, command.commandId)
             commands.findByCommandId(tenant, command.commandId)?.let { stored ->
                 requireCurrentResolver(tenant, actor, clock.instant().truncatedTo(ChronoUnit.MICROS))
-                return@required replay(command, stored)
+                return@required replay(command, stored).also { controls.replay(key, control) }
             }
-            recordFirstDecision(command, tenant, run, actor, now)
+            recordFirstDecision(command, tenant, run, actor, now).also {
+                controls.admit(key, command.actorId, command.expectedRevision, control)
+            }
         }
 
     private fun replay(
