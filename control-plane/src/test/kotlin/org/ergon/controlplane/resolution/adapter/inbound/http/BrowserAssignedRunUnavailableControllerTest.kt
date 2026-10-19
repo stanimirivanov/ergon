@@ -16,7 +16,7 @@ class BrowserAssignedRunUnavailableControllerTest {
     @Test
     fun `control routes report no-store unavailability when browser sessions are disabled`() {
         val base = "/bff/v1/tenants/${UUID.randomUUID()}/resolution-runs/${UUID.randomUUID()}"
-        for (request in listOf(get("$base/control"), post("$base/control-commands"))) {
+        for (request in listOf(get("$base/control"), get("$base/execution-history"), post("$base/control-commands"))) {
             mockMvc
                 .perform(request)
                 .andExpect(status().isServiceUnavailable)

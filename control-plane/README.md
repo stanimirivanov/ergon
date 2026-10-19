@@ -176,6 +176,14 @@ bearer decisions remain compatible. See [approval contracts](../docs/approvals.m
 
 ## Browser execution rollout
 
+The independent `GET .../{runId}/execution-history` read exposes at most 100
+sanitized admissions to the current supervisor/resolver, including earlier
+epochs and terminal runs. It neither needs a live lease nor grants recovery
+rights. Deploy additive V20261019120000 for indexed lookup; its transactional
+index build scans attempts and blocks writes while building, with index/WAL
+storage costs. Retain the index on rollback. No audit rewrite or flag enablement
+is required. See [admission semantics](../docs/run-capability-execution.md#inspect-recorded-admissions).
+
 Supervisor-confirmed execution has a separate default-off flag. Deploy the
 additive command/attempt audit schema before enabling it. Admission, grant and
 consumption commit before connector I/O. Replaying intent is acknowledgement

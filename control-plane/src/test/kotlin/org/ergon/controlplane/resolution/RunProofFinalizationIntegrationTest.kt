@@ -35,6 +35,7 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -141,6 +142,17 @@ class RunProofFinalizationIntegrationTest(
         ).isEqualTo(first)
         val detail = console.get(command.tenantId, command.runId, command.actorId)
         assertThat(detail.state.state.name).isEqualTo("VERIFIED_RESOLVED")
+        // Terminal access is independent of active discovery, leases and execution-command enablement.
+        // This fixture used internal execution: no browser command does not mean no recorded receipt.
+        mvc
+            .perform(
+                get("/bff/v1/tenants/${command.tenantId}/resolution-runs/${command.runId}/execution-history")
+                    .with(session(command.actorId)),
+            ).andExpect(status().isOk)
+            .andExpect(header().string("Cache-Control", "no-store"))
+            .andExpect(jsonPath("$.commandRecorded").value(false))
+            .andExpect(jsonPath("$.entries").isEmpty())
+            .andExpect(jsonPath("$.truncated").value(false))
         assertThat(detail.outcomeVerification.status.name).isEqualTo("ACCEPTED")
         assertThat(
             detail.outcomeVerification.evidence

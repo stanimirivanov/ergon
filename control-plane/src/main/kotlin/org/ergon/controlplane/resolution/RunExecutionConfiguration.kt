@@ -19,6 +19,8 @@ import org.ergon.controlplane.resolution.application.RunApprovalReviewReader
 import org.ergon.controlplane.resolution.application.RunCommandControlGate
 import org.ergon.controlplane.resolution.application.RunExecutionAdmissionService
 import org.ergon.controlplane.resolution.application.RunExecutionCommandRepository
+import org.ergon.controlplane.resolution.application.RunExecutionHistoryReader
+import org.ergon.controlplane.resolution.application.RunExecutionHistoryService
 import org.ergon.controlplane.resolution.application.RunExecutionPrerequisites
 import org.ergon.controlplane.resolution.application.RunExecutionReviewService
 import org.ergon.controlplane.resolution.application.RunExecutionService
@@ -32,6 +34,15 @@ import java.time.Clock
 /** Browser-specific composition; existing internal grant, invocation and projection services retain their contracts. */
 @Configuration(proxyBeanMethods = false)
 class RunExecutionConfiguration {
+    @Bean
+    fun runExecutionHistoryService(
+        assignments: RunSupervisorAssignmentRepository,
+        authorities: HumanAuthorityRepository,
+        history: RunExecutionHistoryReader,
+        transactions: TransactionRunner,
+        clock: Clock,
+    ) = RunExecutionHistoryService(assignments, authorities, history, transactions, clock)
+
     @Bean
     fun runExecutionPrerequisites(
         reviews: RunApprovalReviewReader,

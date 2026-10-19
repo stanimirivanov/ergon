@@ -70,6 +70,34 @@ Never generate a new command ID to resolve uncertainty or automatically retry.
 
 ## Explicit recovery and handover
 
+### Inspect recorded admissions
+
+`GET .../{runId}/execution-history` requires current exact supervision and
+tenant-wide resolver authority, including for terminal runs. It needs neither
+a control lease nor enabled execution commands. It returns `observedAt`, current
+`supervisionRevision`, `commandRecorded`, `entries` and `truncated`. Each entry
+has `kind` (INITIAL or RECOVERY), historical `supervisionRevision`, `admittedAt`
+and `recordedAt`. Actor, command/attempt, session, fence, authority and provider
+identifiers remain private.
+
+Return at most 100 admissions ordered by database recording time then private
+UUID ascending; read one extra to detect truncation. This is not causal order.
+Clocks may move backward; INITIAL need not appear first or in truncated results.
+No total or stable cross-request prefix is promised. `commandRecorded=false`
+means no browser command, not that internal execution/external effects never
+happened. Admissions are not dispatch spans, outcomes or measured latencies.
+Recovery may only repair projection; never attach the terminal winner's result
+or timing to individual admissions.
+
+Incoming supervisors can inspect earlier epochs without adopting original-actor
+recovery rights. Former supervisors cannot read this history; existing historical
+acknowledgement rules remain unchanged. Missing, foreign, unassigned and denied
+runs share no-store 404. Persistence/invariant failures return cause-free
+`503 run-execution-unavailable`, not empty history. See
+[ADR 0058](decisions/0058-disclose-supervisor-scoped-execution-admissions.md).
+
+### Confirm a new recovery attempt
+
 If a fresh review permits recovery, confirm a new attempt UUID at
 `POST .../{runId}/execution-commands/{commandId}/attempts`:
 
@@ -116,6 +144,11 @@ produce no fabricated terminal outcome and expose no cause text. Database errors
 are not disguised as connector failures. No autonomous retry/worker is added.
 
 ## Deployment and verification
+
+Execution-history lookup uses additive V20261019120000. Its index build scans
+attempts and blocks writes; assess index/WAL storage and schedule a maintenance
+window. Existing writers remain compatible; no backfill or flag enablement is
+needed. Retain the index on application rollback. UI/guide follow backend merge.
 
 Deploy V20261016120000 and upgraded code before setting
 `ERGON_RUN_SUPERVISOR_EXECUTION_ENABLED=true`. Supporting unique constraints scan
