@@ -1,8 +1,10 @@
 # Resolution contract documents
 
-> **TL;DR:** A `v1alpha1` contract is strict YAML declaring when a resolution
-> applies, the evidence it needs, its ordered capability requests, and the fact
-> that proves success. Validation grants no authority and performs no action.
+## TL;DR
+
+A `v1alpha1` contract is strict YAML declaring when a resolution applies, the
+evidence it needs, its ordered capability requests, and the fact that proves
+success. Validation grants no authority and performs no action.
 
 The executable example is
 [`examples/contracts/restore-workspace-access.yaml`](../examples/contracts/restore-workspace-access.yaml).
@@ -81,6 +83,15 @@ automatically select a revision, authorize a step, or execute it. Revisions
 published before the registry gate were introduced are not retroactively
 certified; a later runtime must resolve every reference and fail closed before
 execution.
+
+## Inspect a pinned contract
+
+The separate supervisor-scoped
+[`GET .../{runId}/pinned-contract`](run-pinned-contract.md) inspects only the
+exact immutable revision pinned by a currently authorized run. It preserves
+normalized declarations, not original YAML or assessed readiness. Declared step
+risk/approval can differ from strengthened runtime policy, and ordered requests
+are not an execution trace. Its dependent Console UI/guide follows backend merge.
 
 ## Readiness
 

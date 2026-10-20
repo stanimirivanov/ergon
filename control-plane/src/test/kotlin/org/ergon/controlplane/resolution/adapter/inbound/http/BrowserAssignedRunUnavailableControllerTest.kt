@@ -21,6 +21,7 @@ class BrowserAssignedRunUnavailableControllerTest {
                 get("$base/control"),
                 get("$base/execution-history"),
                 get("$base/invocation-history"),
+                get("$base/pinned-contract"),
                 get("$base/retry-successor"),
                 post("$base/control-commands"),
             )

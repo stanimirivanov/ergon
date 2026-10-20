@@ -124,3 +124,4 @@ benchmarks rather than duplicating them.
 | 0058 | [Disclose supervisor-scoped execution admissions](0058-disclose-supervisor-scoped-execution-admissions.md) |
 | 0059 | [Recover independently visible retry successors](0059-recover-independently-visible-retry-successors.md) |
 | 0060 | [Record observed gateway-attempt history](0060-record-observed-gateway-attempt-history.md) |
+| 0061 | [Disclose the exact supervised run's immutable contract declarations](0061-disclose-supervisor-scoped-pinned-contract.md) |
