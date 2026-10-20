@@ -159,7 +159,11 @@ separate pull requests because they live in different repositories.
    and recovery admissions under current supervision/resolver authority, across
    handovers and terminal runs. These are not causal spans or per-call results;
    see [ADR 0058](../decisions/0058-disclose-supervisor-scoped-execution-admissions.md).
-   Dependent UI and guide follow backend review/merge.
+   Its dependent UI and guide are merged. The next bounded relationship read
+   recovers an independently visible direct retry successor, including terminal
+   work, under [ADR 0059](../decisions/0059-recover-independently-visible-retry-successors.md).
+   It grants no inherited access, command replay or execution authority. Its
+   dependent navigation UI and guide follow backend review/merge.
 4. **M05 - Human follow-up and resolver console:** Add exclusive supervisor
    control, conflict visibility, and explicit handover. Assignment alone is
    not an expiring lease or permission to steer a run.

@@ -52,7 +52,7 @@ class BrowserRunRetryExceptionHandler {
         problem(
             HttpStatus.SERVICE_UNAVAILABLE,
             "run-retry-unavailable",
-            "Retry acknowledgement unavailable",
+            "Retry information is unavailable",
         )
 
     @ExceptionHandler(

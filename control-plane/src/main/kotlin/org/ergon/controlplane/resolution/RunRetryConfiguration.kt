@@ -1,12 +1,15 @@
 package org.ergon.controlplane.resolution
 
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryRecords
+import org.ergon.controlplane.resolution.application.ResolutionRunRetryRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryService
 import org.ergon.controlplane.resolution.application.RunCommandControlGate
 import org.ergon.controlplane.resolution.application.RunRetryCommandRepository
 import org.ergon.controlplane.resolution.application.RunRetryReviewService
 import org.ergon.controlplane.resolution.application.RunRetryService
+import org.ergon.controlplane.resolution.application.RunRetrySuccessorService
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentIdentityGenerator
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentRepository
 import org.ergon.resolution.domain.ResolutionRetryPolicy
@@ -18,6 +21,15 @@ import java.time.Clock
 /** Reuses the internal retry engine; only the browser admission and successor-supervision policy are new. */
 @Configuration(proxyBeanMethods = false)
 class RunRetryConfiguration {
+    @Bean
+    fun runRetrySuccessorService(
+        assignments: RunSupervisorAssignmentRepository,
+        authorities: HumanAuthorityRepository,
+        retries: ResolutionRunRetryRepository,
+        transactions: TransactionRunner,
+        clock: Clock,
+    ) = RunRetrySuccessorService(assignments, authorities, retries, transactions, clock)
+
     @Bean
     @Suppress("LongParameterList") // Review uses the existing capability-owned source ports and policy.
     fun runRetryReviewService(

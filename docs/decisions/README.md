@@ -122,3 +122,4 @@ benchmarks rather than duplicating them.
 | 0056 | [Cancel untouched supervised runs](0056-cancel-untouched-supervised-runs.md) |
 | 0057 | [Fence browser run control](0057-fence-browser-run-control.md) |
 | 0058 | [Disclose supervisor-scoped execution admissions](0058-disclose-supervisor-scoped-execution-admissions.md) |
+| 0059 | [Recover independently visible retry successors](0059-recover-independently-visible-retry-successors.md) |
