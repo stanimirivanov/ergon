@@ -20,6 +20,7 @@ class BrowserAssignedRunUnavailableControllerTest {
             listOf(
                 get("$base/control"),
                 get("$base/execution-history"),
+                get("$base/invocation-history"),
                 get("$base/retry-successor"),
                 post("$base/control-commands"),
             )

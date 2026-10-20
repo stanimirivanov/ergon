@@ -11,6 +11,7 @@ import org.ergon.controlplane.resolution.application.RunExecutionReview
 import org.ergon.controlplane.resolution.application.RunExecutionReviewService
 import org.ergon.controlplane.resolution.application.RunExecutionService
 import org.ergon.controlplane.resolution.application.RunExecutionStatus
+import org.ergon.controlplane.resolution.application.RunInvocationHistoryService
 import org.ergon.controlplane.resolution.application.RunSupervisionRevision
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.CacheControl
@@ -36,7 +37,24 @@ class BrowserRunExecutionController(
     private val executions: RunExecutionService,
     private val reviews: RunExecutionReviewService,
     private val history: RunExecutionHistoryService,
+    private val invocations: RunInvocationHistoryService,
 ) {
+    /** Independent observed history, not a live trace, browser admission or permission to recover. */
+    @GetMapping("/invocation-history")
+    fun invocations(
+        @PathVariable tenantId: UUID,
+        @PathVariable runId: UUID,
+        @AuthenticationPrincipal principal: OidcUser,
+    ): ResponseEntity<BrowserRunInvocationHistory> {
+        val actor =
+            actors
+                .resolve(tenantId, principal)
+                .actor.id.value
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(
+            invocations.get(tenantId, runId, actor).toBrowserResponse(),
+        )
+    }
+
     /** Read-only admission facts across supervision epochs; never recovery authority or a live execution trace. */
     @GetMapping("/execution-history")
     fun history(

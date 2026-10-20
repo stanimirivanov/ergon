@@ -4,6 +4,7 @@ import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.CapabilityAuthorizationConsumption
 import org.ergon.resolution.domain.CapabilityAuthorizationConsumptionId
+import org.ergon.resolution.domain.CapabilityInvocationOutcome
 import org.ergon.resolution.domain.CapabilityInvocationReceipt
 import org.ergon.resolution.domain.CapabilityInvocationResult
 import org.ergon.resolution.domain.CapabilityInvocationTiming
@@ -103,6 +104,7 @@ class CapabilityConnectorUnavailableException(
 ) : RuntimeException("capability connector $connector is unavailable")
 
 /** Invokes reserved capability work and makes its terminal connector result durable. */
+@Suppress("LongParameterList") // Receipt authority and per-call audit have distinct persistence/identity owners.
 class CapabilityInvocationService(
     private val consumptions: CapabilityAuthorizationConsumptionRepository,
     private val receipts: CapabilityInvocationReceiptRepository,
@@ -110,6 +112,8 @@ class CapabilityInvocationService(
     private val transactionRunner: TransactionRunner,
     private val clock: Clock,
     private val ticker: CapabilityInvocationTicker,
+    private val attempts: CapabilityInvocationAttemptRepository,
+    private val attemptIdentities: CapabilityInvocationAttemptIdentityGenerator,
 ) {
     /**
      * Invokes [consumptionId] with a stable idempotency key or replays its existing receipt.
@@ -121,8 +125,10 @@ class CapabilityInvocationService(
      * The new receipt retains this caller's monotonic gateway duration. Wall
      * timestamps are normalized to PostgreSQL microseconds; clock correction
      * does not change elapsed time. Historical replay performs no sampling.
-     * A thrown connector exception still means an unknown result: no receipt
-     * or timing is written. Clock/invariant defects propagate without fabrication.
+     * Each new call first commits preparation. Its own completion measurement
+     * is appended with the terminal receipt, or as UNKNOWN for a thrown gateway
+     * exception without a receipt. A preparation alone does not prove dispatch.
+     * Clock/invariant and audit defects propagate without fabricated completion.
      *
      * @throws CapabilityAuthorizationConsumptionNotFoundException when the
      *   consumption is absent from [tenantId].
@@ -140,38 +146,106 @@ class CapabilityInvocationService(
                 val consumption =
                     consumptions.find(scopedTenantId, scopedConsumptionId)?.consumption
                         ?: throw CapabilityAuthorizationConsumptionNotFoundException(consumptionId)
-                InvocationPreparation(
-                    consumption = consumption,
-                    existingReceipt = receipts.find(scopedTenantId, scopedConsumptionId),
-                )
+                val receipt = receipts.find(scopedTenantId, scopedConsumptionId)
+                if (receipt != null) {
+                    InvocationPreparation.Replay(receipt)
+                } else {
+                    val id = attemptIdentities.next()
+                    attempts.prepare(
+                        scopedTenantId,
+                        CapabilityInvocationPreparation(
+                            id,
+                            scopedConsumptionId,
+                            clock.instant().truncatedTo(ChronoUnit.MICROS),
+                        ),
+                    )
+                    InvocationPreparation.Call(consumption, id)
+                }
             }
-        preparation.existingReceipt?.let {
-            return CapabilityInvocationExecution(it, created = false)
+        return when (preparation) {
+            is InvocationPreparation.Replay -> CapabilityInvocationExecution(preparation.receipt, created = false)
+            is InvocationPreparation.Call -> invokePrepared(scopedTenantId, preparation)
         }
+    }
 
-        val command = CapabilityInvocationCommand(scopedTenantId, preparation.consumption)
+    @Suppress("TooGenericExceptionCaught") // Only the gateway's thrown boundary becomes uncertainty.
+    private fun invokePrepared(
+        tenant: TenantId,
+        preparation: InvocationPreparation.Call,
+    ): CapabilityInvocationExecution {
+        val command = CapabilityInvocationCommand(tenant, preparation.consumption)
         val startedAt = clock.instant().truncatedTo(ChronoUnit.MICROS)
         val startedTick = ticker.readNanoseconds()
-        val result = connector.invoke(command)
-        val elapsedNanoseconds = ticker.readNanoseconds() - startedTick
-        val completedAt = clock.instant().truncatedTo(ChronoUnit.MICROS)
+        val result =
+            try {
+                connector.invoke(command)
+            } catch (failure: Exception) {
+                val completion = completion(CapabilityInvocationCallOutcome.UNKNOWN, startedAt, startedTick)
+                recordUncertainty(tenant, preparation.attemptId, completion, failure)
+                throw failure
+            }
+        val outcome =
+            when (result.outcome) {
+                CapabilityInvocationOutcome.SUCCEEDED -> CapabilityInvocationCallOutcome.SUCCEEDED
+                CapabilityInvocationOutcome.FAILED -> CapabilityInvocationCallOutcome.FAILED
+            }
+        val completion = completion(outcome, startedAt, startedTick)
         val receipt =
             try {
                 CapabilityInvocationReceipt.complete(
                     preparation.consumption,
                     result,
-                    completedAt,
-                    CapabilityInvocationTiming(startedAt, elapsedNanoseconds),
+                    completion.completedAt,
+                    completion.timing,
                 )
             } catch (exception: IllegalArgumentException) {
                 // A persisted consumption and injected clock should never contradict one another.
                 throw IllegalStateException("capability invocation receipt is inconsistent", exception)
             }
-        return transactionRunner.required { receipts.createOrFind(scopedTenantId, receipt) }
+        return transactionRunner.required {
+            val recorded = receipts.createOrFind(tenant, receipt)
+            attempts.complete(tenant, preparation.attemptId, completion)
+            recorded
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // A storage failure must not become connector uncertainty.
+    private fun recordUncertainty(
+        tenant: TenantId,
+        attemptId: UUID,
+        completion: CapabilityInvocationCompletion,
+        gatewayFailure: Exception,
+    ) {
+        try {
+            transactionRunner.required { attempts.complete(tenant, attemptId, completion) }
+        } catch (auditFailure: Exception) {
+            auditFailure.addSuppressed(gatewayFailure)
+            throw auditFailure
+        }
+    }
+
+    private fun completion(
+        outcome: CapabilityInvocationCallOutcome,
+        startedAt: Instant,
+        startedTick: Long,
+    ): CapabilityInvocationCompletion {
+        val elapsed = ticker.readNanoseconds() - startedTick
+        val completedAt = clock.instant().truncatedTo(ChronoUnit.MICROS)
+        return try {
+            CapabilityInvocationCompletion(outcome, completedAt, CapabilityInvocationTiming(startedAt, elapsed))
+        } catch (failure: IllegalArgumentException) {
+            throw IllegalStateException("capability invocation measurement is inconsistent", failure)
+        }
     }
 }
 
-private data class InvocationPreparation(
-    val consumption: CapabilityAuthorizationConsumption,
-    val existingReceipt: StoredCapabilityInvocationReceipt?,
-)
+private sealed interface InvocationPreparation {
+    data class Replay(
+        val receipt: StoredCapabilityInvocationReceipt,
+    ) : InvocationPreparation
+
+    data class Call(
+        val consumption: CapabilityAuthorizationConsumption,
+        val attemptId: UUID,
+    ) : InvocationPreparation
+}

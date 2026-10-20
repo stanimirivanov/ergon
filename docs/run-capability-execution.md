@@ -145,6 +145,12 @@ are not disguised as connector failures. No autonomous retry/worker is added.
 
 ## Deployment and verification
 
+The separate [gateway-attempt history](run-invocation-history.md) read records
+actual gateway returns/exceptions rather than inferring them from admissions.
+Preparation does not prove dispatch and missing completion is not live status.
+Its additive schema precedes upgraded invocation writers; terminal receipt
+authority and explicit recovery semantics remain unchanged.
+
 Execution-history lookup uses additive V20261019120000. Its index build scans
 attempts and blocks writes; assess index/WAL storage and schedule a maintenance
 window. Existing writers remain compatible; no backfill or flag enablement is

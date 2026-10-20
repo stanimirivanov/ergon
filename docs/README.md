@@ -35,6 +35,7 @@ links from those documents only when the task crosses another boundary.
 - [Pinned run evidence](pinned-run-evidence.md) — supervisor-scoped bindings and linked sources.
 - [Outcome verification](run-outcome-verification.md) — current assessments and durable accepted proof.
 - [Confirmed capability execution](run-capability-execution.md) — attributed admission, invocation and explicit recovery.
+- [Gateway-attempt history](run-invocation-history.md) — recorded preparation, measured returns and unresolved calls.
 - [Confirmed failed-run retry](run-supervisor-retry.md) — exact reviewed successor creation and atomic supervision.
 - [Confirmed exhausted-run escalation](run-supervisor-escalation.md) — explicit terminal recovery and unassigned human work.
 - [Untouched-run cancellation](run-supervisor-cancellation.md) — confirmed termination before any authorization.

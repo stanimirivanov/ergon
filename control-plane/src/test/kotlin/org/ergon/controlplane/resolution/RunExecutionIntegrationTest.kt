@@ -11,6 +11,9 @@ import org.ergon.controlplane.resolution.application.ApprovalRequestService
 import org.ergon.controlplane.resolution.application.AssignedRunNotFoundException
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationConsumptionRepository
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGrantService
+import org.ergon.controlplane.resolution.application.CapabilityInvocationAttemptIdentityGenerator
+import org.ergon.controlplane.resolution.application.CapabilityInvocationAttemptRepository
+import org.ergon.controlplane.resolution.application.CapabilityInvocationCommand
 import org.ergon.controlplane.resolution.application.CapabilityInvocationExecution
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
 import org.ergon.controlplane.resolution.application.CapabilityInvocationService
@@ -39,6 +42,7 @@ import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
 import org.ergon.resolution.domain.ApprovalDecisionOutcome
 import org.ergon.resolution.domain.CapabilityInvocationReceipt
+import org.ergon.resolution.domain.CapabilityInvocationTiming
 import org.ergon.resolution.domain.ResolutionRunId
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.BeforeEach
@@ -106,6 +110,8 @@ class RunExecutionIntegrationTest(
     @Autowired private val commands: RunExecutionCommandRepository,
     @Autowired private val consumptions: CapabilityAuthorizationConsumptionRepository,
     @Autowired private val receipts: CapabilityInvocationReceiptRepository,
+    @Autowired private val invocationAttempts: CapabilityInvocationAttemptRepository,
+    @Autowired private val invocationIdentities: CapabilityInvocationAttemptIdentityGenerator,
     @Autowired private val results: ResolutionRunCapabilityResultService,
     @Autowired private val handovers: RunSupervisorHandoverService,
     @Autowired private val gateway: RunExecutionTestConnector,
@@ -128,15 +134,24 @@ class RunExecutionIntegrationTest(
                 val oldExecuted = fixtures.seed().second
                 val oldGrant = prerequisites.grants.authorize(oldExecuted.tenantId, oldExecuted.decisionId)
                 val oldConsumption = prerequisites.consumptions.consume(oldExecuted.tenantId, oldGrant.grant.id.value)
+                // Simulate the released writer's receipt without using an upgraded
+                // invocation service that requires not-yet-installed audit tables.
+                val oldResult =
+                    FakeIdentityCapabilityConnector().invoke(
+                        CapabilityInvocationCommand(TenantId(oldExecuted.tenantId), oldConsumption.consumption),
+                    )
                 val oldInvocation =
-                    CapabilityInvocationService(
-                        consumptions,
-                        receipts,
-                        FakeIdentityCapabilityConnector(),
-                        transactions,
-                        Clock.fixed(NOW, ZoneOffset.UTC),
-                        CapabilityInvocationTicker { 0L },
-                    ).invoke(oldExecuted.tenantId, oldConsumption.consumption.id.value)
+                    transactions.required {
+                        receipts.createOrFind(
+                            TenantId(oldExecuted.tenantId),
+                            CapabilityInvocationReceipt.complete(
+                                oldConsumption.consumption,
+                                oldResult,
+                                NOW,
+                                CapabilityInvocationTiming(NOW, 0L),
+                            ),
+                        )
+                    }
                 results.record(oldExecuted.tenantId, oldExecuted.runId)
                 Flyway
                     .configure()
@@ -532,6 +547,8 @@ class RunExecutionIntegrationTest(
                 transactions,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 CapabilityInvocationTicker { 0L },
+                invocationAttempts,
+                invocationIdentities,
             )
         val failing =
             RunExecutionService(
@@ -578,6 +595,8 @@ class RunExecutionIntegrationTest(
             transactions,
             Clock.fixed(at, ZoneOffset.UTC),
             CapabilityInvocationTicker { 0L },
+            invocationAttempts,
+            invocationIdentities,
         )
 
     private fun serviceAt(at: Instant) =

@@ -154,6 +154,16 @@ class RunProofFinalizationIntegrationTest(
             .andExpect(jsonPath("$.entries").isEmpty())
             .andExpect(jsonPath("$.truncated").value(false))
         assertThat(detail.outcomeVerification.status.name).isEqualTo("ACCEPTED")
+        // This legacy/internal receipt fixture never prepared a gateway call in
+        // the new audit. Terminal access must preserve that coverage gap honestly.
+        mvc
+            .perform(
+                get("/bff/v1/tenants/${command.tenantId}/resolution-runs/${command.runId}/invocation-history")
+                    .with(session(command.actorId)),
+            ).andExpect(status().isOk)
+            .andExpect(header().string("Cache-Control", "no-store"))
+            .andExpect(jsonPath("$.entries").isEmpty())
+            .andExpect(jsonPath("$.truncated").value(false))
         assertThat(
             detail.outcomeVerification.evidence
                 ?.fact
