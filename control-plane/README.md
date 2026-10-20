@@ -194,6 +194,13 @@ for rollback, retaining reservations and immutable audit. See
 
 ## Browser failed-run retry rollout
 
+The independent read-only `GET .../{runId}/retry-successor` recovers a direct
+runtime retry link only when the same resolver currently supervises both runs.
+Hidden and absent targets share null. It works for terminal runs and disabled
+commands without control acquisition, and requires no schema/flag change.
+Deploy backend before dependent UI navigation and guide; fresh target access
+remains mandatory. See [successor recovery](../docs/run-supervisor-retry.md#recover-a-visible-successor).
+
 Confirmed retry creates the existing policy-bounded fresh successor and assigns
 only that successor to the confirming current supervisor, atomically. It inherits
 no execution authorization and invokes no connector. Deploy V20261016200000 and

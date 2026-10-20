@@ -91,6 +91,7 @@ class BrowserAssignedRunUnavailableController {
         "/{runId}/execution-review",
         "/{runId}/execution-history",
         "/{runId}/retry-review",
+        "/{runId}/retry-successor",
         "/{runId}/escalation-review",
         "/{runId}/control",
     )

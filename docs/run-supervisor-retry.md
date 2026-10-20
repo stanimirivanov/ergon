@@ -28,6 +28,32 @@ These are narrow planning coordinates, not raw post-pin observations. Disabled
 review can retain an otherwise eligible plan but cannot confirm; ineligible
 planning has no plan. Review reveals no unrelated successor or foreign command.
 
+## Recover a visible successor
+
+`GET /bff/v1/tenants/{tenantId}/resolution-runs/{runId}/retry-successor`
+recovers the sole direct relationship from immutable runtime history, not a
+browser-command receipt. Current exact predecessor supervision and tenant-wide
+RESOLVER evidence gate history lookup. The same actor must independently have
+current supervision and resolver evidence for the target, even after handover.
+Both runs may be terminal; neither a control lease nor enabled retry commands
+is required. Internal retries work once their successor has a trusted assignment.
+
+The no-store response has exactly `observedAt`, `supervisionRevision` (source
+epoch), and nullable `successor`. A visible successor contains `runId` and its
+own `supervisionRevision`. Null means **no currently visible direct successor**:
+absent retry, unassigned target and inaccessible target are indistinguishable.
+It is not proof that no retry occurred. Hidden identity/existence, actors,
+commands, retry-event metadata and successor details are not disclosed.
+
+Authority checks use one observation instant, not an atomic cross-query snapshot
+or continuous revocation guarantee. Following the link always needs fresh exact
+target reads. The link grants no acknowledgement, assignment, lease or execution
+authority and does not change uncertain command intent. Existing no-store 404,
+400 and cause-free `run-retry-unavailable` 503 apply; a disabled browser-session
+deployment returns browser-authentication-unavailable 503. Storage failure is
+not successful absence. No migration or flag change is needed. See
+[ADR 0059](decisions/0059-recover-independently-visible-retry-successors.md).
+
 ## Confirm and replay
 
 `POST /bff/v1/tenants/{tenantId}/resolution-runs/{runId}/retry-commands` requires

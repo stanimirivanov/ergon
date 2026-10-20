@@ -198,6 +198,31 @@ class RunRetryIntegrationTest(
     }
 
     @Test
+    fun `durable browser successor recovery does not require original command replay`() {
+        val fixture = fixtures.seed()
+        val intent = command(fixture)
+        val stored = service.retry(intent).stored
+        val successor = ResolutionRunId(stored.successorRunId)
+        val path = base(intent) + "/retry-successor"
+        mvc
+            .perform(get(path).with(session(intent.actorId)))
+            .andExpect(status().isOk)
+            .andExpect(header().string("Cache-Control", "no-store"))
+            .andExpect(jsonPath("$.successor.runId").value(successor.value.toString()))
+            .andExpect(jsonPath("$.successor.supervisionRevision").value(0))
+        handover(fixture, successor, fixture.outgoing, fixture.incoming, 0)
+        val hidden =
+            mvc
+                .perform(get(path).with(session(intent.actorId)))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.successor").isEmpty())
+                .andReturn()
+                .response.contentAsString
+        assertThat(hidden).doesNotContain(successor.value.toString(), stored.command.commandId.toString())
+        assertThat(count("resolution_run_retry_commands", fixture.tenant)).isEqualTo(1)
+    }
+
+    @Test
     fun `stale epoch plan policy or ceiling cannot commit any retry`() {
         val fixture = fixtures.seed()
         val command = command(fixture)

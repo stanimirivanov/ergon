@@ -8,6 +8,7 @@ import org.ergon.controlplane.resolution.application.RunControlFence
 import org.ergon.controlplane.resolution.application.RunRetryReview
 import org.ergon.controlplane.resolution.application.RunRetryReviewService
 import org.ergon.controlplane.resolution.application.RunRetryService
+import org.ergon.controlplane.resolution.application.RunRetrySuccessorService
 import org.ergon.controlplane.resolution.application.RunSupervisionRevision
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.CacheControl
@@ -32,7 +33,29 @@ class BrowserRunRetryController(
     private val actors: AuthenticatedHumanActorResolver,
     private val reviews: RunRetryReviewService,
     private val retries: RunRetryService,
+    private val successors: RunRetrySuccessorService,
 ) {
+    /** Recover only independently visible navigation; no command acknowledgement or inherited target access. */
+    @GetMapping("/retry-successor")
+    fun successor(
+        @PathVariable tenantId: UUID,
+        @PathVariable runId: UUID,
+        @AuthenticationPrincipal principal: OidcUser,
+    ): ResponseEntity<BrowserRunRetrySuccessor> {
+        val actor =
+            actors
+                .resolve(tenantId, principal)
+                .actor.id.value
+        val result = successors.get(tenantId, runId, actor)
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(
+            BrowserRunRetrySuccessor(
+                result.observedAt,
+                result.supervisionRevision.value,
+                result.successor?.let { BrowserVisibleRetrySuccessor(it.runId.value, it.supervisionRevision.value) },
+            ),
+        )
+    }
+
     /** Current supervisor review discloses planning coordinates, never the new evidence content itself. */
     @GetMapping("/retry-review")
     fun review(
@@ -100,6 +123,19 @@ class BrowserRunRetryController(
             )
     }
 }
+
+/** Null means no currently visible direct successor, never proof that no retry exists. */
+data class BrowserRunRetrySuccessor(
+    val observedAt: Instant,
+    val supervisionRevision: Long,
+    val successor: BrowserVisibleRetrySuccessor?,
+)
+
+/** Exact target identity and observed supervision epoch; subsequent access must be freshly checked. */
+data class BrowserVisibleRetrySuccessor(
+    val runId: UUID,
+    val supervisionRevision: Long,
+)
 
 /** Complete reviewed intent; no recipient, successor identity, authority attestation or connector arguments. */
 data class BrowserRunRetryRequest(
