@@ -123,3 +123,4 @@ benchmarks rather than duplicating them.
 | 0057 | [Fence browser run control](0057-fence-browser-run-control.md) |
 | 0058 | [Disclose supervisor-scoped execution admissions](0058-disclose-supervisor-scoped-execution-admissions.md) |
 | 0059 | [Recover independently visible retry successors](0059-recover-independently-visible-retry-successors.md) |
+| 0060 | [Record observed gateway-attempt history](0060-record-observed-gateway-attempt-history.md) |

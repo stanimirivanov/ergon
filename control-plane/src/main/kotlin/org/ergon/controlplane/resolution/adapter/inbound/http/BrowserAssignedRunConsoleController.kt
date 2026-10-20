@@ -90,6 +90,7 @@ class BrowserAssignedRunUnavailableController {
     @GetMapping(
         "/{runId}/execution-review",
         "/{runId}/execution-history",
+        "/{runId}/invocation-history",
         "/{runId}/retry-review",
         "/{runId}/retry-successor",
         "/{runId}/escalation-review",

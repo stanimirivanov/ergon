@@ -13,8 +13,9 @@ cross-tenant consumption returns `404`, while an uninstalled configured
 connector returns `503` without creating a receipt.
 
 The application reads the consumption and any receipt in a short transaction,
-closes that transaction, and only then calls the connector. It persists the
-terminal result in a second transaction. Concurrent or crash retries can reach
+and appends preparation when a new gateway call is needed. It commits before
+calling the connector. Terminal result and that caller's completion audit share
+a second transaction. Concurrent or crash retries can reach
 the connector, but all carry the same idempotency key and therefore address one
 provider operation. Database uniqueness retains one immutable receipt.
 
@@ -27,7 +28,7 @@ committed winner or inserts its own result after a rollback. The lock is acquire
 only after connector I/O and permits foreign-key `KEY SHARE` checks. Repository
 writes without an active transaction fail before SQL. Different consumptions
 within the same tenant and connector cannot reuse a provider-operation reference.
-No schema or HTTP contract changes are needed.
+Receipt serialization itself does not alter the invocation HTTP contract.
 During a rolling deployment, older writers still lack this serialization;
 upgrade every receipt-writing instance to eliminate the race.
 
@@ -57,7 +58,7 @@ the measurement and clock correction may place start after completion.
 The measurement describes the caller whose receipt became durable, not the
 provider's internal latency or the sum of uncertain/concurrent calls. Replays
 return that exact record without sampling again. A thrown connector exception
-still leaves the result unknown and creates neither receipt nor timing. Retry
+still leaves the result unknown and creates no receipt or receipt timing. Retry
 the original consumption only under its existing provider-idempotency contract.
 
 Historical and older-writer receipts have absent timing; there is no backfill
@@ -66,3 +67,12 @@ resolution can be coarser than its nanosecond units. Cost is not measured or
 reported. The assigned browser projection is documented in
 [resolution runs](runs.md#interpret-measured-execution), under
 [ADR 0046](decisions/0046-record-runtime-capability-invocation-timing.md).
+
+## Per-call audit
+
+The separate [gateway-attempt history](run-invocation-history.md) retains each
+upgraded caller's preparation and measured completion, including UNKNOWN after
+a thrown gateway exception. Preparation is not proof of dispatch; missing
+completion is not a live status. This audit neither reconstructs older calls
+nor changes the winning receipt. Deploy V20261020120000 before upgraded
+invocation writers; keep the expanded schema/audit on application rollback.

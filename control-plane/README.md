@@ -176,6 +176,15 @@ bearer decisions remain compatible. See [approval contracts](../docs/approvals.m
 
 ## Browser execution rollout
 
+`GET .../{runId}/invocation-history` separately exposes bounded, current-supervisor
+gateway preparation/completion metadata, including measured unresolved calls.
+It is not a live trace or complete coverage of historical/older-writer calls.
+Deploy additive V20261020120000 before upgraded invocation writers/readers;
+budget the consumption index's write-conflicting scan, index/WAL space and
+retained audit growth. Older writers remain compatible; preserve audit on
+rollback. No new flag or authority is introduced. See
+[gateway-attempt history](../docs/run-invocation-history.md).
+
 The independent `GET .../{runId}/execution-history` read exposes at most 100
 sanitized admissions to the current supervisor/resolver, including earlier
 epochs and terminal runs. It neither needs a live lease nor grants recovery

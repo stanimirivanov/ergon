@@ -163,7 +163,12 @@ separate pull requests because they live in different repositories.
    recovers an independently visible direct retry successor, including terminal
    work, under [ADR 0059](../decisions/0059-recover-independently-visible-retry-successors.md).
    It grants no inherited access, command replay or execution authority. Its
-   dependent navigation UI and guide follow backend review/merge.
+   dependent navigation UI and guide are merged. The next slice records and
+   projects actual gateway preparations and measured returns/exceptions under
+   [ADR 0060](../decisions/0060-record-observed-gateway-attempt-history.md).
+   Preparation is not proof of dispatch; absent completion is not live status.
+   Separate per-call samples do not replace the winning receipt or establish a
+   multi-step waterfall. Its UI and guide follow backend review/merge.
 4. **M05 - Human follow-up and resolver console:** Add exclusive supervisor
    control, conflict visibility, and explicit handover. Assignment alone is
    not an expiring lease or permission to steer a run.

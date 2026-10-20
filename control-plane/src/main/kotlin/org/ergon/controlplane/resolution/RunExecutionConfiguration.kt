@@ -8,6 +8,8 @@ import org.ergon.controlplane.resolution.application.CapabilityAuthorizationCons
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationConsumptionService
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGrantService
 import org.ergon.controlplane.resolution.application.CapabilityConnectorGateway
+import org.ergon.controlplane.resolution.application.CapabilityInvocationAttemptIdentityGenerator
+import org.ergon.controlplane.resolution.application.CapabilityInvocationAttemptRepository
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
 import org.ergon.controlplane.resolution.application.CapabilityInvocationService
 import org.ergon.controlplane.resolution.application.CapabilityInvocationTicker
@@ -24,6 +26,8 @@ import org.ergon.controlplane.resolution.application.RunExecutionHistoryService
 import org.ergon.controlplane.resolution.application.RunExecutionPrerequisites
 import org.ergon.controlplane.resolution.application.RunExecutionReviewService
 import org.ergon.controlplane.resolution.application.RunExecutionService
+import org.ergon.controlplane.resolution.application.RunInvocationHistoryReader
+import org.ergon.controlplane.resolution.application.RunInvocationHistoryService
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentRepository
 import org.ergon.controlplane.resolution.application.UncertainCapabilityConnectorGateway
 import org.springframework.beans.factory.annotation.Value
@@ -34,6 +38,15 @@ import java.time.Clock
 /** Browser-specific composition; existing internal grant, invocation and projection services retain their contracts. */
 @Configuration(proxyBeanMethods = false)
 class RunExecutionConfiguration {
+    @Bean
+    fun runInvocationHistoryService(
+        assignments: RunSupervisorAssignmentRepository,
+        authorities: HumanAuthorityRepository,
+        history: RunInvocationHistoryReader,
+        transactions: TransactionRunner,
+        clock: Clock,
+    ) = RunInvocationHistoryService(assignments, authorities, history, transactions, clock)
+
     @Bean
     fun runExecutionHistoryService(
         assignments: RunSupervisorAssignmentRepository,
@@ -85,6 +98,8 @@ class RunExecutionConfiguration {
         receipts: CapabilityInvocationReceiptRepository,
         gateway: CapabilityConnectorGateway,
         ticker: CapabilityInvocationTicker,
+        attempts: CapabilityInvocationAttemptRepository,
+        attemptIdentities: CapabilityInvocationAttemptIdentityGenerator,
         results: ResolutionRunCapabilityResultService,
         states: ResolutionRunTransitionRepository,
         authorities: HumanAuthorityRepository,
@@ -99,6 +114,8 @@ class RunExecutionConfiguration {
                 transactions,
                 clock,
                 ticker,
+                attempts,
+                attemptIdentities,
             )
         return RunExecutionService(admissions, invocation, results, receipts, states, authorities, transactions, clock)
     }

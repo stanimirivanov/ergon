@@ -98,7 +98,8 @@ class CapabilityInvocationServiceTest {
         val clock = Mockito.mock(Clock::class.java)
         val start = COMPLETED_AT.plusNanos(123_456_789)
         // The wall clock moves backwards, but remains later than consumption.
-        Mockito.`when`(clock.instant()).thenReturn(start, COMPLETED_AT.plusNanos(12_345_678))
+        Mockito.`when`(clock.instant()).thenReturn(COMPLETED_AT, start, COMPLETED_AT.plusNanos(12_345_678))
+        val attempts = RecordingInvocationAttempts(transactions)
         val service =
             service(
                 transactions,
@@ -110,6 +111,7 @@ class CapabilityInvocationServiceTest {
                 consumption(),
                 ticker,
                 clock,
+                attempts,
             )
 
         val first = service.invoke(TENANT_ID, CONSUMPTION_ID)
@@ -122,7 +124,18 @@ class CapabilityInvocationServiceTest {
         assertThat(first.storedReceipt.receipt.completedAt).isEqualTo(COMPLETED_AT.plusNanos(12_345_000))
         assertThat(replay.storedReceipt).isEqualTo(first.storedReceipt)
         Mockito.verify(ticker, Mockito.times(2)).readNanoseconds()
-        Mockito.verify(clock, Mockito.times(2)).instant()
+        Mockito.verify(clock, Mockito.times(3)).instant()
+        assertThat(attempts.preparations).hasSize(1)
+        assertThat(
+            attempts.completions
+                .single()
+                .second.timing,
+        ).isEqualTo(timing)
+        assertThat(
+            attempts.completions
+                .single()
+                .second.outcome.name,
+        ).isEqualTo(outcome.name)
     }
 
     @Test
@@ -147,19 +160,114 @@ class CapabilityInvocationServiceTest {
     }
 
     @Test
-    fun `unknown connector failure creates neither a receipt nor fabricated timing`() {
+    fun `unknown connector failure records measured uncertainty but no terminal receipt`() {
         val receipts = InMemoryReceiptRepository()
+        val transactions = RecordingTransactionRunner()
+        val attempts = RecordingInvocationAttempts(transactions)
         val failure = IllegalStateException("synthetic uncertain provider result")
         val service =
             service(
-                RecordingTransactionRunner(),
+                transactions,
                 receipts,
                 CapabilityConnectorGateway { throw failure },
                 consumption(),
+                attempts = attempts,
             )
 
         assertThatThrownBy { service.invoke(TENANT_ID, CONSUMPTION_ID) }.isSameAs(failure)
         assertThat(receipts.find(TenantId(TENANT_ID), CapabilityAuthorizationConsumptionId(CONSUMPTION_ID))).isNull()
+        assertThat(attempts.preparations).hasSize(1)
+        assertThat(
+            attempts.completions
+                .single()
+                .second.outcome,
+        ).isEqualTo(CapabilityInvocationCallOutcome.UNKNOWN)
+        assertThat(
+            attempts.completions
+                .single()
+                .second.timing.elapsedNanoseconds,
+        ).isZero()
+    }
+
+    @Test
+    fun `preparation failure prevents gateway IO and uncertainty persistence failure is not swallowed`() {
+        val transactions = RecordingTransactionRunner()
+        val attempts = RecordingInvocationAttempts(transactions)
+        val storage = IllegalStateException("synthetic audit unavailable")
+        var calls = 0
+        val brokenPreparation =
+            object : CapabilityInvocationAttemptRepository by attempts {
+                override fun prepare(
+                    tenant: TenantId,
+                    preparation: CapabilityInvocationPreparation,
+                ): Unit = throw storage
+            }
+        val unavailable =
+            service(
+                transactions,
+                InMemoryReceiptRepository(),
+                CapabilityConnectorGateway {
+                    calls++
+                    connectorResult(it.idempotencyKey)
+                },
+                consumption(),
+                attempts = brokenPreparation,
+            )
+        assertThatThrownBy { unavailable.invoke(TENANT_ID, CONSUMPTION_ID) }.isSameAs(storage)
+        assertThat(calls).isZero()
+
+        val uncertain = IllegalArgumentException("private synthetic provider cause")
+        val brokenCompletion =
+            object : CapabilityInvocationAttemptRepository by attempts {
+                override fun complete(
+                    tenant: TenantId,
+                    attemptId: UUID,
+                    completion: CapabilityInvocationCompletion,
+                ): Unit = throw storage
+            }
+        val failedAudit =
+            service(
+                transactions,
+                InMemoryReceiptRepository(),
+                CapabilityConnectorGateway { throw uncertain },
+                consumption(),
+                attempts = brokenCompletion,
+            )
+        assertThatThrownBy { failedAudit.invoke(TENANT_ID, CONSUMPTION_ID) }.isSameAs(storage)
+        assertThat(storage.suppressed).containsExactly(uncertain)
+        assertThat(attempts.completions).isEmpty()
+    }
+
+    @Test
+    fun `a new uncertain call keeps its own measurement and replay never reconstructs old calls`() {
+        val transactions = RecordingTransactionRunner()
+        val attempts = RecordingInvocationAttempts(transactions)
+        val receipts = InMemoryReceiptRepository()
+        var calls = 0
+        var tick = 0L
+        val service =
+            service(
+                transactions,
+                receipts,
+                CapabilityConnectorGateway {
+                    check(attempts.preparations.size == calls + 1)
+                    calls++
+                    if (calls == 1) error("synthetic lost gateway acknowledgement")
+                    connectorResult(it.idempotencyKey)
+                },
+                consumption(),
+                CapabilityInvocationTicker { tick.also { tick += 17 } },
+                attempts = attempts,
+            )
+        assertThatThrownBy { service.invoke(TENANT_ID, CONSUMPTION_ID) }.isInstanceOf(IllegalStateException::class.java)
+        val terminal = service.invoke(TENANT_ID, CONSUMPTION_ID)
+        assertThat(service.invoke(TENANT_ID, CONSUMPTION_ID).storedReceipt).isEqualTo(terminal.storedReceipt)
+        assertThat(attempts.preparations.map { it.id }).doesNotHaveDuplicates().hasSize(2)
+        assertThat(attempts.completions.map { it.second.outcome })
+            .containsExactly(CapabilityInvocationCallOutcome.UNKNOWN, CapabilityInvocationCallOutcome.SUCCEEDED)
+        assertThat(attempts.completions.map { it.second.timing.elapsedNanoseconds }).containsExactly(17L, 17L)
+        assertThat(calls).isEqualTo(2)
+        assertThat(tick).isEqualTo(68L)
     }
 
     @Test
@@ -193,35 +301,43 @@ class CapabilityInvocationServiceTest {
         consumption: CapabilityAuthorizationConsumption,
         ticker: CapabilityInvocationTicker = CapabilityInvocationTicker { 123L },
         clock: Clock = Clock.fixed(COMPLETED_AT, ZoneOffset.UTC),
-    ) = CapabilityInvocationService(
-        consumptions =
-            object : CapabilityAuthorizationConsumptionRepository {
-                override fun find(
-                    tenantId: TenantId,
-                    consumptionId: CapabilityAuthorizationConsumptionId,
-                ): StoredCapabilityAuthorizationConsumption? =
-                    if (tenantId.value == TENANT_ID && consumptionId.value == CONSUMPTION_ID) {
-                        StoredCapabilityAuthorizationConsumption(consumption, CONSUMED_AT)
-                    } else {
-                        null
-                    }
+        attempts: CapabilityInvocationAttemptRepository = RecordingInvocationAttempts(transactions),
+    ): CapabilityInvocationService {
+        val sequence =
+            java.util.concurrent.atomic
+                .AtomicLong()
+        return CapabilityInvocationService(
+            consumptions =
+                object : CapabilityAuthorizationConsumptionRepository {
+                    override fun find(
+                        tenantId: TenantId,
+                        consumptionId: CapabilityAuthorizationConsumptionId,
+                    ): StoredCapabilityAuthorizationConsumption? =
+                        if (tenantId.value == TENANT_ID && consumptionId.value == CONSUMPTION_ID) {
+                            StoredCapabilityAuthorizationConsumption(consumption, CONSUMED_AT)
+                        } else {
+                            null
+                        }
 
-                override fun findIdByGrant(
-                    tenantId: TenantId,
-                    grantId: CapabilityAuthorizationGrantId,
-                ) = null
+                    override fun findIdByGrant(
+                        tenantId: TenantId,
+                        grantId: CapabilityAuthorizationGrantId,
+                    ) = null
 
-                override fun create(
-                    tenantId: TenantId,
-                    consumption: CapabilityAuthorizationConsumption,
-                ) = error("not used")
-            },
-        receipts = receipts,
-        connector = connector,
-        transactionRunner = transactions,
-        clock = clock,
-        ticker = ticker,
-    )
+                    override fun create(
+                        tenantId: TenantId,
+                        consumption: CapabilityAuthorizationConsumption,
+                    ) = error("not used")
+                },
+            receipts = receipts,
+            connector = connector,
+            transactionRunner = transactions,
+            clock = clock,
+            ticker = ticker,
+            attempts = attempts,
+            attemptIdentities = CapabilityInvocationAttemptIdentityGenerator { UUID(0, sequence.incrementAndGet()) },
+        )
+    }
 
     private fun consumption(): CapabilityAuthorizationConsumption =
         CapabilityAuthorizationConsumption.rehydrate(
@@ -254,6 +370,30 @@ class CapabilityInvocationServiceTest {
         private val CASE_ID: UUID = UUID.fromString("55555555-5555-5555-5555-555555555555")
         private val CONSUMED_AT: Instant = Instant.parse("2026-09-14T10:00:30Z")
         private val COMPLETED_AT: Instant = Instant.parse("2026-09-14T10:01:00Z")
+    }
+}
+
+private class RecordingInvocationAttempts(
+    private val transactions: RecordingTransactionRunner,
+) : CapabilityInvocationAttemptRepository {
+    val preparations = mutableListOf<CapabilityInvocationPreparation>()
+    val completions = mutableListOf<Pair<UUID, CapabilityInvocationCompletion>>()
+
+    override fun prepare(
+        tenant: TenantId,
+        preparation: CapabilityInvocationPreparation,
+    ) {
+        check(transactions.active)
+        preparations += preparation
+    }
+
+    override fun complete(
+        tenant: TenantId,
+        attemptId: UUID,
+        completion: CapabilityInvocationCompletion,
+    ) {
+        check(transactions.active)
+        completions += attemptId to completion
     }
 }
 

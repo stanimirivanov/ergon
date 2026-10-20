@@ -12,6 +12,8 @@ import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGran
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGrantRepository
 import org.ergon.controlplane.resolution.application.CapabilityAuthorizationGrantService
 import org.ergon.controlplane.resolution.application.CapabilityConnectorGateway
+import org.ergon.controlplane.resolution.application.CapabilityInvocationAttemptIdentityGenerator
+import org.ergon.controlplane.resolution.application.CapabilityInvocationAttemptRepository
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
 import org.ergon.controlplane.resolution.application.CapabilityInvocationService
 import org.ergon.controlplane.resolution.application.CapabilityInvocationTicker
@@ -79,7 +81,21 @@ class CapabilityAuthorizationConfiguration {
         transactionRunner: TransactionRunner,
         clock: Clock,
         ticker: CapabilityInvocationTicker,
-    ) = CapabilityInvocationService(consumptions, receipts, connector, transactionRunner, clock, ticker)
+        attempts: CapabilityInvocationAttemptRepository,
+        attemptIdentities: CapabilityInvocationAttemptIdentityGenerator,
+    ) = CapabilityInvocationService(
+        consumptions,
+        receipts,
+        connector,
+        transactionRunner,
+        clock,
+        ticker,
+        attempts,
+        attemptIdentities,
+    )
+
+    @Bean
+    fun capabilityInvocationAttemptIdentities() = CapabilityInvocationAttemptIdentityGenerator(UUID::randomUUID)
 
     @Bean
     fun capabilityInvocationTicker() = CapabilityInvocationTicker(System::nanoTime)

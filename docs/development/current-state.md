@@ -147,14 +147,22 @@ The current slice can:
 41. expose bounded browser execution-admission history to the current supervisor
     with current resolver authority, including prior epochs and terminal runs.
     Admissions are not spans or outcomes; private identities/replay coordinates
-    remain hidden. UI and guide follow backend review/merge. See
+    remain hidden. Its UI and guide are merged. See
     [admissions](../run-capability-execution.md#inspect-recorded-admissions).
 42. recover a direct runtime retry-successor link under independently current
     source and target supervision/resolver gates, including terminal runs and
     internal retries. Hidden and absent targets share null; no control lease,
     command replay or execution authority is granted. No schema/flag change;
-    dependent navigation UI and guide follow backend merge. See
+    dependent navigation UI and guide are merged. See
     [successor recovery](../run-supervisor-retry.md#recover-a-visible-successor).
+
+43. record append-only gateway preparations and measured completions separately
+    from browser admissions and the winning receipt. Current supervisors can
+    inspect bounded, sanitized cross-epoch/terminal/internal history; unknown
+    effects and missing completion are never reported as fabricated outcomes.
+    No backfill, live status, costs or new authority. Schema precedes upgraded
+    writers; dependent UI/guide follows backend review/merge. See
+    [gateway-attempt history](../run-invocation-history.md).
 
 Detailed HTTP semantics live with their capabilities:
 
