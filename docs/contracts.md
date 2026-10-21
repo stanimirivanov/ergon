@@ -91,9 +91,15 @@ The separate supervisor-scoped
 exact immutable revision pinned by a currently authorized run. It preserves
 normalized declarations, not original YAML or assessed readiness. Declared step
 risk/approval can differ from strengthened runtime policy, and ordered requests
-are not an execution trace. Its dependent Console UI/guide follows backend merge.
+are not an execution trace. Its dependent Console UI and guide are merged.
 
 ## Readiness
+
+The separate [pinned-run readiness inspection](run-pinned-readiness.md) evaluates
+only the exact immutable contract and case prefix of a currently supervised run,
+with an explicitly versioned evaluator and narrowly selected citation. It does
+not claim to recover stored historical selection reasoning or current-case readiness.
+The internal query below deliberately has a different, latest-case boundary.
 
 Query
 `GET /internal/v1/tenants/{tenantId}/cases/{caseId}/resolution-readiness` to

@@ -125,3 +125,4 @@ benchmarks rather than duplicating them.
 | 0059 | [Recover independently visible retry successors](0059-recover-independently-visible-retry-successors.md) |
 | 0060 | [Record observed gateway-attempt history](0060-record-observed-gateway-attempt-history.md) |
 | 0061 | [Disclose the exact supervised run's immutable contract declarations](0061-disclose-supervisor-scoped-pinned-contract.md) |
+| 0062 | [Inspect readiness at the supervised run pin](0062-inspect-readiness-at-supervised-run-pin.md) |

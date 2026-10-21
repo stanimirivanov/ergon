@@ -56,7 +56,12 @@ Current supervisors can now inspect their run's exact normalized immutable
 contract without exposing a tenant catalog or internal publication API, under
 [ADR 0061](../decisions/0061-disclose-supervisor-scoped-pinned-contract.md).
 Declarations remain separate from assessed readiness, effective safeguards and
-recorded execution. The dependent Console UI and guide follow backend review/merge.
+recorded execution. The dependent Console UI and guide are merged.
+The next bounded inspection re-evaluates the exact pinned prefix with the current
+version-labelled readiness evaluator and only its selected citation, under
+[ADR 0062](../decisions/0062-inspect-readiness-at-supervised-run-pin.md).
+It is not historical planner reasoning or current-case/connector readiness;
+its dependent UI and guide follow backend review/merge.
 
 ## M03 - Human authority and policy
 
@@ -224,18 +229,24 @@ separate pull requests because they live in different repositories.
    command cancels only untouched runs before any authorization, under
    [ADR 0056](../decisions/0056-cancel-untouched-supervised-runs.md).
    Backend cancellation is independently default-off; its dependent UI and guide
-   follow backend review/merge. General pause/branch, compensation and
+   are merged. General pause/branch, compensation and
    cancellation of already authorized or in-flight work are not implemented.
 9. **M02 - Evidence and contracts:** Inspect the exact supervised run's immutable
    normalized contract declarations under
    [ADR 0061](../decisions/0061-disclose-supervisor-scoped-pinned-contract.md).
    No catalog, authoring, new readiness assessment or multi-step executor is
-   introduced. UI and executable guide follow backend review/merge.
+   introduced. UI and executable guide are merged.
 10. **M05 - Human follow-up and resolver console:** Exclusive authenticated-session
     control now fences all seven browser command families with 120-second leases,
     immutable admission audit and exact historical recovery. Backend protection
-    defaults off. UI and executable guide follow backend review/merge before
+    defaults off. UI and executable guide are merged before operational
     rollout; there is no forced takeover, autonomous renewal or runtime cancellation.
+11. **M02 - Evidence and contracts:** Inspect deterministic readiness at the exact
+    supervised run pin with selected stream-order provenance, independently of
+    the first-100 history window, under
+    [ADR 0062](../decisions/0062-inspect-readiness-at-supervised-run-pin.md).
+    No current-case planning, stored historical reasoning, new readiness meaning,
+    command or outcome proof is inferred. UI and guide follow backend review/merge.
 
 The concept images are a visual direction, not source data. The first two
 issues do not promise lease countdowns, live spans, cost totals, verified

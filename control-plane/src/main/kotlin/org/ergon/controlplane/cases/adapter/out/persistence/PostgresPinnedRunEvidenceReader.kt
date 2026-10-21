@@ -6,6 +6,8 @@ import org.ergon.cases.domain.ObservationOriginType
 import org.ergon.controlplane.resolution.application.MAX_PINNED_EVIDENCE_FACTS
 import org.ergon.controlplane.resolution.application.PinnedAccountAccessFact
 import org.ergon.controlplane.resolution.application.PinnedEvidenceSource
+import org.ergon.controlplane.resolution.application.PinnedReadinessEvidence
+import org.ergon.controlplane.resolution.application.PinnedReadinessEvidenceReader
 import org.ergon.controlplane.resolution.application.PinnedRunEvidence
 import org.ergon.controlplane.resolution.application.PinnedRunEvidenceReader
 import org.ergon.identity.domain.TenantId
@@ -19,43 +21,14 @@ import java.util.UUID
 @Repository
 class PostgresPinnedRunEvidenceReader(
     private val jdbc: JdbcClient,
-) : PinnedRunEvidenceReader {
+) : PinnedRunEvidenceReader,
+    PinnedReadinessEvidenceReader {
     override fun find(
         tenant: TenantId,
         case: CaseId,
         throughVersion: Long,
     ): PinnedRunEvidence? {
-        require(throughVersion > 0) { "pinned case version must be positive" }
-        // The outer case row distinguishes empty evidence from missing/out-of-range history.
-        // LIMIT + 1 bounds source material without claiming completeness or reading a mutable latest value.
-        val rows =
-            jdbc
-                .sql(
-                    """
-                    SELECT f.fact_id, f.stream_version AS fact_version, f.account_reference, f.state,
-                        f.bound_at, f.recorded_at AS fact_recorded_at,
-                        o.observation_id, o.stream_version AS source_version, o.observation_origin_type,
-                        o.observation_provider, o.observation_reference, o.observation_content,
-                        o.occurred_at AS observed_at, o.recorded_at AS source_recorded_at
-                    FROM cases c
-                    LEFT JOIN LATERAL (
-                        SELECT fact_id, stream_version, observation_id, account_reference, state, bound_at, recorded_at
-                        FROM case_account_access_facts
-                        WHERE tenant_id = c.tenant_id AND case_id = c.case_id AND stream_version <= :boundary
-                        ORDER BY stream_version
-                        LIMIT :rowLimit
-                    ) f ON TRUE
-                    LEFT JOIN case_timeline_entries o
-                        ON o.tenant_id = c.tenant_id AND o.case_id = c.case_id AND o.observation_id = f.observation_id
-                    WHERE c.tenant_id = :tenant AND c.case_id = :case AND c.stream_version >= :boundary
-                    ORDER BY f.stream_version
-                    """.trimIndent(),
-                ).param("tenant", tenant.value)
-                .param("case", case.value)
-                .param("boundary", throughVersion)
-                .param("rowLimit", MAX_PINNED_EVIDENCE_FACTS + 1)
-                .query(DataClassRowMapper(PinnedEvidenceRow::class.java))
-                .list()
+        val rows = rows(tenant, case, throughVersion, latestOnly = false)
         if (rows.isEmpty()) return null
         val facts = rows.mapNotNull(PinnedEvidenceRow::toFact)
         return PinnedRunEvidence(
@@ -64,6 +37,55 @@ class PostgresPinnedRunEvidenceReader(
             facts.take(MAX_PINNED_EVIDENCE_FACTS),
             truncated = facts.size > MAX_PINNED_EVIDENCE_FACTS,
         )
+    }
+
+    override fun findLatest(
+        tenant: TenantId,
+        case: CaseId,
+        throughVersion: Long,
+    ): PinnedReadinessEvidence? {
+        val row = rows(tenant, case, throughVersion, latestOnly = true).singleOrNull() ?: return null
+        return PinnedReadinessEvidence(case.value, throughVersion, row.toFact())
+    }
+
+    private fun rows(
+        tenant: TenantId,
+        case: CaseId,
+        throughVersion: Long,
+        latestOnly: Boolean,
+    ): List<PinnedEvidenceRow> {
+        require(throughVersion > 0) { "pinned case version must be positive" }
+        // The outer case row distinguishes empty evidence from missing/out-of-range history.
+        // History adds one truncation sentinel; readiness selects just one latest-in-prefix binding.
+        // Only these two adapter-owned order literals enter SQL; all external values remain bound parameters.
+        val order = if (latestOnly) "DESC" else "ASC"
+        return jdbc
+            .sql(
+                """
+                SELECT f.fact_id, f.stream_version AS fact_version, f.account_reference, f.state,
+                    f.bound_at, f.recorded_at AS fact_recorded_at,
+                    o.observation_id, o.stream_version AS source_version, o.observation_origin_type,
+                    o.observation_provider, o.observation_reference, o.observation_content,
+                    o.occurred_at AS observed_at, o.recorded_at AS source_recorded_at
+                FROM cases c
+                LEFT JOIN LATERAL (
+                    SELECT fact_id, stream_version, observation_id, account_reference, state, bound_at, recorded_at
+                    FROM case_account_access_facts
+                    WHERE tenant_id = c.tenant_id AND case_id = c.case_id AND stream_version <= :boundary
+                    ORDER BY stream_version $order
+                    LIMIT :rowLimit
+                ) f ON TRUE
+                LEFT JOIN case_timeline_entries o
+                    ON o.tenant_id = c.tenant_id AND o.case_id = c.case_id AND o.observation_id = f.observation_id
+                WHERE c.tenant_id = :tenant AND c.case_id = :case AND c.stream_version >= :boundary
+                ORDER BY f.stream_version
+                """.trimIndent(),
+            ).param("tenant", tenant.value)
+            .param("case", case.value)
+            .param("boundary", throughVersion)
+            .param("rowLimit", if (latestOnly) 1 else MAX_PINNED_EVIDENCE_FACTS + 1)
+            .query(DataClassRowMapper(PinnedEvidenceRow::class.java))
+            .list()
     }
 }
 

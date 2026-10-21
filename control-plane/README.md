@@ -125,6 +125,13 @@ restart the predecessor project so it reattaches its preserved volume. See
 
 ## Interfaces and limitations
 
+The protected `GET .../{runId}/pinned-readiness` re-evaluates the exact immutable
+contract and case prefix with the existing readiness evaluator. Latest-in-stream
+required account-access provenance is selected independently of the history cap.
+This is neither historical planner reasoning nor current-case readiness,
+execution eligibility or proof. No migration/flag or lease is needed; backend
+review/merge precedes UI/guide. See [pinned readiness](../docs/run-pinned-readiness.md).
+
 The protected `GET .../{runId}/pinned-contract` exposes only that run's exact
 immutable normalized definition under current supervisor/resolver access.
 Declared prerequisites, steps and safeguards are not evaluated readiness,
