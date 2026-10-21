@@ -91,6 +91,7 @@ class BrowserAssignedRunUnavailableController {
         "/{runId}/execution-review",
         "/{runId}/execution-history",
         "/{runId}/invocation-history",
+        "/{runId}/pinned-contract",
         "/{runId}/retry-review",
         "/{runId}/retry-successor",
         "/{runId}/escalation-review",
@@ -305,7 +306,9 @@ private fun AssignedRunDetail.toResponse(): BrowserAssignedRunDetailResponse {
 }
 
 /** Cause-free, no-store problems for read validation, identity rejection and protected run absence. */
-@RestControllerAdvice(assignableTypes = [BrowserAssignedRunConsoleController::class])
+@RestControllerAdvice(
+    assignableTypes = [BrowserAssignedRunConsoleController::class, BrowserRunPinnedContractController::class],
+)
 class BrowserAssignedRunConsoleExceptionHandler {
     @ExceptionHandler(AssignedRunNotFoundException::class)
     fun missing(): ResponseEntity<ProblemDetail> =

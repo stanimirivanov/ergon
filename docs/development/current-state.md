@@ -161,8 +161,15 @@ The current slice can:
     inspect bounded, sanitized cross-epoch/terminal/internal history; unknown
     effects and missing completion are never reported as fabricated outcomes.
     No backfill, live status, costs or new authority. Schema precedes upgraded
-    writers; dependent UI/guide follows backend review/merge. See
+    writers; its dependent UI and guide are merged. See
     [gateway-attempt history](../run-invocation-history.md).
+
+44. inspect only the exact immutable normalized contract pinned by a currently
+    supervised run, including terminal work. Required evidence, applicability,
+    declared capability order/safeguards and outcome condition remain separate
+    from effective runtime policy, readiness, performed steps and accepted proof.
+    No schema, command or new flag; dependent UI/guide follows backend merge.
+    See [pinned contract inspection](../run-pinned-contract.md).
 
 Detailed HTTP semantics live with their capabilities:
 

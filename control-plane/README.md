@@ -125,6 +125,13 @@ restart the predecessor project so it reattaches its preserved volume. See
 
 ## Interfaces and limitations
 
+The protected `GET .../{runId}/pinned-contract` exposes only that run's exact
+immutable normalized definition under current supervisor/resolver access.
+Declared prerequisites, steps and safeguards are not evaluated readiness,
+effective policy or performed work. No schema/flag change or control lease is
+needed; backend deployment precedes dependent UI/guide. See
+[pinned contract inspection](../docs/run-pinned-contract.md).
+
 Capability contracts are documented under [`docs`](../docs), especially
 [runs](../docs/runs.md), [contracts](../docs/contracts.md),
 [policy](../docs/policy.md), and [authentication](../docs/authentication.md).

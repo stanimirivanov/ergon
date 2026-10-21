@@ -52,6 +52,12 @@ first versioned policy plan.
 Future evidence types and contract language revisions belong here only when
 they do not require compiler or simulation behavior from later milestones.
 
+Current supervisors can now inspect their run's exact normalized immutable
+contract without exposing a tenant catalog or internal publication API, under
+[ADR 0061](../decisions/0061-disclose-supervisor-scoped-pinned-contract.md).
+Declarations remain separate from assessed readiness, effective safeguards and
+recorded execution. The dependent Console UI and guide follow backend review/merge.
+
 ## M03 - Human authority and policy
 
 **Message:** Prove who may approve or authorize each capability under versioned
@@ -168,7 +174,7 @@ separate pull requests because they live in different repositories.
    [ADR 0060](../decisions/0060-record-observed-gateway-attempt-history.md).
    Preparation is not proof of dispatch; absent completion is not live status.
    Separate per-call samples do not replace the winning receipt or establish a
-   multi-step waterfall. Its UI and guide follow backend review/merge.
+   multi-step waterfall. Its UI and guide are merged.
 4. **M05 - Human follow-up and resolver console:** Add exclusive supervisor
    control, conflict visibility, and explicit handover. Assignment alone is
    not an expiring lease or permission to steer a run.
@@ -220,6 +226,11 @@ separate pull requests because they live in different repositories.
    Backend cancellation is independently default-off; its dependent UI and guide
    follow backend review/merge. General pause/branch, compensation and
    cancellation of already authorized or in-flight work are not implemented.
+9. **M02 - Evidence and contracts:** Inspect the exact supervised run's immutable
+   normalized contract declarations under
+   [ADR 0061](../decisions/0061-disclose-supervisor-scoped-pinned-contract.md).
+   No catalog, authoring, new readiness assessment or multi-step executor is
+   introduced. UI and executable guide follow backend review/merge.
 10. **M05 - Human follow-up and resolver console:** Exclusive authenticated-session
     control now fences all seven browser command families with 120-second leases,
     immutable admission audit and exact historical recovery. Backend protection
