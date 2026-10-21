@@ -106,7 +106,17 @@ class RunPinnedContractServiceTest {
             revision
         }
         val result = read()
-        assertThat(result).isEqualTo(RunPinnedContract(runId, RunSupervisionRevision(4), at, step, revision))
+        assertThat(result).isEqualTo(
+            RunPinnedContract(
+                runId,
+                RunSupervisionRevision(4),
+                at,
+                step,
+                revision,
+                start.caseId,
+                start.caseStreamVersion,
+            ),
+        )
         assertThat(
             result.revision.contract.steps
                 .single()

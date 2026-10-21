@@ -10,6 +10,7 @@ import org.ergon.controlplane.resolution.application.ApprovalDecisionRepository
 import org.ergon.controlplane.resolution.application.ApprovalRequestRepository
 import org.ergon.controlplane.resolution.application.AssignedRunConsoleService
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
+import org.ergon.controlplane.resolution.application.PinnedReadinessEvidenceReader
 import org.ergon.controlplane.resolution.application.PinnedRunEvidenceReader
 import org.ergon.controlplane.resolution.application.RecordedRunTransitionReader
 import org.ergon.controlplane.resolution.application.ResolutionOutcomeProofAssessmentService
@@ -23,6 +24,7 @@ import org.ergon.controlplane.resolution.application.RunApprovalReviewService
 import org.ergon.controlplane.resolution.application.RunCommandControlGate
 import org.ergon.controlplane.resolution.application.RunOutcomeVerificationService
 import org.ergon.controlplane.resolution.application.RunPinnedContractService
+import org.ergon.controlplane.resolution.application.RunPinnedReadinessService
 import org.ergon.controlplane.resolution.application.RunProofCommandRepository
 import org.ergon.controlplane.resolution.application.RunProofFinalizationService
 import org.ergon.controlplane.resolution.application.RunSupervisorAssignmentIdentityGenerator
@@ -40,6 +42,13 @@ import java.util.UUID
 /** Wires immutable initial assignments, revisioned transfers and current-supervisor browser reads. */
 @Configuration(proxyBeanMethods = false)
 class RunSupervisorConfiguration {
+    @Bean
+    fun runPinnedReadinessService(
+        contracts: RunPinnedContractService,
+        evidence: PinnedReadinessEvidenceReader,
+        transactions: TransactionRunner,
+    ) = RunPinnedReadinessService(contracts, evidence, transactions)
+
     @Bean
     @Suppress("LongParameterList") // Preserve distinct authority, immutable data, transaction and time ports.
     fun runPinnedContractService(

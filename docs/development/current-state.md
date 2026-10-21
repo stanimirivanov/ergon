@@ -168,8 +168,16 @@ The current slice can:
     supervised run, including terminal work. Required evidence, applicability,
     declared capability order/safeguards and outcome condition remain separate
     from effective runtime policy, readiness, performed steps and accepted proof.
-    No schema, command or new flag; dependent UI/guide follows backend merge.
+    No schema, command or new flag; dependent UI and guide are merged.
     See [pinned contract inspection](../run-pinned-contract.md).
+
+45. re-evaluate that exact pinned contract against the run's immutable case prefix,
+    using the existing readiness evaluator and only its selected required
+    account-access binding/source, independently of the first-100 history cap.
+    Explicit evaluator identity and fixed inputs distinguish this from current-case
+    readiness, historical planner reasoning, authority and accepted proof.
+    No migration, command or new flag; dependent UI/guide waits for backend merge.
+    See [pinned readiness inspection](../run-pinned-readiness.md).
 
 Detailed HTTP semantics live with their capabilities:
 

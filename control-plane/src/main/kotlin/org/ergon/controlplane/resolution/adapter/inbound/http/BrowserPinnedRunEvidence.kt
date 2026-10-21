@@ -1,5 +1,6 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
+import org.ergon.controlplane.resolution.application.PinnedAccountAccessFact
 import org.ergon.controlplane.resolution.application.PinnedRunEvidence
 import java.time.Instant
 import java.util.UUID
@@ -36,30 +37,29 @@ data class BrowserPinnedEvidenceSource(
 )
 
 internal fun PinnedRunEvidence.toBrowserEvidence(): BrowserPinnedRunEvidence =
-    BrowserPinnedRunEvidence(
-        caseId,
-        caseStreamVersion,
-        facts.map { fact ->
-            val source = fact.source
-            BrowserPinnedEvidenceFact(
-                fact.factId,
-                fact.streamVersion,
-                fact.property,
-                fact.accountReference,
-                fact.value.name,
-                fact.boundAt,
-                fact.recordedAt,
-                BrowserPinnedEvidenceSource(
-                    source.observationId,
-                    source.streamVersion,
-                    source.originType.name,
-                    source.provider,
-                    source.reference,
-                    source.content,
-                    source.observedAt,
-                    source.recordedAt,
-                ),
-            )
-        },
-        truncated,
+    BrowserPinnedRunEvidence(caseId, caseStreamVersion, facts.map { it.toBrowserFact() }, truncated)
+
+/**
+ * Shared explicit projection for history and selected readiness provenance.
+ * No source or actor lookup is performed here.
+ */
+internal fun PinnedAccountAccessFact.toBrowserFact(): BrowserPinnedEvidenceFact =
+    BrowserPinnedEvidenceFact(
+        factId,
+        streamVersion,
+        property,
+        accountReference,
+        value.name,
+        boundAt,
+        recordedAt,
+        BrowserPinnedEvidenceSource(
+            source.observationId,
+            source.streamVersion,
+            source.originType.name,
+            source.provider,
+            source.reference,
+            source.content,
+            source.observedAt,
+            source.recordedAt,
+        ),
     )

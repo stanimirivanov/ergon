@@ -1,5 +1,6 @@
 package org.ergon.controlplane.resolution.application
 
+import org.ergon.cases.domain.CaseId
 import org.ergon.contracts.domain.ResolutionStepId
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
@@ -20,6 +21,9 @@ data class RunPinnedContract(
     val observedAt: Instant,
     val pinnedStepId: ResolutionStepId,
     val revision: StoredResolutionContractRevision,
+    val caseId: CaseId,
+    /** Immutable run boundary, never the case's mutable latest stream version. */
+    val caseStreamVersion: Long,
 )
 
 /** Reads only the exact revision pinned by a currently supervised run, including terminal attempts. */
@@ -69,6 +73,14 @@ class RunPinnedContractService(
             check(contract.steps.singleOrNull { it.id == run.stepId }?.capability == run.capability) {
                 "pinned capability is inconsistent"
             }
-            RunPinnedContract(runIdentity, supervision.revision, observedAt, run.stepId, stored)
+            RunPinnedContract(
+                runIdentity,
+                supervision.revision,
+                observedAt,
+                run.stepId,
+                stored,
+                run.caseId,
+                run.caseStreamVersion,
+            )
         }
 }
