@@ -4,7 +4,7 @@ private const val MILESTONE_ROADMAP = "docs/roadmap/milestones.md"
 private const val MILESTONE_POLICY = "$MILESTONE_ROADMAP#planning-rules"
 
 internal object MilestonePolicy {
-    const val LATEST_PUBLISHED_MILESTONE = 8
+    const val LATEST_PUBLISHED_MILESTONE = 9
     private const val HEADING_LEVEL_TWO = 2
     private val titlePattern = Regex("M(\\d{2}) - (.+)")
 

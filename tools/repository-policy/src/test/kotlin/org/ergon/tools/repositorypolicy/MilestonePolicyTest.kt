@@ -6,15 +6,45 @@ import java.nio.file.Path
 
 class MilestonePolicyTest {
     @Test
-    fun `published milestone index and boundaries agree`() {
+    fun `nine published milestones and their boundaries agree`() {
         assertThat(MilestonePolicy.check(repository(roadmap()))).isEmpty()
     }
 
     @Test
     fun `deleting latest milestone is detected by retained high-water mark`() {
-        val roadmap = roadmap().replace(Regex("(?s)\\| M08.*?## M08.*?(?=## Planning rules)"), "")
+        val violations = MilestonePolicy.check(repository(roadmap(latest = 8)))
 
-        assertThat(MilestonePolicy.check(repository(roadmap)).map { it.rule }).contains("milestone.sequence")
+        assertThat(violations.map { it.rule }).containsExactly("milestone.sequence")
+        assertThat(violations.single().message).contains("M08", "M09")
+    }
+
+    @Test
+    fun `removing only the M09 index row retains an actionable stale boundary failure`() {
+        val roadmap = roadmap().replace("| M09 - Outcome 9 | Message 9. |\n", "")
+
+        assertThat(MilestonePolicy.check(repository(roadmap)).map { it.rule })
+            .containsExactly("milestone.sequence", "milestone.boundaries")
+    }
+
+    @Test
+    fun `removing only the M09 boundary cannot pass with a complete index`() {
+        val roadmap =
+            roadmap().replace(
+                "## M09 - Outcome 9\n\n**Message:** Message 9.\n\nCandidate outcomes follow.\n",
+                "",
+            )
+
+        assertThat(MilestonePolicy.check(repository(roadmap)).map { it.rule })
+            .containsExactly("milestone.boundaries")
+    }
+
+    @Test
+    fun `M09 message must match and cannot hide in HTML`() {
+        val mismatched = roadmap().replace("**Message:** Message 9.", "**Message:** Another outcome.")
+        val hidden = roadmap().replace("| M09 - Outcome 9 | Message 9. |", "| M09 - Outcome 9 | <!-- Message 9. --> |")
+
+        assertThat(MilestonePolicy.check(repository(mismatched)).map { it.rule }).contains("milestone.message")
+        assertThat(MilestonePolicy.check(repository(hidden)).map { it.rule }).contains("milestone.message")
     }
 
     @Test
@@ -42,7 +72,9 @@ class MilestonePolicyTest {
         return Repository.fixture(Path.of("."), documents)
     }
 
-    private fun roadmap(): String =
+    // Keep the published fixture independent of the policy constant: lowering the
+    // checker high-water mark must fail the positive test, not shrink its input.
+    private fun roadmap(latest: Int = 9): String =
         buildString {
             appendLine("# Milestones")
             appendLine()
@@ -50,11 +82,11 @@ class MilestonePolicyTest {
             appendLine()
             appendLine("| Milestone title | Short message |")
             appendLine("|:--|:--|")
-            (1..MilestonePolicy.LATEST_PUBLISHED_MILESTONE).forEach { number ->
+            (1..latest).forEach { number ->
                 val padded = number.toString().padStart(2, '0')
                 appendLine("| M$padded - Outcome $number | Message $number. |")
             }
-            (1..MilestonePolicy.LATEST_PUBLISHED_MILESTONE).forEach { number ->
+            (1..latest).forEach { number ->
                 val padded = number.toString().padStart(2, '0')
                 appendLine()
                 appendLine("## M$padded - Outcome $number")
