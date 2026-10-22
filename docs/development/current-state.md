@@ -15,8 +15,13 @@
   discovery/detail snapshots. Initial assignment is machine-controlled;
   confirmed browser handover changes current supervision with a separate audit
   epoch. Browser control now has a separately default-off backend lease/fence;
-  UI/countdown and guide updates follow backend review/merge. No live multi-step
+  UI/countdown and guide updates are merged. No live multi-step
   execution tree is inferred. See [control rollout](../operations/browser-run-control.md).
+- M05's remaining resolver/requester work follows the agreed
+  [delivery plan](../roadmap/m05-adaptive-resolution-experience.md). Its notes,
+  handover, priority, administrative completion, requester app and notifications
+  are planned, not implemented. M01–M04 are delivered only for the bounded
+  access-restoration slice; GitHub owns formal milestone state.
 
 ## Active Ergon slice
 
@@ -267,7 +272,7 @@ GitHub SCM URL retains its factual existing repository name.
 
 ## Deliberate limitations
 
-- No queue administration, configurable routing, automatic assignment,
+- No internal follow-up notes, queue administration, configurable routing, automatic assignment,
   reassignment, priority, due-time, completion, or
   notification.
 - No automatic resolution-contract selection or multi-step interpreter.
@@ -278,10 +283,12 @@ GitHub SCM URL retains its factual existing repository name.
   simulation lab, or improvement proposal generator.
 - No general pause/cancel/branch controls, adaptive canvas, or public SDK.
   Narrow supervisor-confirmed execution, proof finalization and failed-run retry
-  do not establish general steering or a lease. Retry UI awaits backend merge.
+  do not establish general steering. Browser control is a separate explicit lease;
+  retry, control and pinned-readiness UI/guide slices are merged.
 - Browser sessions are process-local and have no logout or provider-revocation
   flow; supervisor recovery/forced takeover, follow-up reassignment and
-  completion remain undefined.
+  completion are not implemented. Planned bounded behavior does not establish
+  the later slices' exact authorization, replay or lifecycle contracts.
 
 The intended sequence is maintained in
 [implementation milestones](../roadmap/milestones.md). Update this document

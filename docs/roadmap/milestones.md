@@ -4,33 +4,32 @@
 
 - Milestones are outcome-oriented and titled `MNN - Outcome`.
 - Each work item should fit one independently reviewable pull request.
-- M01 through M03 establish the case, evidence, contract, identity, and policy
-  foundations; their delivered work is already represented in repository
-  history.
-- M04 completes guarded execution, outcome verification, retry, and escalation.
-- M05 is building durable human follow-up and an assigned-supervisor Resolver
-  Console; the target Console also needs work in M03, M04, and M06.
+- M01–M04 are delivered for the bounded deterministic access-restoration slice;
+  this is not general execution or production readiness.
+- M05 continues the resolver experience and adds a separate requester canvas;
+  its approved [delivery plan](m05-adaptive-resolution-experience.md) owns the
+  remaining PR sequence, dependencies, acceptance and exclusions.
 - GitHub owns live issue state; this file owns intended sequence and boundaries.
-- M08 is the published high-water mark; published milestone numbers are never
+- M09 is the published high-water mark; published milestone numbers are never
   removed, reused, or renumbered.
 
 ## Milestone index
 
 | Milestone title | Short message |
 |:--|:--|
-| M01 - Resolution foundation | Establish the product boundary, case kernel, and reviewable engineering baseline. |
-| M02 - Evidence and contracts | Turn source observations into typed evidence governed by immutable contracts. |
-| M03 - Human authority and policy | Prove who may approve or authorize each capability under versioned policy. |
-| M04 - Guarded Execution and Verification | Execute once, verify outcomes independently, and terminate bounded recovery explicitly. |
-| M05 - Human follow-up and resolver console | Make escalation actionable without reconstructing the case from transcripts. |
-| M06 - Evidence compiler | Compile attributable knowledge and schemas into reviewable evidence. |
-| M07 - Simulation and improvement | Replay decisions and propose reviewed improvements from measured outcomes. |
-| M08 - Ecosystem and production readiness | Integrate channels and connectors and operate Ergon securely at scale. |
+| M01 - Case and Evidence Foundation | Establish Ergon's architecture and a tenant-safe, evidence-backed case timeline. |
+| M02 - Resolution Contracts and Planning | Publish immutable resolution contracts, pin them to cases, and determine whether execution is ready. |
+| M03 - Policy and Human Authority | Ensure that only an authenticated human with current, correctly scoped authority can approve an action. |
+| M04 - Safe Execution and Outcome Proof | Execute the access-restoration contract idempotently and close the case only after independent proof. |
+| M05 - Adaptive Resolution Experience | Deliver the requester canvas and resolver console over the shared case APIs. |
+| M06 - Evidence Compiler | Compile documents and API descriptions into attributable facts, procedures, and contradictions. |
+| M07 - Simulation and Promotion | Replay resolution contracts against deterministic scenarios and gate their promotion. |
+| M08 - Evidence-Backed Improvement Loop | Turn completed and failed cases into reviewable documentation, contract, and test proposals. |
+| M09 - Integration Ecosystem | Publish connector and widget SDKs and integrate Ergon with external systems of engagement. |
 
-## M01 - Resolution foundation
+## M01 - Case and Evidence Foundation
 
-**Message:** Establish the product boundary, case kernel, and reviewable
-engineering baseline.
+**Message:** Establish Ergon's architecture and a tenant-safe, evidence-backed case timeline.
 
 Delivered outcomes include the Ergon product and architecture boundary,
 contributor standards, append-only case identity and observations, optimistic
@@ -39,10 +38,9 @@ concurrency, and an ordered timeline projection.
 Remaining foundation work must be independently valuable; do not attach new
 runtime behavior to M01 merely because it is foundational.
 
-## M02 - Evidence and contracts
+## M02 - Resolution Contracts and Planning
 
-**Message:** Turn source observations into typed evidence governed by immutable
-contracts.
+**Message:** Publish immutable resolution contracts, pin them to cases, and determine whether execution is ready.
 
 Delivered outcomes include account-access facts bound to source observations,
 strict contract document validation, tenant-scoped immutable revisions,
@@ -57,16 +55,15 @@ contract without exposing a tenant catalog or internal publication API, under
 [ADR 0061](../decisions/0061-disclose-supervisor-scoped-pinned-contract.md).
 Declarations remain separate from assessed readiness, effective safeguards and
 recorded execution. The dependent Console UI and guide are merged.
-The next bounded inspection re-evaluates the exact pinned prefix with the current
+The bounded readiness inspection re-evaluates the exact pinned prefix with the current
 version-labelled readiness evaluator and only its selected citation, under
 [ADR 0062](../decisions/0062-inspect-readiness-at-supervised-run-pin.md).
 It is not historical planner reasoning or current-case/connector readiness;
-its dependent UI and guide follow backend review/merge.
+its dependent UI and guide are merged.
 
-## M03 - Human authority and policy
+## M03 - Policy and Human Authority
 
-**Message:** Prove who may approve or authorize each capability under versioned
-policy.
+**Message:** Ensure that only an authenticated human with current, correctly scoped authority can approve an action.
 
 Delivered outcomes include immutable run starts, expiring approval requests,
 scoped authority evidence, JWT-to-tenant actor resolution, attributable approval
@@ -76,10 +73,9 @@ routes.
 Broader identity providers, role administration, and production route
 provisioning remain separate security capabilities.
 
-## M04 - Guarded Execution and Verification
+## M04 - Safe Execution and Outcome Proof
 
-**Message:** Execute once, verify outcomes independently, and terminate bounded
-recovery explicitly.
+**Message:** Execute the access-restoration contract idempotently and close the case only after independent proof.
 
 Delivered outcomes include idempotent connector invocation and receipts,
 receipt-backed run transitions, post-action proof assessment, atomic proof
@@ -90,12 +86,11 @@ Completion means the deterministic access-restoration slice demonstrates both
 verified success and an auditable exhausted failure without confusing action
 completion with outcome proof.
 
-## M05 - Human follow-up and resolver console
+## M05 - Adaptive Resolution Experience
 
-**Message:** Make escalation actionable without reconstructing the case from
-transcripts.
+**Message:** Deliver the requester canvas and resolver console over the shared case APIs.
 
-Candidate PR-sized outcomes:
+Delivered outcomes and planned boundaries:
 
 - Delivered: create and retrieve one durable human follow-up work item from an
   escalated run.
@@ -124,36 +119,37 @@ Candidate PR-sized outcomes:
   internal commands while preserving immutable claim history.
 - Delivered: expose current ownership revisions and a CSRF-protected browser
   release/later-claim cycle without private attribution.
-- Define priority, reassignment, and completion semantics separately.
-- Add idempotent notification delivery after durable work exists.
-- Establish explicit run-supervisor assignment and assigned-only browser reads
-  before exposing active runs in the Console.
-- Deliver a responsive, accessible active-run Console from recorded facts,
-  without presenting assignment as a lease or inventing execution spans.
-- Implement the adaptive requester canvas over the same case API.
+- Delivered: assigned-only run reads, explicit supervisor handover and fenced
+  session control, distinct from follow-up ownership and capability authority.
+- Delivered: responsive Consoles over recorded facts, with executable guides;
+  visual refinement continues without inventing execution spans.
+- Planned: owner-attributed notes, direct handover, administrative work completion,
+  revisioned priority and durable in-app notifications.
+- Planned: separately authenticated requester intake, progress and bounded
+  information requests/responses, plus explicit sign-out in both applications.
 
-Completion means a resolver can accept and continue an escalated case from
-structured evidence, and an explicitly assigned supervisor can inspect an
-active run without relying on transcript reconstruction or tenant-wide run
-disclosure.
+Completion means the resolver and requester acceptance criteria in the
+[approved M05 plan](m05-adaptive-resolution-experience.md#completion-criteria)
+are demonstrated. Human-work completion does not establish verified case
+resolution; requester answers do not grant capability authority. Attachments,
+requester approvals, general graphs and simulation are explicit exclusions.
 
-### Planned Resolver Console issue sequence
+### Resolver Console capability lineage
 
-These are proposed issue titles, not claims of delivered behavior. Each task
-is one coherent, reviewable capability; UI-bearing changes include responsive
-layout, accessibility, state binding, focused tests, and an updated executable
-user-guide scenario. Backend-first contracts and browser composition may need
-separate pull requests because they live in different repositories.
+The bounded capabilities below are merged, except where a broader outcome is
+explicitly deferred. This is historical context, not the next issue sequence;
+use the approved M05 plan for remaining work. Backend and UI changes are reviewed
+in separate repositories, backend first, with an executable guide in each UI slice.
 
-1. **M05 - Human follow-up and resolver console:** Assign resolution-run
+1. **M05 - Adaptive Resolution Experience:** Assign resolution-run
    supervisors and expose assigned-only active-run browser reads. Use a
    dedicated machine-authenticated assignment command; do not allow browser
    self-assignment. See [ADR 0045](../decisions/0045-assign-resolution-run-supervisors.md).
-2. **M05 - Human follow-up and resolver console:** Deliver the active-run
+2. **M05 - Adaptive Resolution Experience:** Deliver the active-run
    Resolver Console for assigned supervisors. Compose the entire responsive
    three-pane read experience, including loading, revalidation, absence, and
    terminal states, from the reviewed BFF contract.
-3. **M04 - Guarded Execution and Verification:** Record and project ordered
+3. **M04 - Safe Execution and Outcome Proof:** Record and project ordered
    resolution-step execution with attributable measurements. The current run
    pins one step; a six-stage waterfall, spans, latency, and cost must be
    recorded before the UI can show them as facts. The approved first backend
@@ -170,17 +166,17 @@ separate pull requests because they live in different repositories.
    and recovery admissions under current supervision/resolver authority, across
    handovers and terminal runs. These are not causal spans or per-call results;
    see [ADR 0058](../decisions/0058-disclose-supervisor-scoped-execution-admissions.md).
-   Its dependent UI and guide are merged. The next bounded relationship read
+   Its dependent UI and guide are merged. The bounded relationship read
    recovers an independently visible direct retry successor, including terminal
    work, under [ADR 0059](../decisions/0059-recover-independently-visible-retry-successors.md).
    It grants no inherited access, command replay or execution authority. Its
-   dependent navigation UI and guide are merged. The next slice records and
+   dependent navigation UI and guide are merged. Gateway-attempt history records and
    projects actual gateway preparations and measured returns/exceptions under
    [ADR 0060](../decisions/0060-record-observed-gateway-attempt-history.md).
    Preparation is not proof of dispatch; absent completion is not live status.
    Separate per-call samples do not replace the winning receipt or establish a
    multi-step waterfall. Its UI and guide are merged.
-4. **M05 - Human follow-up and resolver console:** Add exclusive supervisor
+4. **M05 - Adaptive Resolution Experience:** Add exclusive supervisor
    control, conflict visibility, and explicit handover. Assignment alone is
    not an expiring lease or permission to steer a run.
    Confirmed browser handover now uses immutable supervision epochs and a
@@ -189,20 +185,20 @@ separate pull requests because they live in different repositories.
    Browser control leases now have a separate default-off backend under
    [ADR 0057](../decisions/0057-fence-browser-run-control.md); no lease countdown
    is inferred from a supervision transfer.
-5. **M03 - Human authority and policy:** Review and decide pending capability
+5. **M03 - Policy and Human Authority:** Review and decide pending capability
    prerequisites from the Resolver Console. Bind browser actions to current
    approval and deterministic gate contracts, not the recorded policy label.
    Supervisor-scoped review and confirmed decisions now use exact authority,
    supervision epochs and durable command replay; they never grant or execute.
    See [ADR 0049](../decisions/0049-confirm-supervisor-scoped-approval-decisions.md).
-6. **M06 - Evidence compiler:** Review attributable claims and contradictions
+6. **M06 - Evidence Compiler:** Review attributable claims and contradictions
    from the Resolver Console. Compile typed claims, validity, citations, and
    conflict meaning rather than relabeling raw observations as verified facts.
    The first delivered boundary exposes existing pinned account-access bindings
    and only their exact linked sources under current supervisor/resolver access;
    see [ADR 0050](../decisions/0050-disclose-supervisor-scoped-pinned-evidence.md).
    General claims, confidence, validity and contradiction meaning remain deferred.
-7. **M04 - Guarded Execution and Verification:** Track verification checks and
+7. **M04 - Safe Execution and Outcome Proof:** Track verification checks and
    accepted outcome proof in the Resolver Console. Display real check state
    and proof provenance, never a synthetic completion count.
    Delivered for the existing single account-access condition: current assessment
@@ -212,49 +208,49 @@ separate pull requests because they live in different repositories.
     and resolver authority, with atomic closure and historical replay under
     [ADR 0052](../decisions/0052-finalize-reviewed-proof-through-browser.md).
    Multi-check verification and new proof types remain separate capabilities.
-8. **M04 - Guarded Execution and Verification:** Steer supervised runs through
+8. **M04 - Safe Execution and Outcome Proof:** Steer supervised runs through
    deterministic, auditable commands. Define bounded command and authority
    semantics before enabling the mock's Steer control.
    Backend admission/execution and explicit recovery of the existing approved
    pinned step now follow [ADR 0053](../decisions/0053-confirm-supervisor-capability-execution.md).
    Browser execution/recovery and its executable guide are merged.
-   The next bounded extension confirms an eligible failed run's fresh successor
+   The retry extension confirms an eligible failed run's fresh successor
    and atomically assigns its supervision to the confirming current supervisor
    under [ADR 0054](../decisions/0054-confirm-supervisor-retry-and-successor-supervision.md).
    Its dependent UI and guide are merged. The maintainer-approved exhausted-run
    escalation boundary now confirms exact reviewed runtime exhaustion and
    atomically opens unassigned human work under
    [ADR 0055](../decisions/0055-confirm-supervisor-exhausted-run-escalation.md).
-   Its dependent UI and executable guide are merged. The next approved bounded
+   Its dependent UI and executable guide are merged. The approved bounded
    command cancels only untouched runs before any authorization, under
    [ADR 0056](../decisions/0056-cancel-untouched-supervised-runs.md).
    Backend cancellation is independently default-off; its dependent UI and guide
    are merged. General pause/branch, compensation and
    cancellation of already authorized or in-flight work are not implemented.
-9. **M02 - Evidence and contracts:** Inspect the exact supervised run's immutable
+9. **M02 - Resolution Contracts and Planning:** Inspect the exact supervised run's immutable
    normalized contract declarations under
    [ADR 0061](../decisions/0061-disclose-supervisor-scoped-pinned-contract.md).
    No catalog, authoring, new readiness assessment or multi-step executor is
    introduced. UI and executable guide are merged.
-10. **M05 - Human follow-up and resolver console:** Exclusive authenticated-session
+10. **M05 - Adaptive Resolution Experience:** Exclusive authenticated-session
     control now fences all seven browser command families with 120-second leases,
     immutable admission audit and exact historical recovery. Backend protection
     defaults off. UI and executable guide are merged before operational
     rollout; there is no forced takeover, autonomous renewal or runtime cancellation.
-11. **M02 - Evidence and contracts:** Inspect deterministic readiness at the exact
+11. **M02 - Resolution Contracts and Planning:** Inspect deterministic readiness at the exact
     supervised run pin with selected stream-order provenance, independently of
     the first-100 history window, under
     [ADR 0062](../decisions/0062-inspect-readiness-at-supervised-run-pin.md).
     No current-case planning, stored historical reasoning, new readiness meaning,
-    command or outcome proof is inferred. UI and guide follow backend review/merge.
+    command or outcome proof is inferred. UI and guide are merged.
 
-The concept images are a visual direction, not source data. The first two
-issues do not promise lease countdowns, live spans, cost totals, verified
-claims, contradictions, approval commands, or a multi-check proof result.
+The concept images are a visual direction, not source data. Their general
+multi-step execution, cost totals, compiled contradictions and multi-check proof
+remain outside M05; existing leases and confirmed commands are delivered.
 
-## M06 - Evidence compiler
+## M06 - Evidence Compiler
 
-**Message:** Compile attributable knowledge and schemas into reviewable evidence.
+**Message:** Compile documents and API descriptions into attributable facts, procedures, and contradictions.
 
 Candidate outcomes include one document format, one API-schema format, preserved
 source spans, typed claims and procedures, protocol/semantic separation,
@@ -264,24 +260,36 @@ remains an untrusted proposal and cannot grant authority.
 Completion means one real source can produce attributable evidence that a
 contract can consume and a human can review.
 
-## M07 - Simulation and improvement
+## M07 - Simulation and Promotion
 
-**Message:** Replay decisions and propose reviewed improvements from measured
-outcomes.
+**Message:** Replay resolution contracts against deterministic scenarios and gate their promotion.
 
 Candidate outcomes include pinned run fixtures, deterministic connector/model
 adapters, safety and proof assertions, cost/latency budgets, contract-promotion
-gates, and evidence-backed documentation, contract, and regression proposals.
+gates, and reproducible evaluation reports. Improvement proposals belong to M08.
 
 Completion means a contract revision is promoted only after reproducible
 evaluation, and production behavior never changes through silent learning.
 
-## M08 - Ecosystem and production readiness
+## M08 - Evidence-Backed Improvement Loop
 
-**Message:** Integrate channels and connectors and operate Ergon securely at
-scale.
+**Message:** Turn completed and failed cases into reviewable documentation, contract, and test proposals.
 
-Delivered outcomes include removal of the predecessor API gateway, its
+Candidate outcomes include evidence-linked diagnostic, documentation, contract
+and regression proposals with explicit review, compatibility and promotion
+boundaries. No proposal generator is delivered. Closed GitHub M08 issues for
+predecessor retirement and build/database naming are enabling history, not
+implementation of reviewed learning; they are not reassigned by this document.
+
+Completion means measured case outcomes produce attributable, reviewable changes
+without silently altering production behavior. Simulation gates remain in M07.
+
+## M09 - Integration Ecosystem
+
+**Message:** Publish connector and widget SDKs and integrate Ergon with external systems of engagement.
+
+Delivered outcomes as ecosystem-enabling history (not completed integrations)
+include removal of the predecessor API gateway, its
 standalone deployment assets, and the now-unused Spring Cloud edge. This does
 not establish an Ergon production ingress or authorization boundary. The
 incomplete predecessor Q&A coordinator and its exclusive MongoDB and Redis
@@ -309,18 +317,25 @@ widget SDKs, production authentication/authorization, observability, durable
 workers, rate and cost bounds, retention/deletion, backup/restore, staged
 rollout, SLOs, threat modeling, and licensing/dependency review.
 
-Completion means Ergon can be deployed and recovered with explicit security,
-reliability, cost, ownership, and compatibility controls.
+Completion means supported connector/widget SDKs and external integrations have
+explicit security, reliability, cost, ownership and compatibility controls.
+Production authentication, operations and recovery remain delivery prerequisites,
+not capabilities established by predecessor cleanup.
 
 ## Planning rules
 
-- The published milestone high-water mark is `M08`. It may advance but MUST
+- The published milestone high-water mark is `M09`. It may advance but MUST
   NOT decrease, including when the newest milestone is completed, deprecated,
-  or superseded. A future milestone therefore starts at M09.
+  or superseded. A future milestone therefore starts at M10.
 - The repository-policy checker retains the high-water value independently of
   this document and validates sequential index entries, matching detail
   sections, and identical non-empty messages.
-- GitHub owns live issue state, labels, assignees, and milestone assignment.
+- GitHub owns live issue state, labels, assignees, milestone assignment and formal
+  closure. The index/messages match the published catalog in both repositories;
+  the checker remains offline and does not query GitHub.
+- M01–M04 delivery assessments apply to the bounded first slice, not every future
+  extension. An empty issue list or a completed prerequisite does not complete a
+  milestone. M05–M09 still have undelivered outcomes.
 - This file owns intended sequencing until an issue is created.
 - Every issue names exactly one milestone using its exact title.
 - Move an issue only when its outcome dependency changes; update this roadmap

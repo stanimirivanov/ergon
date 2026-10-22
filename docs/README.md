@@ -60,6 +60,8 @@ links from those documents only when the task crosses another boundary.
 ## Planning and decisions
 
 - [Milestones](roadmap/milestones.md) — outcome-oriented implementation plan.
+- [M05 delivery plan](roadmap/m05-adaptive-resolution-experience.md) — agreed
+  resolver/requester scope, PR dependencies, exclusions and completion criteria.
 - [ADR index](decisions/README.md) — accepted decisions and ADR policy.
 - [ADR template](decisions/0000-template.md) — required decision structure.
 
