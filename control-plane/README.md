@@ -125,6 +125,13 @@ restart the predecessor project so it reattaches its preserved volume. See
 
 ## Interfaces and limitations
 
+The owner-scoped BFF now appends and reads immutable internal follow-up notes.
+Notes retain claim/author attribution, exact intent replay and current-owner gates;
+they are not evidence or proof. Deploy the additive notes migration before the
+dependent UI; retain notes on rollback. See
+[internal notes](../docs/human-follow-up.md#internal-notes) and
+[ADR 0063](../docs/decisions/0063-record-owner-attributed-internal-notes.md).
+
 The protected `GET .../{runId}/pinned-readiness` re-evaluates the exact immutable
 contract and case prefix with the existing readiness evaluator. Latest-in-stream
 required account-access provenance is selected independently of the history cap.

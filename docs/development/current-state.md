@@ -2,6 +2,12 @@
 
 ## TL;DR
 
+M05 internal follow-up notes now have a current-owner/session/CSRF BFF boundary
+and append-only tenant-safe persistence. Exact text/claim/revision retries return
+the original record; current ownership and authority are checked again even on
+replay. Reads expose the newest 100 attributable notes with explicit truncation,
+not evidence, proof or requester data. The dependent UI/guide remains M05-PR8.
+
 - `domain-kernel` and `control-plane` contain the active Ergon implementation.
 - The first access-restoration vertical slice now reaches verified resolution,
   bounded retry, explicit escalation, and durable human follow-up using

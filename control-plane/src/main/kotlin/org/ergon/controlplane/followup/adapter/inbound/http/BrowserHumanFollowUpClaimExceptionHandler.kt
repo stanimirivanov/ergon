@@ -21,7 +21,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.net.URI
 
 /** Maps browser claim failures without exposing authority evidence or provider bindings. */
-@RestControllerAdvice(assignableTypes = [BrowserHumanFollowUpClaimController::class])
+@RestControllerAdvice(
+    assignableTypes = [BrowserHumanFollowUpClaimController::class, BrowserHumanFollowUpNoteController::class],
+)
 class BrowserHumanFollowUpClaimExceptionHandler {
     @ExceptionHandler(InvalidHumanFollowUpClaimCommandException::class)
     fun invalidClaimCommand(
