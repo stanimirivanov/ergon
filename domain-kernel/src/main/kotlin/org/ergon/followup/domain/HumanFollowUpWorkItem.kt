@@ -45,7 +45,7 @@ value class HumanFollowUpQueueKey private constructor(
     }
 }
 
-/** Current lifecycle state of a human follow-up work item. */
+/** State carried by the immutable opening snapshot; terminal completion is a separate fact. */
 enum class HumanFollowUpWorkItemStatus {
     OPEN,
 }

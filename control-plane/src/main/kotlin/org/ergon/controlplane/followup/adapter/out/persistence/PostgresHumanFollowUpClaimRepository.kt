@@ -38,22 +38,40 @@ class PostgresHumanFollowUpClaimRepository(
     override fun lockOpenWorkItem(
         tenantId: TenantId,
         workItemId: HumanFollowUpWorkItemId,
-    ): Boolean =
-        jdbcClient
+    ): Boolean {
+        val locked =
+            jdbcClient
+                .sql(
+                    """
+                    SELECT TRUE
+                    FROM human_follow_up_work_items
+                    WHERE tenant_id = :tenantId
+                        AND work_item_id = :workItemId
+                        AND status = 'OPEN'
+                    FOR UPDATE
+                    """.trimIndent(),
+                ).param("tenantId", tenantId.value)
+                .param("workItemId", workItemId.value)
+                .query(Boolean::class.java)
+                .optional()
+                .orElse(false)
+        if (!locked) return false
+        // The immutable work row may be unchanged after a lock wait. A predicate
+        // in that locking SELECT could retain its pre-wait snapshot. Callers use
+        // a short READ COMMITTED transaction; this new statement sees completion.
+        return jdbcClient
             .sql(
                 """
-                SELECT TRUE
-                FROM human_follow_up_work_items
-                WHERE tenant_id = :tenantId
-                    AND work_item_id = :workItemId
-                    AND status = 'OPEN'
-                FOR UPDATE
+                SELECT NOT EXISTS (
+                    SELECT 1 FROM human_follow_up_completions
+                    WHERE tenant_id = :tenantId AND work_item_id = :workItemId
+                )
                 """.trimIndent(),
             ).param("tenantId", tenantId.value)
             .param("workItemId", workItemId.value)
             .query(Boolean::class.java)
-            .optional()
-            .orElse(false)
+            .single()
+    }
 
     override fun findByWorkItem(
         tenantId: TenantId,
@@ -69,6 +87,10 @@ class PostgresHumanFollowUpClaimRepository(
             WHERE claim.tenant_id = :tenantId
                 AND claim.work_item_id = :workItemId
                 AND claim.event_type = 'CLAIMED'
+                AND NOT EXISTS (
+                    SELECT 1 FROM human_follow_up_completions completion
+                    WHERE completion.tenant_id = claim.tenant_id AND completion.work_item_id = claim.work_item_id
+                )
             """.trimIndent(),
         ).param("tenantId", tenantId.value)
             .param("workItemId", workItemId.value)
@@ -172,6 +194,10 @@ class PostgresHumanFollowUpClaimRepository(
                 AND claim.work_item_id = :workItemId
                 AND claim.claim_id = :claimId
                 AND claim.event_type = 'CLAIMED'
+                AND NOT EXISTS (
+                    SELECT 1 FROM human_follow_up_completions completion
+                    WHERE completion.tenant_id = claim.tenant_id AND completion.work_item_id = claim.work_item_id
+                )
                 AND EXISTS (
                     SELECT 1
                     FROM approval_authority_evidence authority
@@ -279,6 +305,10 @@ class PostgresHumanFollowUpClaimRepository(
             WHERE claim.tenant_id = :tenantId
                 AND claim.resolver_actor_id = :actorId
                 AND item.status = 'OPEN'
+                AND NOT EXISTS (
+                    SELECT 1 FROM human_follow_up_completions completion
+                    WHERE completion.tenant_id = item.tenant_id AND completion.work_item_id = item.work_item_id
+                )
                 AND EXISTS (
                     SELECT 1
                     FROM approval_authority_evidence authority

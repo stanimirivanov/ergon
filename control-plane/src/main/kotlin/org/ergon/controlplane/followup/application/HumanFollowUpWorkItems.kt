@@ -53,7 +53,7 @@ interface HumanFollowUpWorkItemRepository {
         item: HumanFollowUpWorkItem,
     ): StoredHumanFollowUpWorkItem
 
-    /** @return work created from [escalationEventId], or `null` when none exists. */
+    /** Returns the immutable opening snapshot, even after completion; never an active-access gate. */
     fun findByEscalation(
         tenantId: TenantId,
         escalationEventId: ResolutionRunEventId,
@@ -62,7 +62,7 @@ interface HumanFollowUpWorkItemRepository {
     /**
      * Returns [workItemId] only when [actorId] has tenant-wide resolver evidence at [at].
      *
-     * Absence and insufficient authority both return `null` so callers cannot use
+     * Absence, completed work and insufficient authority return `null` so callers cannot use
      * this boundary to discover work outside their current authority.
      */
     fun findForResolver(
@@ -73,7 +73,7 @@ interface HumanFollowUpWorkItemRepository {
     ): StoredHumanFollowUpWorkItem?
 
     /**
-     * Lists unclaimed `OPEN` work after the criteria cursor in ascending opening order.
+     * Lists unclaimed, not-completed work after the criteria cursor in ascending opening order.
      *
      * When [HumanFollowUpInboxCriteria.queueKey] is present, only work routed
      * to that immutable queue is returned. The limit must be positive.

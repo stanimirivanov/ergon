@@ -7,8 +7,9 @@
 **Milestone:** M05 - Adaptive Resolution Experience.
 
 Finish the resolver experience and deliver a separately authenticated requester
-canvas over the existing case/runtime boundaries. The 28 slices below include
-12 Ergon and 16 ergon-ui PRs; GitHub owns their live state. Each backend contract
+canvas over the existing case/runtime boundaries. The 28 plan coordinates below
+deliver 29 PRs: 13 Ergon (PR11 is split) and 16 ergon-ui; GitHub owns their live
+state. Each backend contract
 is reviewed and merged before its dependent UI, which includes its user-guide
 update. This plan does not implement or authorize a new runtime protocol.
 
@@ -72,6 +73,12 @@ refactors remain separate from new business behavior.
 | M05-PR27 | Ergon | Safe local browser logout (M03 prerequisite) | PR15 | G2 |
 | M05-PR28 | ergon-ui | Sign-out and private-state retirement (M03 prerequisite) | PR17, PR27 | G4 |
 
+M05-PR11 is delivered in two backend PRs to retain its sizing boundary:
+[PR11a](https://github.com/stanimirivanov/ergon/issues/189) establishes terminal
+facts and active-work guards; PR11b then adds the authenticated completion command
+and exact recovery. This shared foundation also guards PR13 priority writes.
+PR12 waits for both backend parts. The original plan IDs remain unchanged.
+
 Groups identify dependency-ready merge waves, not authorization for concurrent
 repository changes. Follow the agreed one-repository-at-a-time workflow and wait
 for backend review/merge before dependent UI. Each PR targets roughly 200–500
@@ -92,7 +99,7 @@ deliverable. The seven concept views span these boundaries, not seven M05 pages.
 
 PR15, PR27 and PR28 are the only cross-milestone prerequisites: M03 gains a
 separate requester client and local logout, not a new authority algebra or global
-provider revocation. They retain M03 issue ownership (3/28 slices, about 11%).
+provider revocation. They retain M03 issue ownership (3/29 PRs, about 10%).
 There are no interface stubs to retire and no new third-party runtime dependency
 is justified. Reuse Spring Security, RTK Query/Effect, React Hook Form, ui-web
 modality and Playwright; borrow interaction patterns without importing a help-desk,

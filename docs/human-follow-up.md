@@ -9,10 +9,26 @@ and immutable. The creation snapshot routes it to the immutable named
 resolver evidence can retrieve it, list it in the oldest-first unclaimed inbox,
 and acquire immutable ownership. A resolver can filter discovery by queue and
 page through their active claimed work. Queue administration, priority,
-notifications, and completion are not implemented. A separately enabled browser
+notifications, and completion commands are not implemented. A separately enabled browser
 command transfers current-owned work directly between authorized resolvers. The internal
 resolver and browser boundaries support revision-checked release and later
 claiming. Browser release remains disabled by default during rollout.
+
+## Administrative completion foundation
+
+One immutable completion fact ends active work without rewriting its OPEN
+creation snapshot or final claim. Completed work is absent from shared/owned
+views, current work/claim retrieval, private notes/context and all existing
+ownership writes. Historical escalation-source lookup remains an opening record,
+not active access. Case state, runtime state and accepted proof are unchanged.
+
+M05-PR11a supplies the constrained audit table and post-lock active guards only;
+there is no completion HTTP command, feature enablement or UI yet. PR11b will add
+the separately reviewed authenticated command, and M05-PR12 its UI/user guide.
+Deploy V20261023195734 and every guarded reader/writer before any producer.
+After first use retain guards/schema/audit on rollback; never reinterpret OPEN
+creation snapshots as currently active. See
+[ADR 0065](decisions/0065-retire-administratively-completed-follow-up-work.md).
 
 ## Direct owner handover
 

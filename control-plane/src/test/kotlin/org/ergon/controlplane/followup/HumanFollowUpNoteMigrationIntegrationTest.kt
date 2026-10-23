@@ -4,6 +4,8 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
@@ -13,8 +15,9 @@ import java.util.UUID
 
 @Testcontainers(disabledWithoutDocker = true)
 class HumanFollowUpNoteMigrationIntegrationTest {
-    @Test
-    fun `handover upgrade preserves previously released ownership and internal notes`() {
+    @ParameterizedTest
+    @ValueSource(strings = ["20261023120000", "20261023180000"])
+    fun `terminal schema upgrade preserves previously released ownership and internal notes`(baseline: String) {
         val schema = "handover_upgrade_" + UUID.randomUUID().toString().replace("-", "")
 
         fun flyway() =
@@ -22,7 +25,7 @@ class HumanFollowUpNoteMigrationIntegrationTest {
                 .configure()
                 .dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
                 .schemas(schema)
-        flyway().target("20261023120000").load().migrate()
+        flyway().target(baseline).load().migrate()
         val tenant = UUID.randomUUID()
         val work = UUID.randomUUID()
         seedPreviousOwnership(schema, tenant, work)
@@ -56,6 +59,10 @@ class HumanFollowUpNoteMigrationIntegrationTest {
                         assertThat(row.getString(2)).isEqualTo("retained on handover upgrade")
                     }
                 statement.executeQuery("SELECT COUNT(*) FROM human_follow_up_handovers").use { row ->
+                    assertThat(row.next()).isTrue()
+                    assertThat(row.getLong(1)).isZero()
+                }
+                statement.executeQuery("SELECT COUNT(*) FROM human_follow_up_completions").use { row ->
                     assertThat(row.next()).isTrue()
                     assertThat(row.getLong(1)).isZero()
                 }
@@ -161,8 +168,11 @@ class HumanFollowUpNoteMigrationIntegrationTest {
     }
 
     companion object {
+        // Only disposable bootstrap skips initdb's disk flush, never migration or integrity checks.
         @Container
         @JvmStatic
-        val postgres = PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"))
+        val postgres =
+            PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"))
+                .withEnv("POSTGRES_INITDB_ARGS", "--no-sync")
     }
 }

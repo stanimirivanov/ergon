@@ -91,6 +91,10 @@ class PostgresHumanFollowUpWorkItemRepository(
             """
             WHERE item.tenant_id = :tenantId
                 AND item.work_item_id = :workItemId
+                AND NOT EXISTS (
+                    SELECT 1 FROM human_follow_up_completions completion
+                    WHERE completion.tenant_id = item.tenant_id AND completion.work_item_id = item.work_item_id
+                )
                 AND EXISTS (
                     SELECT 1
                     FROM approval_authority_evidence authority
@@ -166,6 +170,10 @@ class PostgresHumanFollowUpWorkItemRepository(
                 AND ownership.work_item_id = item.work_item_id
             WHERE item.tenant_id = :tenantId
                 AND item.status = 'OPEN'
+                AND NOT EXISTS (
+                    SELECT 1 FROM human_follow_up_completions completion
+                    WHERE completion.tenant_id = item.tenant_id AND completion.work_item_id = item.work_item_id
+                )
                 AND ownership.current_claim_id IS NULL
                 AND EXISTS (
                     SELECT 1
