@@ -13,6 +13,14 @@ class BrowserSessionUnavailableControllerTest {
     private val mockMvc = MockMvcBuilders.standaloneSetup(BrowserSessionUnavailableController()).build()
 
     @Test
+    fun `handover fails closed when browser sessions are unavailable`() {
+        mockMvc
+            .perform(post("/bff/v1/tenants/${UUID.randomUUID()}/human-follow-ups/${UUID.randomUUID()}/handovers"))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:browser-authentication-unavailable"))
+    }
+
+    @Test
     fun `notes fail closed when browser sessions are unavailable`() {
         val path = "/bff/v1/tenants/${UUID.randomUUID()}/human-follow-ups/${UUID.randomUUID()}/notes"
         listOf(get(path), post(path)).forEach { request ->

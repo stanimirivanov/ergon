@@ -22,7 +22,10 @@ import java.net.URI
 
 /** Maps browser claim failures without exposing authority evidence or provider bindings. */
 @RestControllerAdvice(
-    assignableTypes = [BrowserHumanFollowUpClaimController::class, BrowserHumanFollowUpNoteController::class],
+    assignableTypes = [
+        BrowserHumanFollowUpClaimController::class, BrowserHumanFollowUpNoteController::class,
+        BrowserHumanFollowUpHandoverController::class,
+    ],
 )
 class BrowserHumanFollowUpClaimExceptionHandler {
     @ExceptionHandler(InvalidHumanFollowUpClaimCommandException::class)

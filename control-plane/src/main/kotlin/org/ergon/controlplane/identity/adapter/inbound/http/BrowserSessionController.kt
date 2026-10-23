@@ -134,6 +134,7 @@ class BrowserSessionUnavailableController {
     @PostMapping(
         "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claim-commands",
         "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/notes",
+        "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/handovers",
     )
     fun humanFollowUpCommandUnavailable(
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,

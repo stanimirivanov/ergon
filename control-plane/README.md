@@ -72,6 +72,7 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_HUMAN_IDENTITY_PROVIDER` | Stable provider name paired with the issuer |
 | `ERGON_BROWSER_SESSION_ENABLED` | Enables the confidential OIDC BFF; defaults to `false` |
 | `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED` | Enables internal release after every ownership reader and writer is upgraded; defaults to `false` |
+| `ERGON_HUMAN_FOLLOW_UP_HANDOVER_ENABLED` | Enables exact current-owner browser transfer after additive schema and compatible readers/UI; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_HANDOVER_ENABLED` | Enables confirmed browser handover only after every backend supervision reader is upgraded; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_APPROVAL_ENABLED` | Enables supervisor-scoped confirmed human decisions after the additive schema/backend deployment; defaults to `false` |
 | `ERGON_RUN_PROOF_FINALIZATION_ENABLED` | Enables exact reviewed proof acceptance after additive schema/backend deployment; defaults to `false` |
@@ -124,6 +125,13 @@ restart the predecessor project so it reattaches its preserved volume. See
 [ADR 0033](../docs/decisions/0033-separate-ergon-local-postgresql-identity.md).
 
 ## Interfaces and limitations
+
+Direct browser follow-up handover separately defaults off. It atomically replaces
+current ownership and records an exact replay receipt without releasing work to
+the shared queue. Deploy V20261023180000 first; budget the supporting history-key
+scan/exclusive lock and index space. Disable commands for rollback and retain
+audit. Backend review/merge precedes the dependent UI and guide. See
+[direct owner handover](../docs/human-follow-up.md#direct-owner-handover).
 
 The owner-scoped BFF now appends and reads immutable internal follow-up notes.
 Notes retain claim/author attribution, exact intent replay and current-owner gates;

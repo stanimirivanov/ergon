@@ -2,11 +2,16 @@
 
 ## TL;DR
 
+Owner-scoped browser follow-up handover now supports exact current-claim/revision
+transfer to a currently authorized same-tenant resolver, atomic ownership and
+historical same-intent acknowledgement. It defaults off; the dependent UI/guide
+is not included. See [handover](../human-follow-up.md#direct-owner-handover).
+
 M05 internal follow-up notes now have a current-owner/session/CSRF BFF boundary
 and append-only tenant-safe persistence. Exact text/claim/revision retries return
 the original record; current ownership and authority are checked again even on
 replay. Reads expose the newest 100 attributable notes with explicit truncation,
-not evidence, proof or requester data. The dependent UI/guide remains M05-PR8.
+not evidence, proof or requester data. The companion UI/guide shipped as M05-PR8.
 
 - `domain-kernel` and `control-plane` contain the active Ergon implementation.
 - The first access-restoration vertical slice now reaches verified resolution,
@@ -24,9 +29,9 @@ not evidence, proof or requester data. The dependent UI/guide remains M05-PR8.
   UI/countdown and guide updates are merged. No live multi-step
   execution tree is inferred. See [control rollout](../operations/browser-run-control.md).
 - M05's remaining resolver/requester work follows the agreed
-  [delivery plan](../roadmap/m05-adaptive-resolution-experience.md). Its notes,
-  handover, priority, administrative completion, requester app and notifications
-  are planned, not implemented. M01–M04 are delivered only for the bounded
+  [delivery plan](../roadmap/m05-adaptive-resolution-experience.md). Notes and
+  backend handover are implemented; handover UI, priority, administrative completion,
+  requester app and notifications remain planned. M01–M04 are delivered only for the bounded
   access-restoration slice; GitHub owns formal milestone state.
 
 ## Active Ergon slice
@@ -278,8 +283,8 @@ GitHub SCM URL retains its factual existing repository name.
 
 ## Deliberate limitations
 
-- No internal follow-up notes, queue administration, configurable routing, automatic assignment,
-  reassignment, priority, due-time, completion, or
+- No queue administration, configurable routing, automatic assignment,
+  administrative reassignment, priority, due-time, completion, or
   notification.
 - No automatic resolution-contract selection or multi-step interpreter.
 - No AI-assisted semantic binding or Ergon evidence compiler.
@@ -292,7 +297,7 @@ GitHub SCM URL retains its factual existing repository name.
   do not establish general steering. Browser control is a separate explicit lease;
   retry, control and pinned-readiness UI/guide slices are merged.
 - Browser sessions are process-local and have no logout or provider-revocation
-  flow; supervisor recovery/forced takeover, follow-up reassignment and
+  flow; supervisor recovery/forced takeover, administrative follow-up reassignment and
   completion are not implemented. Planned bounded behavior does not establish
   the later slices' exact authorization, replay or lifecycle contracts.
 
