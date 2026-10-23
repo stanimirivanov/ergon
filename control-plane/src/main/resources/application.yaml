@@ -33,6 +33,7 @@ ergon:
       enabled: ${ERGON_RUN_SUPERVISOR_HANDOVER_ENABLED:false}
   follow-up:
     release-enabled: ${ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED:false}
+    handover-enabled: ${ERGON_HUMAN_FOLLOW_UP_HANDOVER_ENABLED:false}
   security:
     browser-session:
       enabled: ${ERGON_BROWSER_SESSION_ENABLED:false}

@@ -51,7 +51,7 @@ refactors remain separate from new business behavior.
 | M05-PR6 | ergon-ui | Shared and owned follow-up redesign | PR2 | G2 |
 | M05-PR7 | Ergon | Owner-attributed internal notes | PR1 | G1 |
 | M05-PR8 | ergon-ui | Structured notes in owned work | PR6, PR7 | G3 |
-| M05-PR9 | Ergon | Atomic current-owner follow-up handover | PR7 | G2 |
+| [M05-PR9](https://github.com/stanimirivanov/ergon/issues/187) | Ergon | Atomic current-owner follow-up handover | PR7 | G2 |
 | M05-PR10 | ergon-ui | Confirmed handover and uncertain recovery | PR6, PR9 | G3 |
 | M05-PR11 | Ergon | Administrative human-work completion | PR7, PR9 | G3 |
 | M05-PR12 | ergon-ui | Confirmed work completion and recovery | PR8, PR10, PR11 | G4 |

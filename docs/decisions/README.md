@@ -127,3 +127,4 @@ benchmarks rather than duplicating them.
 | 0061 | [Disclose the exact supervised run's immutable contract declarations](0061-disclose-supervisor-scoped-pinned-contract.md) |
 | 0062 | [Inspect readiness at the supervised run pin](0062-inspect-readiness-at-supervised-run-pin.md) |
 | 0063 | [Record owner-attributed internal follow-up notes](0063-record-owner-attributed-internal-notes.md) |
+| 0064 | [Transfer current-owned follow-up atomically](0064-transfer-current-owned-follow-up-atomically.md) |

@@ -7,6 +7,8 @@ import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommandRepo
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimIdentityGenerator
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
+import org.ergon.controlplane.followup.application.HumanFollowUpHandoverRepository
+import org.ergon.controlplane.followup.application.HumanFollowUpHandoverService
 import org.ergon.controlplane.followup.application.HumanFollowUpNoteRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpNoteService
 import org.ergon.controlplane.followup.application.HumanFollowUpReleaseRepository
@@ -32,6 +34,18 @@ import java.util.UUID
 /** Wires durable human follow-up identities, resolver queries, and claiming. */
 @Configuration(proxyBeanMethods = false)
 class HumanFollowUpConfiguration {
+    @Bean
+    @Suppress("LongParameterList") // Composition root exposes independent transaction/authority ports.
+    fun humanFollowUpHandoverService(
+        claims: HumanFollowUpClaimRepository,
+        handovers: HumanFollowUpHandoverRepository,
+        authorities: HumanAuthorityRepository,
+        identities: HumanFollowUpClaimIdentityGenerator,
+        transactions: TransactionRunner,
+        clock: Clock,
+        @Value("\${ergon.follow-up.handover-enabled}") enabled: Boolean,
+    ) = HumanFollowUpHandoverService(claims, handovers, authorities, identities, transactions, clock, enabled)
+
     @Bean
     fun humanFollowUpNoteService(
         claims: HumanFollowUpClaimRepository,

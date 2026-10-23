@@ -14,6 +14,56 @@ import java.util.UUID
 @Testcontainers(disabledWithoutDocker = true)
 class HumanFollowUpNoteMigrationIntegrationTest {
     @Test
+    fun `handover upgrade preserves previously released ownership and internal notes`() {
+        val schema = "handover_upgrade_" + UUID.randomUUID().toString().replace("-", "")
+
+        fun flyway() =
+            Flyway
+                .configure()
+                .dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
+                .schemas(schema)
+        flyway().target("20261023120000").load().migrate()
+        val tenant = UUID.randomUUID()
+        val work = UUID.randomUUID()
+        seedPreviousOwnership(schema, tenant, work)
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.schema = schema
+            connection.createStatement().use { statement ->
+                statement.executeUpdate(
+                    """
+                    INSERT INTO human_follow_up_notes (tenant_id, work_item_id, note_id, ownership_revision, body, authored_at)
+                    VALUES ('$tenant', '$work', '${UUID.randomUUID()}', 1, 'retained on handover upgrade', CURRENT_TIMESTAMP)
+                    """.trimIndent(),
+                )
+            }
+        }
+        flyway().load().migrate()
+        flyway().load().validate()
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.schema = schema
+            connection.createStatement().use { statement ->
+                statement
+                    .executeQuery(
+                        """
+                        SELECT ownership.ownership_revision, note.body
+                        FROM human_follow_up_current_ownership ownership
+                        JOIN human_follow_up_notes note USING (tenant_id, work_item_id)
+                        WHERE ownership.tenant_id = '$tenant' AND ownership.work_item_id = '$work'
+                        """.trimIndent(),
+                    ).use { row ->
+                        assertThat(row.next()).isTrue()
+                        assertThat(row.getLong(1)).isEqualTo(2)
+                        assertThat(row.getString(2)).isEqualTo("retained on handover upgrade")
+                    }
+                statement.executeQuery("SELECT COUNT(*) FROM human_follow_up_handovers").use { row ->
+                    assertThat(row.next()).isTrue()
+                    assertThat(row.getLong(1)).isZero()
+                }
+            }
+        }
+    }
+
+    @Test
     fun `upgrade preserves existing ownership and permits only claimed-event note attribution`() {
         val schema = "notes_upgrade_" + UUID.randomUUID().toString().replace("-", "")
 

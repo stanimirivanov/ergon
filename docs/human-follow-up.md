@@ -9,9 +9,49 @@ and immutable. The creation snapshot routes it to the immutable named
 resolver evidence can retrieve it, list it in the oldest-first unclaimed inbox,
 and acquire immutable ownership. A resolver can filter discovery by queue and
 page through their active claimed work. Queue administration, priority,
-reassignment, notifications, and completion are not implemented. The internal
+notifications, and completion are not implemented. A separately enabled browser
+command transfers current-owned work directly between authorized resolvers. The internal
 resolver and browser boundaries support revision-checked release and later
 claiming. Browser release remains disabled by default during rollout.
+
+## Direct owner handover
+
+POST `/bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/handovers`
+with session CSRF and
+`{"commandId":"<uuid>","claimId":"<uuid>","expectedOwnershipRevision":1,"recipientActorId":"<uuid>"}`.
+The session supplies the sender. The exact current owner and proposed distinct
+recipient must both have current tenant-wide resolver authority after the
+work-item lock wait. An absent, foreign-tenant or ineligible recipient has the
+same `409 human-follow-up-handover-recipient-unavailable` rejection. No directory
+or provider identity is disclosed; recipients are explicitly supplied actor UUIDs.
+
+The first transfer returns 201; exact authorized replay returns 200 with the
+identical `commandId`, `workItemId`, `originalClaimId`,
+`expectedOwnershipRevision`, `recipientActorId`, `successorClaimId`,
+`ownershipRevision`, `handedOverAt` and database `recordedAt`. The new claim and
+receipt commit with direct projection replacement: no shared-inbox exposure,
+release event, case/run change or proof. Revision advances by two (1 to 3),
+preserving claim/release parity; the unused intermediate revision is not a
+missing event. Current recipients can read predecessor notes; former owners
+cannot read notes or case context.
+
+After uncertainty retry only the identical command ID/body, never a new intent.
+The original sender needs current resolver authority, not continued ownership,
+to recover this historical acknowledgement; it grants no renewed private access.
+Absent/closed work, non-owners and missing sender authority share
+`404 human-follow-up-handover-not-found`. Changed same-sender intent or stale
+coordinates return `409 human-follow-up-handover-conflict`; self-transfer,
+nonpositive revision or overflow returns `400 invalid-human-follow-up-handover`.
+Other actors cannot recover the receipt. Disabling the default-off
+`ERGON_HUMAN_FOLLOW_UP_HANDOVER_ENABLED` returns
+`503 human-follow-up-handover-unavailable`; disabled browser sessions retain
+`503 browser-authentication-unavailable`.
+
+Deploy the additive migration and projection-aware backend before the UI;
+enable only after compatible readers/writers and UI are deployed. The history
+unique key needs an exclusive lock and index space; budget these against table
+size. Rollback disables commands and retains audit/schema. See
+[ADR 0064](decisions/0064-transfer-current-owned-follow-up-atomically.md).
 
 ## Internal notes
 
@@ -418,7 +458,7 @@ Assess the claim-table backfill and trigger-install lock against production
 table size before deployment.
 
 This slice does not define queue administration, configurable
-routing, automatic assignment, reassignment, priority, due time,
+routing, automatic assignment, administrative reassignment, priority, due time,
 service levels, completion, cancellation, notification, semantic summaries,
 supervisor workload views, general case search/detail, or other browser
 mutations.
