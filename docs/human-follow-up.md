@@ -13,6 +13,33 @@ reassignment, notifications, and completion are not implemented. The internal
 resolver and browser boundaries support revision-checked release and later
 claiming. Browser release remains disabled by default during rollout.
 
+## Internal notes
+
+Current authorized owners can GET or POST
+`/bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/notes`.
+POST uses session CSRF and
+`{ "noteId": "<uuid>", "claimId": "<uuid>", "expectedOwnershipRevision": 1, "text": "Internal commentary" }`.
+The server supplies author identity. Text is nonblank plain Unicode (at most
+4000 code points), preserved exactly and treated as untrusted commentary, never
+case evidence or proof. First append returns 201; exact same-intent replay is 200.
+Do not mint a new note ID after an uncertain response.
+
+GET returns `{ "items": [...], "truncated": false }`, newest first by
+`recordedAt` then `noteId`, with at most 100 records; `truncated` explicitly
+means older history was omitted. Each record contains note/claim IDs, ownership
+revision, internal `authorActorId`, text, `authoredAt` and `recordedAt`.
+It never discloses provider subject, tokens or authority evidence.
+
+Missing/closed work, another owner and lost resolver authority share
+`404 human-follow-up-notes-not-found`; stale ownership or changed intent is
+`409 human-follow-up-note-conflict`; invalid text/revision is
+`400 invalid-human-follow-up-note`. Session, actor-binding, CSRF, no-store and
+disabled-mode behavior match other BFF routes. Replay requires current ownership
+too. A later owner can read earlier authors' notes, but cannot replay their writes.
+Notes do not change ownership, runtime state, evidence or case completion.
+No editing, deletion, rich text, attachments, requester access, older-history
+pagination or UI is included. See [ADR 0063](decisions/0063-record-owner-attributed-internal-notes.md).
+
 ## Creation and replay
 
 Call the authenticated escalation command described in [resolution

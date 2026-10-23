@@ -511,7 +511,7 @@ class RunInvocationHistoryIntegrationTest(
                 .current()
                 .version
                 .toString(),
-        ).isEqualTo("20261020120000")
+        ).isEqualTo("20261023120000")
     }
 
     private fun invocation(

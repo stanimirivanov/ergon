@@ -7,6 +7,8 @@ import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommandRepo
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimIdentityGenerator
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
+import org.ergon.controlplane.followup.application.HumanFollowUpNoteRepository
+import org.ergon.controlplane.followup.application.HumanFollowUpNoteService
 import org.ergon.controlplane.followup.application.HumanFollowUpReleaseRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpReleaseService
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemIdentityGenerator
@@ -30,6 +32,14 @@ import java.util.UUID
 /** Wires durable human follow-up identities, resolver queries, and claiming. */
 @Configuration(proxyBeanMethods = false)
 class HumanFollowUpConfiguration {
+    @Bean
+    fun humanFollowUpNoteService(
+        claims: HumanFollowUpClaimRepository,
+        notes: HumanFollowUpNoteRepository,
+        transactions: TransactionRunner,
+        clock: Clock,
+    ) = HumanFollowUpNoteService(claims, notes, transactions, clock)
+
     @Bean
     fun humanFollowUpWorkItemIdentityGenerator() =
         HumanFollowUpWorkItemIdentityGenerator {

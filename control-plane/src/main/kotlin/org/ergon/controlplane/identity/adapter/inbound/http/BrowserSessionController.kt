@@ -113,9 +113,12 @@ class BrowserSessionUnavailableController {
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
     ): ProblemDetail = unavailableProblem()
 
-    /** Reports that owned-work case context cannot be read without browser OIDC configuration. */
-    @GetMapping("/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/case-summary")
-    fun resolverFollowUpCaseSummaryUnavailable(
+    /** Protected case context and notes share the same disabled-browser policy. */
+    @GetMapping(
+        "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/case-summary",
+        "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/notes",
+    )
+    fun resolverFollowUpContextUnavailable(
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
         @Suppress("UNUSED_PARAMETER") @PathVariable workItemId: UUID,
     ): ProblemDetail = unavailableProblem()
@@ -127,9 +130,12 @@ class BrowserSessionUnavailableController {
         @Suppress("UNUSED_PARAMETER") @PathVariable workItemId: UUID,
     ): ProblemDetail = unavailableProblem()
 
-    /** Reports that revisioned browser claiming requires browser OIDC configuration. */
-    @PostMapping("/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claim-commands")
-    fun humanFollowUpClaimCommandUnavailable(
+    /** No follow-up command is dispatched without browser OIDC configuration. */
+    @PostMapping(
+        "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claim-commands",
+        "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/notes",
+    )
+    fun humanFollowUpCommandUnavailable(
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
         @Suppress("UNUSED_PARAMETER") @PathVariable workItemId: UUID,
     ): ProblemDetail = unavailableProblem()
