@@ -50,9 +50,9 @@ the Ergon rewrite boundary. They remain useful history but are not authority for
 new Ergon behavior. Ergon decisions begin at 0006. ADRs 0001–0041 retain their
 published legacy structures; ADR 0042 and later MUST use the current template.
 
-The latest published high-water mark is ADR 0057. The checker retains a minimum
+The latest published high-water mark is ADR 0066. The checker retains a minimum
 number independently of directory contents, so deletion does not permit reuse.
-The next new decision is 0057 unless concurrent work has already allocated it.
+The next new decision is 0067 unless concurrent work has already allocated it.
 
 ## Template
 
@@ -129,3 +129,4 @@ benchmarks rather than duplicating them.
 | 0063 | [Record owner-attributed internal follow-up notes](0063-record-owner-attributed-internal-notes.md) |
 | 0064 | [Transfer current-owned follow-up atomically](0064-transfer-current-owned-follow-up-atomically.md) |
 | 0065 | [Retire administratively completed follow-up work](0065-retire-administratively-completed-follow-up-work.md) |
+| 0066 | [Complete owned follow-up with exact recovery](0066-complete-owned-follow-up-with-exact-recovery.md) |

@@ -75,7 +75,8 @@ refactors remain separate from new business behavior.
 
 M05-PR11 is delivered in two backend PRs to retain its sizing boundary:
 [PR11a](https://github.com/stanimirivanov/ergon/issues/189) establishes terminal
-facts and active-work guards; PR11b then adds the authenticated completion command
+facts and active-work guards; [PR11b](https://github.com/stanimirivanov/ergon/issues/191)
+adds the authenticated completion command
 and exact recovery. This shared foundation also guards PR13 priority writes.
 PR12 waits for both backend parts. The original plan IDs remain unchanged.
 

@@ -73,7 +73,8 @@ data class ResolverOwnedHumanFollowUpPage(
 /** Durable serialization and resolver-scoped lookup boundary for follow-up claims. */
 interface HumanFollowUpClaimRepository {
     /**
-     * Locks one open, not-completed work item until the caller's transaction completes.
+     * Locks an existing opening row until the caller's transaction completes, even
+     * when completion makes the active-state result false (for gated historical recovery).
      * Call within a READ COMMITTED transaction; terminal state is checked after
      * the lock wait, not from the locking statement's earlier snapshot.
      *
