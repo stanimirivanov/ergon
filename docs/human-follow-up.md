@@ -78,13 +78,48 @@ It preserves exact claim/actor/RESOLVER-evidence attribution, command uniqueness
 and immutable audit. Privileged SQL integrity is not authentication, current
 authority or receipt-replay authorization.
 
-No HTTP producer or read field is added here. PR13b supplies authenticated,
-session-CSRF current-owner setting and original-intent recovery; PR13c supplies
-active-work projections. PR14 UI/guide waits for both. Those contracts must
+PR13b supplies the default-off authenticated command below; PR13c supplies
+active-work projections. PR14 UI/guide waits for both. These contracts must
 retain oldest-first queue/cursor semantics and neutral access denial.
 Deploy V20261024101559 before the producer; no backfill, table rewrite or new
 index on existing rows is needed. Budget referenced-table DDL locks. Rollback
 retains schema/audit and terminal guards while disabling the later producer.
+
+### Assign current-owned priority
+
+POST `/bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/priority-assignments`
+with session CSRF and
+`{"commandId":"<uuid>","claimId":"<uuid>","expectedOwnershipRevision":1,"expectedPriorityRevision":0,"priority":"HIGH"}`.
+Priority is exactly LOW, NORMAL, HIGH or URGENT. The session supplies the actor.
+In one short READ COMMITTED transaction, lock work first, then sample time,
+require current tenant-wide RESOLVER evidence and exact active ownership before
+reading any receipt. A new intent must match the latest independent priority
+revision; each accepted set advances it by one, including the same value.
+
+First append returns 201; authorized exact replay returns 200 with identical
+`commandId`, `workItemId`, `claimId`, `expectedOwnershipRevision`,
+`expectedPriorityRevision`, `priorityRevision`, `priority`, `assignedAt` and
+database `recordedAt`. Actor/authority evidence, provider identity, case/run
+payload, notes and proof are excluded. Resend only the original ID/body after
+uncertainty. An older receipt can be acknowledged after a later assignment,
+but it neither reports current priority nor reinstates that older value.
+
+Unlike completion/handover recovery, replay requires the original exact active
+ownership and current authority. Release, handover and completion retire that
+access. Absent/hidden/terminal work, another owner or lost authority shares
+`404 human-follow-up-priority-not-found`. Stale owned coordinates/priority or
+changed original intent returns `409 human-follow-up-priority-conflict` without
+disclosing the winning receipt. Nonpositive ownership revision, negative or
+exhausted (`Long.MAX_VALUE`) expected priority revision, or an invalid priority
+returns `400 invalid-human-follow-up-priority`.
+
+The default-off `ERGON_HUMAN_FOLLOW_UP_PRIORITY_ENABLED` returns
+`503 human-follow-up-priority-unavailable`, including replay. Disabled browser
+sessions retain `503 browser-authentication-unavailable`. Session, actor-binding,
+CSRF and no-store rules match the existing commands. No new migration is needed:
+deploy V20261024101559 and PR13c readers/PR14 UI before enabling the producer.
+Rollback disables commands but retains immutable audit/schema/terminal guards.
+Existing queue order, ownership, risk, runtime/case state and proof are unchanged.
 
 ## Direct owner handover
 
