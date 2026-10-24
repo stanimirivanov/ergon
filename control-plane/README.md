@@ -61,6 +61,13 @@ and inbound/outbound adapters while `domain-kernel` remains framework-free.
 
 ## Runtime
 
+M05-PR13a adds an empty priority-assignment audit table with independent revisions
+and active-owner/terminal integrity guards. It adds no endpoint or enablement
+setting. The separately delivered command and current-read projections will
+consume it before the priority UI/guide. Existing oldest-first queues and
+payloads remain unchanged; see
+[priority foundation](../docs/human-follow-up.md#priority-foundation).
+
 The application requires PostgreSQL. Flyway owns schema creation and evolution.
 
 | Variable | Meaning |

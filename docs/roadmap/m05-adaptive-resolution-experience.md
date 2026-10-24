@@ -8,7 +8,7 @@
 
 Finish the resolver experience and deliver a separately authenticated requester
 canvas over the existing case/runtime boundaries. The 28 plan coordinates below
-deliver 29 PRs: 13 Ergon (PR11 is split) and 16 ergon-ui; GitHub owns their live
+deliver 31 PRs: 15 Ergon (PR11 and PR13 are split) and 16 ergon-ui; GitHub owns their live
 state. Each backend contract
 is reviewed and merged before its dependent UI, which includes its user-guide
 update. This plan does not implement or authorize a new runtime protocol.
@@ -55,9 +55,9 @@ refactors remain separate from new business behavior.
 | [M05-PR9](https://github.com/stanimirivanov/ergon/issues/187) | Ergon | Atomic current-owner follow-up handover | PR7 | G2 |
 | M05-PR10 | ergon-ui | Confirmed handover and uncertain recovery | PR6, PR9 | G3 |
 | M05-PR11 | Ergon | Administrative human-work completion | PR7, PR9 | G3 |
-| M05-PR12 | ergon-ui | Confirmed work completion and recovery | PR8, PR10, PR11 | G4 |
-| M05-PR13 | Ergon | Revisioned priority, unchanged queue order | PR1 | G1 |
-| M05-PR14 | ergon-ui | Priority display and owner changes | PR6, PR13 | G3 |
+| [M05-PR12](https://github.com/stanimirivanov/ergon-ui/pull/209) | ergon-ui | Confirmed work completion and recovery | PR8, PR10, PR11 | G4 |
+| [M05-PR13](https://github.com/stanimirivanov/ergon/issues/193) | Ergon | Revisioned priority, unchanged queue order (PR13a/b/c) | PR9, PR11a | G4–G6 |
+| M05-PR14 | ergon-ui | Priority display and owner changes | PR6, PR13 | G7 |
 | M05-PR15 | Ergon | Separate requester browser boundary (M03 prerequisite) | PR1 | G1 |
 | M05-PR16 | Ergon | Requester-scoped case progress | PR15 | G2 |
 | M05-PR17 | ergon-ui | First usable authenticated requester app | PR2, PR16 | G3 |
@@ -80,6 +80,16 @@ adds the authenticated completion command
 and exact recovery. This shared foundation also guards PR13 priority writes.
 PR12 waits for both backend parts. The original plan IDs remain unchanged.
 
+M05-PR13 is split before implementation to preserve reviewable boundaries:
+PR13a ([issue #193](https://github.com/stanimirivanov/ergon/issues/193)) supplies
+the shared priority schema and verified integrity; PR13b adds the authenticated
+current-owner command and exact recovery; PR13c projects current priority through
+active browser reads without changing queue order or cursors. The schema has two
+independent consumers, so this is a consumed foundation, not a placeholder layer.
+Merge PR13a (G4), PR13b (G5), PR13c (G6), then PR14 UI/guide (G7); each
+depends on the preceding part. Keep the producer disabled until compatible
+readers/UI exist. No new milestone or plan coordinate is introduced.
+
 Groups identify dependency-ready merge waves, not authorization for concurrent
 repository changes. Follow the agreed one-repository-at-a-time workflow and wait
 for backend review/merge before dependent UI. Each PR targets roughly 200–500
@@ -100,7 +110,7 @@ deliverable. The seven concept views span these boundaries, not seven M05 pages.
 
 PR15, PR27 and PR28 are the only cross-milestone prerequisites: M03 gains a
 separate requester client and local logout, not a new authority algebra or global
-provider revocation. They retain M03 issue ownership (3/29 PRs, about 10%).
+provider revocation. They retain M03 issue ownership (3/31 PRs, about 10%).
 There are no interface stubs to retire and no new third-party runtime dependency
 is justified. Reuse Spring Security, RTK Query/Effect, React Hook Form, ui-web
 modality and Playwright; borrow interaction patterns without importing a help-desk,
