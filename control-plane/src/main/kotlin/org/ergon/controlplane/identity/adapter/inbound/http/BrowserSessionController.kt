@@ -135,6 +135,7 @@ class BrowserSessionUnavailableController {
         "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/claim-commands",
         "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/notes",
         "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/handovers",
+        "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/completions",
     )
     fun humanFollowUpCommandUnavailable(
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,

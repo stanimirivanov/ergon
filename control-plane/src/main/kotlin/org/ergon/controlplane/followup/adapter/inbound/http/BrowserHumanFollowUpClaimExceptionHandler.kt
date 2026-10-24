@@ -25,6 +25,7 @@ import java.net.URI
     assignableTypes = [
         BrowserHumanFollowUpClaimController::class, BrowserHumanFollowUpNoteController::class,
         BrowserHumanFollowUpHandoverController::class,
+        BrowserHumanFollowUpCompletionController::class,
     ],
 )
 class BrowserHumanFollowUpClaimExceptionHandler {

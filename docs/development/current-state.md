@@ -2,11 +2,12 @@
 
 ## TL;DR
 
-M05-PR11a adds immutable administrative completion facts and compatible active-work
-guards. Current reads and existing writers reject terminal work while immutable
-opening, ownership, notes, case/run state and proof remain intact. The completion
-HTTP command and exact recovery are deferred to PR11b; UI/guide waits for both.
-Deploy schema/readers before any producer and retain guards/audit after first use.
+M05-PR11 now includes a separately default-off session/CSRF administrative completion
+command and authorized exact-intent historical recovery. Current reads and
+existing writers reject terminal work while opening, ownership, notes, case/run
+state and proof remain intact. M05-PR12 UI/guide follows backend review/merge.
+Deploy terminal schema/all guards before enabling compatible backend/UI; retain
+guards/audit after first use.
 See [completion foundation](../human-follow-up.md#administrative-completion-foundation).
 
 Owner-scoped browser follow-up handover now supports exact current-claim/revision

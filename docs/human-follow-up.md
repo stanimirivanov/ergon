@@ -9,7 +9,8 @@ and immutable. The creation snapshot routes it to the immutable named
 resolver evidence can retrieve it, list it in the oldest-first unclaimed inbox,
 and acquire immutable ownership. A resolver can filter discovery by queue and
 page through their active claimed work. Queue administration, priority,
-notifications, and completion commands are not implemented. A separately enabled browser
+and notifications are not implemented. A separately enabled browser completion
+command retires owned work without resolving the case. A separately enabled browser
 command transfers current-owned work directly between authorized resolvers. The internal
 resolver and browser boundaries support revision-checked release and later
 claiming. Browser release remains disabled by default during rollout.
@@ -22,13 +23,44 @@ views, current work/claim retrieval, private notes/context and all existing
 ownership writes. Historical escalation-source lookup remains an opening record,
 not active access. Case state, runtime state and accepted proof are unchanged.
 
-M05-PR11a supplies the constrained audit table and post-lock active guards only;
-there is no completion HTTP command, feature enablement or UI yet. PR11b will add
-the separately reviewed authenticated command, and M05-PR12 its UI/user guide.
+M05-PR11a supplies the constrained audit table and post-lock active guards.
+M05-PR11b adds the authenticated command below; M05-PR12 supplies its UI/user guide.
 Deploy V20261023195734 and every guarded reader/writer before any producer.
 After first use retain guards/schema/audit on rollback; never reinterpret OPEN
 creation snapshots as currently active. See
 [ADR 0065](decisions/0065-retire-administratively-completed-follow-up-work.md).
+
+### Confirm administrative completion
+
+POST `/bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/completions`
+with session CSRF and
+`{"commandId":"<uuid>","claimId":"<uuid>","expectedOwnershipRevision":1}`.
+The session supplies the actor. In one short READ COMMITTED transaction the
+server locks the work row, then samples time/current tenant-wide resolver
+authority and requires exact current ownership before appending a terminal fact.
+
+First append returns 201; exact authorized replay returns 200 with identical
+`commandId`, `workItemId`, `claimId`, `expectedOwnershipRevision`, `completedAt`
+and database `recordedAt`. After uncertainty resend only the original command
+ID/body. Historical replay requires the original actor's current resolver
+authority, not active ownership; it restores no case/notes access. No authority
+evidence, provider identity, case/run payload, text or proof is disclosed.
+
+Hidden/absent work, another actor, lost authority or a different command on
+completed work share `404 human-follow-up-completion-not-found`. Changed
+same-actor same-command intent or stale owned coordinates is
+`409 human-follow-up-completion-conflict`; nonpositive revision is
+`400 invalid-human-follow-up-completion`. The default-off
+`ERGON_HUMAN_FOLLOW_UP_COMPLETION_ENABLED` returns
+`503 human-follow-up-completion-unavailable`, including replay. Disabled browser
+sessions retain `503 browser-authentication-unavailable`. Other session/CSRF,
+actor-binding and no-store rules match existing BFF commands.
+
+No new migration. Deploy terminal schema and every guard before this producer;
+enable only after compatible backend/UI deployment. Disable commands for rollback,
+retain immutable audit/schema/guards, and never downgrade to OPEN-only readers.
+Existing claim/release/handover/notes acknowledgement stays unavailable after
+completion. See [ADR 0066](decisions/0066-complete-owned-follow-up-with-exact-recovery.md).
 
 ## Direct owner handover
 
@@ -475,6 +507,6 @@ table size before deployment.
 
 This slice does not define queue administration, configurable
 routing, automatic assignment, administrative reassignment, priority, due time,
-service levels, completion, cancellation, notification, semantic summaries,
+service levels, case closure, reopening, cancellation, notification, semantic summaries,
 supervisor workload views, general case search/detail, or other browser
 mutations.

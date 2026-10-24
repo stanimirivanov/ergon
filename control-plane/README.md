@@ -73,6 +73,7 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_BROWSER_SESSION_ENABLED` | Enables the confidential OIDC BFF; defaults to `false` |
 | `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED` | Enables internal release after every ownership reader and writer is upgraded; defaults to `false` |
 | `ERGON_HUMAN_FOLLOW_UP_HANDOVER_ENABLED` | Enables exact current-owner browser transfer after additive schema and compatible readers/UI; defaults to `false` |
+| `ERGON_HUMAN_FOLLOW_UP_COMPLETION_ENABLED` | Enables exact current-owner completion and historical acknowledgement after terminal schema/guards and compatible UI; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_HANDOVER_ENABLED` | Enables confirmed browser handover only after every backend supervision reader is upgraded; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_APPROVAL_ENABLED` | Enables supervisor-scoped confirmed human decisions after the additive schema/backend deployment; defaults to `false` |
 | `ERGON_RUN_PROOF_FINALIZATION_ENABLED` | Enables exact reviewed proof acceptance after additive schema/backend deployment; defaults to `false` |
@@ -126,10 +127,11 @@ restart the predecessor project so it reattaches its preserved volume. See
 
 ## Interfaces and limitations
 
-Administrative follow-up completion currently has schema/active guards only:
-no HTTP producer, enablement flag or UI is exposed. Deploy V20261023195734 and
-all compatible readers/writers before the later completion command. Completion
-retires work, never case/run/proof state. Retain guards and audit after first use;
+Administrative follow-up completion has a separate default-off browser command.
+Deploy V20261023195734 and all compatible readers/writers before enabling it
+after the dependent UI. Exact authorized replay acknowledges only original
+intent; it restores no private access. Completion retires work, never
+case/run/proof state. Retain guards and audit after first use;
 see [completion foundation](../docs/human-follow-up.md#administrative-completion-foundation).
 
 Direct browser follow-up handover separately defaults off. It atomically replaces
