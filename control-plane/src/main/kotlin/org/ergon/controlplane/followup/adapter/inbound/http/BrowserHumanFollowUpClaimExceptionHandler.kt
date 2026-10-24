@@ -26,6 +26,7 @@ import java.net.URI
         BrowserHumanFollowUpClaimController::class, BrowserHumanFollowUpNoteController::class,
         BrowserHumanFollowUpHandoverController::class,
         BrowserHumanFollowUpCompletionController::class,
+        BrowserHumanFollowUpPriorityController::class,
     ],
 )
 class BrowserHumanFollowUpClaimExceptionHandler {

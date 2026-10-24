@@ -61,10 +61,10 @@ and inbound/outbound adapters while `domain-kernel` remains framework-free.
 
 ## Runtime
 
-M05-PR13a adds an empty priority-assignment audit table with independent revisions
-and active-owner/terminal integrity guards. It adds no endpoint or enablement
-setting. The separately delivered command and current-read projections will
-consume it before the priority UI/guide. Existing oldest-first queues and
+M05-PR13b adds a separately default-off session/CSRF priority-assignment command
+with exact current-owner recovery over PR13a's independent-revision audit table.
+PR13c current-read projections and PR14 UI/guide must deploy before enablement.
+Existing oldest-first queues and
 payloads remain unchanged; see
 [priority foundation](../docs/human-follow-up.md#priority-foundation).
 
@@ -81,6 +81,7 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED` | Enables internal release after every ownership reader and writer is upgraded; defaults to `false` |
 | `ERGON_HUMAN_FOLLOW_UP_HANDOVER_ENABLED` | Enables exact current-owner browser transfer after additive schema and compatible readers/UI; defaults to `false` |
 | `ERGON_HUMAN_FOLLOW_UP_COMPLETION_ENABLED` | Enables exact current-owner completion and historical acknowledgement after terminal schema/guards and compatible UI; defaults to `false` |
+| `ERGON_HUMAN_FOLLOW_UP_PRIORITY_ENABLED` | Enables current-owner priority setting and exact active-ownership acknowledgement after priority schema and compatible PR13c readers/PR14 UI; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_HANDOVER_ENABLED` | Enables confirmed browser handover only after every backend supervision reader is upgraded; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_APPROVAL_ENABLED` | Enables supervisor-scoped confirmed human decisions after the additive schema/backend deployment; defaults to `false` |
 | `ERGON_RUN_PROOF_FINALIZATION_ENABLED` | Enables exact reviewed proof acceptance after additive schema/backend deployment; defaults to `false` |
