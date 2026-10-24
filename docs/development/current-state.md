@@ -2,10 +2,17 @@
 
 ## TL;DR
 
+M05-PR13a establishes the additive immutable priority-assignment schema and its
+active-owner/terminal, tenant-attribution, contiguous-revision and mutation
+guards. There is no public priority producer or browser projection yet; those
+are PR13b/PR13c, followed by PR14 UI/guide. Priority is administrative metadata
+and never changes existing queue order, ownership, risk or runtime/proof state.
+See [priority foundation](../human-follow-up.md#priority-foundation).
+
 M05-PR11 now includes a separately default-off session/CSRF administrative completion
 command and authorized exact-intent historical recovery. Current reads and
 existing writers reject terminal work while opening, ownership, notes, case/run
-state and proof remain intact. M05-PR12 UI/guide follows backend review/merge.
+state and proof remain intact. M05-PR12 UI/guide is merged in ergon-ui PR #209.
 Deploy terminal schema/all guards before enabling compatible backend/UI; retain
 guards/audit after first use.
 See [completion foundation](../human-follow-up.md#administrative-completion-foundation).

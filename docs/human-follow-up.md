@@ -62,6 +62,30 @@ retain immutable audit/schema/guards, and never downgrade to OPEN-only readers.
 Existing claim/release/handover/notes acknowledgement stays unavailable after
 completion. See [ADR 0066](decisions/0066-complete-owned-follow-up-with-exact-recovery.md).
 
+## Priority foundation
+
+M05-PR13a adds immutable, tenant/work-scoped priority assignments under
+[ADR 0067](decisions/0067-record-independent-follow-up-priority.md). LOW, NORMAL,
+HIGH and URGENT are administrative metadata, not risk, authority, an SLA or a
+runtime decision. No assignment means NORMAL at independent priority revision
+zero. Each accepted set appends the next revision, including a repeated value
+under a new command identity. Ownership/case/run revisions and queue ordering
+are unchanged.
+
+The schema serializes inserts with completion/ownership writers on the existing
+work-row lock, then checks fresh terminal/current ownership and priority state.
+It preserves exact claim/actor/RESOLVER-evidence attribution, command uniqueness
+and immutable audit. Privileged SQL integrity is not authentication, current
+authority or receipt-replay authorization.
+
+No HTTP producer or read field is added here. PR13b supplies authenticated,
+session-CSRF current-owner setting and original-intent recovery; PR13c supplies
+active-work projections. PR14 UI/guide waits for both. Those contracts must
+retain oldest-first queue/cursor semantics and neutral access denial.
+Deploy V20261024101559 before the producer; no backfill, table rewrite or new
+index on existing rows is needed. Budget referenced-table DDL locks. Rollback
+retains schema/audit and terminal guards while disabling the later producer.
+
 ## Direct owner handover
 
 POST `/bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/handovers`
