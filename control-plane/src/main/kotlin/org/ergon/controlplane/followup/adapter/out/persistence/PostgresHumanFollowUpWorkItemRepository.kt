@@ -6,6 +6,9 @@ import org.ergon.controlplane.followup.application.HumanFollowUpInboxCriteria
 import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemRepository
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
+import org.ergon.followup.domain.HumanFollowUpPriority
+import org.ergon.followup.domain.HumanFollowUpPriorityRevision
+import org.ergon.followup.domain.HumanFollowUpPrioritySnapshot
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
@@ -161,13 +164,16 @@ class PostgresHumanFollowUpWorkItemRepository(
                 item.status,
                 item.opened_at,
                 item.recorded_at,
-                COALESCE(ownership.ownership_revision, 0) AS ownership_revision
+                COALESCE(ownership.ownership_revision, 0) AS ownership_revision,
+                COALESCE(latest_priority.priority, 'NORMAL') AS priority,
+                COALESCE(latest_priority.priority_revision, 0) AS priority_revision
             FROM human_follow_up_work_items item
             JOIN resolution_runs run
                 ON run.tenant_id = item.tenant_id AND run.run_id = item.run_id
             LEFT JOIN human_follow_up_current_ownership ownership
                 ON ownership.tenant_id = item.tenant_id
                 AND ownership.work_item_id = item.work_item_id
+            $latestFollowUpPriorityJoin
             WHERE item.tenant_id = :tenantId
                 AND item.status = 'OPEN'
                 AND NOT EXISTS (
@@ -257,6 +263,8 @@ private data class AvailableHumanFollowUpWorkRow(
     val openedAt: OffsetDateTime,
     val recordedAt: OffsetDateTime,
     val ownershipRevision: Long,
+    val priority: String,
+    val priorityRevision: Long,
 ) {
     fun toAvailableWork(): AvailableHumanFollowUpWork =
         AvailableHumanFollowUpWork(
@@ -272,5 +280,9 @@ private data class AvailableHumanFollowUpWorkRow(
                 recordedAt,
             ).toStoredWorkItem(),
             HumanFollowUpOwnershipRevision(ownershipRevision),
+            HumanFollowUpPrioritySnapshot(
+                HumanFollowUpPriority.valueOf(priority),
+                HumanFollowUpPriorityRevision(priorityRevision),
+            ),
         )
 }

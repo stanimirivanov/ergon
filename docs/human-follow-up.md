@@ -78,12 +78,36 @@ It preserves exact claim/actor/RESOLVER-evidence attribution, command uniqueness
 and immutable audit. Privileged SQL integrity is not authentication, current
 authority or receipt-replay authorization.
 
-PR13b supplies the default-off authenticated command below; PR13c supplies
-active-work projections. PR14 UI/guide waits for both. These contracts must
-retain oldest-first queue/cursor semantics and neutral access denial.
+PR13b supplies the default-off authenticated command below; PR13c supplies the
+active-work projections described below. PR14 UI/guide follows backend review.
+These contracts retain oldest-first queue/cursor semantics and neutral access denial.
 Deploy V20261024101559 before the producer; no backfill, table rewrite or new
 index on existing rows is needed. Budget referenced-table DDL locks. Rollback
 retains schema/audit and terminal guards while disabling the later producer.
+
+### Read current priority
+
+The existing browser shared-inbox row, owned row's `workItem`, and owned case
+summary's `followUp` include additive `priority` and `priorityRevision` fields.
+No assignment means `"NORMAL"`/`0`; otherwise they identify the latest immutable
+assignment by its independent revision, not timestamp or ownership position.
+Value/revision come from one tenant/work-scoped latest-row join in the authorized
+active-work SQL query, without per-item application lookups or audit disclosure.
+Opening snapshots and internal retrieval payloads remain unchanged.
+
+Reads work even when priority commands are disabled. Release/handover preserves
+metadata, not former-owner access; completion still hides active work. Existing
+authority checks, queue filters, ordering, page bounds, cursors and no-store
+headers are unchanged. An old command receipt never overrides this current read.
+The pair is current at the active-work query snapshot; the case summary's later
+case/run queries are not promised to form one whole-response snapshot. Refresh
+before a new command and still handle revision conflict at submission.
+
+No new migration, index, endpoint or flag. Deploy V20261024101559 before these
+readers and keep commands disabled until compatible PR14 UI is deployed. Old
+clients may ignore additive fields. If rolling readers back, disable dependent
+UI/commands first and retain schema/audit/terminal guards; never synthesize
+NORMAL/0 for an old server's missing fields after assignments exist.
 
 ### Assign current-owned priority
 

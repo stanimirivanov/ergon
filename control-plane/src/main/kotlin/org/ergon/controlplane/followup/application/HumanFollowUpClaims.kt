@@ -6,6 +6,7 @@ import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimCommandId
 import org.ergon.followup.domain.HumanFollowUpClaimId
 import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
+import org.ergon.followup.domain.HumanFollowUpPrioritySnapshot
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
@@ -51,11 +52,15 @@ data class HumanFollowUpClaimCommandRecording(
     val created: Boolean,
 )
 
-/** Active follow-up work paired with the immutable claim that gives one resolver ownership. */
+/**
+ * Active work and its immutable ownership claim. Priority is current at the
+ * lookup snapshot, not the claim instant, and never changes claim ordering.
+ */
 data class ResolverOwnedHumanFollowUpWork(
     val workItem: StoredHumanFollowUpWorkItem,
     val claim: StoredHumanFollowUpClaim,
     val ownershipRevision: HumanFollowUpOwnershipRevision,
+    val priority: HumanFollowUpPrioritySnapshot = HumanFollowUpPrioritySnapshot(),
 )
 
 /** Stable keyset position in a resolver's oldest-claimed-first work view. */
@@ -124,6 +129,7 @@ interface HumanFollowUpClaimRepository {
      *
      * Absence, closed work, ownership by another actor, and insufficient
      * authority all return `null` so callers cannot distinguish hidden work.
+     * Priority must be read with the active work; NORMAL/0 means no assignment, not unavailable metadata.
      */
     fun findOwnedWorkForResolver(
         tenantId: TenantId,
@@ -138,6 +144,7 @@ interface HumanFollowUpClaimRepository {
      * [limit] must be positive. Equal claim instants are ordered by claim identity.
      * Implementations return no rows unless [actorId] has current tenant-wide
      * resolver evidence at [at].
+     * Priority value/revision describe one lookup snapshot and never enter the cursor or sort key.
      */
     fun listOwnedForResolver(
         tenantId: TenantId,

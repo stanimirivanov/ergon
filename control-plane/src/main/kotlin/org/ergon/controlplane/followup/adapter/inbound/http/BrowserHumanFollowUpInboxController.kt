@@ -7,6 +7,7 @@ import org.ergon.controlplane.followup.application.HumanFollowUpWorkItemQuerySer
 import org.ergon.controlplane.followup.application.ResolverOwnedHumanFollowUpWork
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
+import org.ergon.followup.domain.HumanFollowUpPrioritySnapshot
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -143,7 +144,7 @@ data class BrowserHumanFollowUpCursorResponse(
     val afterWorkItemId: UUID,
 )
 
-/** Immutable source, routing, and lifecycle facts needed to render one shared-inbox row. */
+/** Opening facts plus current ownership/priority metadata; revisioned priority is not an ordering key. */
 data class BrowserHumanFollowUpWorkItemResponse(
     val workItemId: UUID,
     val caseId: UUID,
@@ -155,6 +156,8 @@ data class BrowserHumanFollowUpWorkItemResponse(
     val openedAt: Instant,
     val recordedAt: Instant,
     val ownershipRevision: Long,
+    val priority: String,
+    val priorityRevision: Long,
 )
 
 /** Active browser-visible work paired with its token-free immutable claim. */
@@ -175,25 +178,31 @@ data class BrowserResolverOwnedHumanFollowUpCursorResponse(
     val afterClaimId: UUID,
 )
 
-private fun StoredHumanFollowUpWorkItem.toBrowserResponse(ownershipRevision: Long) =
-    BrowserHumanFollowUpWorkItemResponse(
-        item.id.value,
-        item.caseId.value,
-        item.runId.value,
-        item.escalationEventId.value,
-        item.reason.name,
-        item.queueKey.value,
-        item.status.name,
-        item.openedAt,
-        recordedAt,
-        ownershipRevision,
-    )
+private fun StoredHumanFollowUpWorkItem.toBrowserResponse(
+    ownershipRevision: Long,
+    priority: HumanFollowUpPrioritySnapshot,
+) = BrowserHumanFollowUpWorkItemResponse(
+    item.id.value,
+    item.caseId.value,
+    item.runId.value,
+    item.escalationEventId.value,
+    item.reason.name,
+    item.queueKey.value,
+    item.status.name,
+    item.openedAt,
+    recordedAt,
+    ownershipRevision,
+    priority.priority.name,
+    priority.revision.value,
+)
 
-private fun AvailableHumanFollowUpWork.toBrowserResponse() = workItem.toBrowserResponse(ownershipRevision.value)
+private fun AvailableHumanFollowUpWork.toBrowserResponse() =
+    workItem
+        .toBrowserResponse(ownershipRevision.value, priority)
 
 private fun ResolverOwnedHumanFollowUpWork.toBrowserResponse() =
     BrowserResolverOwnedHumanFollowUpResponse(
-        workItem.toBrowserResponse(ownershipRevision.value),
+        workItem.toBrowserResponse(ownershipRevision.value, priority),
         BrowserHumanFollowUpClaimResponse(
             claim.claim.id.value,
             claim.claim.workItemId.value,

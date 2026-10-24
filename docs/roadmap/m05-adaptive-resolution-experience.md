@@ -84,7 +84,8 @@ M05-PR13 is split before implementation to preserve reviewable boundaries:
 PR13a ([issue #193](https://github.com/stanimirivanov/ergon/issues/193)) supplies
 the shared priority schema and verified integrity; PR13b
 ([issue #195](https://github.com/stanimirivanov/ergon/issues/195)) adds the authenticated
-current-owner command and exact recovery; PR13c projects current priority through
+current-owner command and exact recovery; PR13c
+([issue #197](https://github.com/stanimirivanov/ergon/issues/197)) projects current priority through
 active browser reads without changing queue order or cursors. The schema has two
 independent consumers, so this is a consumed foundation, not a placeholder layer.
 Merge PR13a (G4), PR13b (G5), PR13c (G6), then PR14 UI/guide (G7); each

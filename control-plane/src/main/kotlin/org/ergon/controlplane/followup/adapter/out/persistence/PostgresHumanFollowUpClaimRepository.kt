@@ -10,6 +10,9 @@ import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
 import org.ergon.followup.domain.HumanFollowUpClaimSnapshot
 import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
+import org.ergon.followup.domain.HumanFollowUpPriority
+import org.ergon.followup.domain.HumanFollowUpPriorityRevision
+import org.ergon.followup.domain.HumanFollowUpPrioritySnapshot
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
@@ -286,7 +289,9 @@ class PostgresHumanFollowUpClaimRepository(
                 claim.resolver_actor_id,
                 claim.authority_evidence_id,
                 claim.occurred_at AS claimed_at,
-                claim.recorded_at AS claim_recorded_at
+                claim.recorded_at AS claim_recorded_at,
+                COALESCE(latest_priority.priority, 'NORMAL') AS priority,
+                COALESCE(latest_priority.priority_revision, 0) AS priority_revision
             FROM human_follow_up_current_ownership ownership
             JOIN human_follow_up_ownership_events claim
                 ON claim.tenant_id = ownership.tenant_id
@@ -302,6 +307,7 @@ class PostgresHumanFollowUpClaimRepository(
             JOIN resolution_runs run
                 ON run.tenant_id = item.tenant_id
                 AND run.run_id = item.run_id
+            $latestFollowUpPriorityJoin
             WHERE claim.tenant_id = :tenantId
                 AND claim.resolver_actor_id = :actorId
                 AND item.status = 'OPEN'
@@ -395,6 +401,10 @@ private fun ResolverOwnedHumanFollowUpRow.toOwnedWork(): ResolverOwnedHumanFollo
                 claimRecordedAt.toInstant(),
             ),
             HumanFollowUpOwnershipRevision(ownershipRevision),
+            HumanFollowUpPrioritySnapshot(
+                HumanFollowUpPriority.valueOf(priority),
+                HumanFollowUpPriorityRevision(priorityRevision),
+            ),
         )
     } catch (exception: IllegalArgumentException) {
         throw IllegalStateException("stored resolver-owned human follow-up work is invalid", exception)
@@ -416,4 +426,6 @@ private data class ResolverOwnedHumanFollowUpRow(
     val claimedAt: OffsetDateTime,
     val claimRecordedAt: OffsetDateTime,
     val ownershipRevision: Long,
+    val priority: String,
+    val priorityRevision: Long,
 )
