@@ -2,10 +2,12 @@
 
 ## TL;DR
 
-M05-PR13a establishes the additive immutable priority-assignment schema and its
-active-owner/terminal, tenant-attribution, contiguous-revision and mutation
-guards. There is no public priority producer or browser projection yet; those
-are PR13b/PR13c, followed by PR14 UI/guide. Priority is administrative metadata
+M05-PR13b adds a default-off session/CSRF priority-assignment command and exact
+current-owner acknowledgement over PR13a's immutable revisioned audit schema.
+Current tenant-wide resolver authority and exact active ownership are mandatory
+after lock waits, even for replay; historical receipts never reinstate a value.
+Browser priority projections remain PR13c, followed by PR14 UI/guide; keep the
+producer disabled until both deploy. Priority is administrative metadata
 and never changes existing queue order, ownership, risk or runtime/proof state.
 See [priority foundation](../human-follow-up.md#priority-foundation).
 
