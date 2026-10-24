@@ -126,6 +126,12 @@ restart the predecessor project so it reattaches its preserved volume. See
 
 ## Interfaces and limitations
 
+Administrative follow-up completion currently has schema/active guards only:
+no HTTP producer, enablement flag or UI is exposed. Deploy V20261023195734 and
+all compatible readers/writers before the later completion command. Completion
+retires work, never case/run/proof state. Retain guards and audit after first use;
+see [completion foundation](../docs/human-follow-up.md#administrative-completion-foundation).
+
 Direct browser follow-up handover separately defaults off. It atomically replaces
 current ownership and records an exact replay receipt without releasing work to
 the shared queue. Deploy V20261023180000 first; budget the supporting history-key

@@ -128,3 +128,4 @@ benchmarks rather than duplicating them.
 | 0062 | [Inspect readiness at the supervised run pin](0062-inspect-readiness-at-supervised-run-pin.md) |
 | 0063 | [Record owner-attributed internal follow-up notes](0063-record-owner-attributed-internal-notes.md) |
 | 0064 | [Transfer current-owned follow-up atomically](0064-transfer-current-owned-follow-up-atomically.md) |
+| 0065 | [Retire administratively completed follow-up work](0065-retire-administratively-completed-follow-up-work.md) |

@@ -73,16 +73,18 @@ data class ResolverOwnedHumanFollowUpPage(
 /** Durable serialization and resolver-scoped lookup boundary for follow-up claims. */
 interface HumanFollowUpClaimRepository {
     /**
-     * Locks one open work item until the caller's transaction completes.
+     * Locks one open, not-completed work item until the caller's transaction completes.
+     * Call within a READ COMMITTED transaction; terminal state is checked after
+     * the lock wait, not from the locking statement's earlier snapshot.
      *
-     * @return `true` when the tenant-scoped item exists and is open, otherwise `false`.
+     * @return `true` only when tenant-scoped work exists without a terminal completion fact.
      */
     fun lockOpenWorkItem(
         tenantId: TenantId,
         workItemId: HumanFollowUpWorkItemId,
     ): Boolean
 
-    /** @return the active claim for [workItemId], or `null` while unclaimed. */
+    /** @return the active claim for [workItemId], or `null` when unclaimed or completed. */
     fun findByWorkItem(
         tenantId: TenantId,
         workItemId: HumanFollowUpWorkItemId,
@@ -104,7 +106,7 @@ interface HumanFollowUpClaimRepository {
     /**
      * Returns the identified claim only under current tenant-wide resolver authority.
      *
-     * Absence, a mismatched work item, and insufficient authority all return `null`
+     * Absence, completed work, a mismatched work item, and insufficient authority return `null`
      * so callers cannot use this boundary to discover protected work.
      */
     fun findForResolver(
