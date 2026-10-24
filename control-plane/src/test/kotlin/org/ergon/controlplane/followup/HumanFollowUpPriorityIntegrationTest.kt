@@ -41,6 +41,7 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -88,6 +89,160 @@ class HumanFollowUpPriorityIntegrationTest(
     @Autowired manager: PlatformTransactionManager,
 ) {
     private val transactions = TransactionTemplate(manager)
+
+    @Test
+    fun `owned reads expose the default and latest pair rather than a replayed historical receipt`() {
+        val unassigned = fixture()
+        retireWork(unassigned, "release")
+        mvc
+            .perform(readWork(unassigned.command))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items[0].priority").value("NORMAL"))
+            .andExpect(jsonPath("$.items[0].priorityRevision").value(0))
+        val c = fixture().command
+        mvc
+            .perform(readWork(c, owned = true))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items[0].workItem.priority").value("NORMAL"))
+            .andExpect(jsonPath("$.items[0].workItem.priorityRevision").value(0))
+        priorities.assign(c)
+        val next =
+            c.copy(
+                commandId = UUID.randomUUID(),
+                expectedPriorityRevision = 1,
+                priority = HumanFollowUpPriority.LOW,
+            )
+        priorities.assign(next)
+        priorities.assign(next.copy(commandId = UUID.randomUUID(), expectedPriorityRevision = 2))
+        assertThat(
+            priorities
+                .assign(c)
+                .receipt.command.priority,
+        ).isEqualTo(HumanFollowUpPriority.HIGH)
+        val response =
+            mvc
+                .perform(readWork(c, owned = true))
+                .andExpect(status().isOk)
+                .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
+                .andExpect(jsonPath("$.items[0].workItem.priority").value("LOW"))
+                .andExpect(jsonPath("$.items[0].workItem.priorityRevision").value(3))
+                .andReturn()
+                .response.contentAsString
+        assertThat(response).doesNotContain("commandId", "authorityEvidenceId", "assignedAt")
+    }
+
+    @Test
+    fun `metadata survives handover and release without restoring former owner or expired authority access`() {
+        val f = fixture()
+        val c = f.command
+        priorities.assign(c)
+        retireWork(f, "handover")
+        mvc.perform(readWork(c, owned = true)).andExpect(jsonPath("$.items").isEmpty)
+        mvc
+            .perform(
+                get("/bff/v1/tenants/${c.tenantId}/human-follow-ups/${c.workItemId}/case-summary")
+                    .with(RunEscalationTestFixture.session(c.actorId)),
+            ).andExpect(status().isNotFound)
+        mvc
+            .perform(readWork(c, owned = true, actor = f.graph.incoming.value))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items[0].workItem.priority").value("HIGH"))
+            .andExpect(jsonPath("$.items[0].workItem.priorityRevision").value(1))
+        val successor =
+            requireNotNull(
+                claimRepository.findByWorkItem(
+                    TenantId(c.tenantId),
+                    HumanFollowUpWorkItemId(c.workItemId),
+                ),
+            )
+        releases.release(
+            HumanFollowUpReleaseCommand(
+                c.tenantId,
+                c.workItemId,
+                successor.claim.id.value,
+                f.graph.incoming.value,
+                3,
+            ),
+        )
+        mvc
+            .perform(readWork(c))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items[0].priority").value("HIGH"))
+            .andExpect(jsonPath("$.items[0].priorityRevision").value(1))
+        mvc
+            .perform(readWork(c, actor = f.graph.expired.value))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items").isEmpty)
+    }
+
+    @Test
+    fun `completed work discloses no active priority metadata`() {
+        val f = fixture()
+        priorities.assign(f.command)
+        retireWork(f, "completion")
+        mvc.perform(readWork(f.command)).andExpect(status().isOk).andExpect(jsonPath("$.items").isEmpty)
+        mvc
+            .perform(readWork(f.command, owned = true))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items").isEmpty)
+        assertThat(
+            claimRepository.findOwnedWorkForResolver(
+                f.graph.tenant,
+                HumanFollowUpWorkItemId(f.command.workItemId),
+                f.graph.outgoing,
+                NOW,
+            ),
+        ).isNull()
+    }
+
+    @Test
+    fun `priority updates preserve owned cursors and shared oldest first pages with tenant isolated values`() {
+        val first = fixture(work = UUID.fromString("00000000-0000-0000-0000-000000000001"))
+        val c = first.command
+        val second = fixture(first.graph.tenant, c.actorId, UUID.fromString("00000000-0000-0000-0000-000000000002"))
+        val third = fixture(first.graph.tenant, c.actorId, UUID.fromString("00000000-0000-0000-0000-000000000003"))
+        val before = claims.listOwned(c.tenantId, c.actorId, 1, null, null)
+        priorities.assign(c.copy(priority = HumanFollowUpPriority.LOW))
+        priorities.assign(second.command.copy(priority = HumanFollowUpPriority.URGENT))
+        priorities.assign(third.command)
+        val after = claims.listOwned(c.tenantId, c.actorId, 1, null, null)
+        assertThat(after.items.map { it.workItem.item.id }).isEqualTo(before.items.map { it.workItem.item.id })
+        assertThat(after.nextCursor).isEqualTo(before.nextCursor)
+        val cursor = requireNotNull(after.nextCursor)
+        val remaining = claims.listOwned(c.tenantId, c.actorId, 100, cursor.claimedAt, cursor.claimId.value)
+        assertThat(remaining.items).hasSize(2)
+        for (f in listOf(first, second, third)) retireWork(f, "release")
+        val foreign = fixture(work = c.workItemId).command
+        priorities.assign(foreign)
+        priorities.assign(
+            foreign.copy(
+                commandId = UUID.randomUUID(),
+                expectedPriorityRevision = 1,
+                priority = HumanFollowUpPriority.URGENT,
+            ),
+        )
+        mvc
+            .perform(readWork(c).param("limit", "1").param("queueKey", "access-restoration"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items[0].workItemId").value(c.workItemId.toString()))
+            .andExpect(jsonPath("$.items[0].priority").value("LOW"))
+            .andExpect(jsonPath("$.items[0].priorityRevision").value(1))
+            .andExpect(jsonPath("$.nextCursor.afterWorkItemId").value(c.workItemId.toString()))
+            .andExpect(jsonPath("$.nextCursor.afterOpenedAt").value(NOW.toString()))
+        mvc
+            .perform(
+                readWork(c)
+                    .param("limit", "1")
+                    .param("afterOpenedAt", NOW.toString())
+                    .param("afterWorkItemId", c.workItemId.toString()),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.items[0].workItemId").value(second.command.workItemId.toString()))
+            .andExpect(jsonPath("$.items[0].priority").value("URGENT"))
+        mvc
+            .perform(readWork(c).param("queueKey", "unknown-queue"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items").isEmpty)
+    }
 
     @Test
     fun `session and CSRF protect bounded immutable acknowledgement and historical replay`() {
@@ -366,9 +521,18 @@ class HumanFollowUpPriorityIntegrationTest(
         }
     }
 
-    private fun fixture(): Owned {
-        val graph = requireNotNull(transactions.execute { RunSupervisionDatabaseFixture.seed(jdbc, NOW) })
-        val work = UUID.randomUUID()
+    private fun fixture(
+        tenant: TenantId = TenantId(UUID.randomUUID()),
+        owner: UUID? = null,
+        work: UUID = UUID.randomUUID(),
+    ): Owned {
+        val graph =
+            requireNotNull(
+                transactions.execute {
+                    RunSupervisionDatabaseFixture.seed(jdbc, NOW, tenant = tenant)
+                },
+            )
+        val actor = owner ?: graph.outgoing.value
         transactions.executeWithoutResult {
             // Isolate only the upstream escalation source; claim and priority constraints stay enabled.
             jdbc.sql("SET LOCAL session_replication_role = replica").update()
@@ -387,12 +551,12 @@ class HumanFollowUpPriorityIntegrationTest(
                 .update()
             jdbc.sql("SET LOCAL session_replication_role = origin").update()
         }
-        val claim = claims.claim(graph.tenant.value, work, graph.outgoing.value).storedClaim.claim
+        val claim = claims.claim(graph.tenant.value, work, actor).storedClaim.claim
         return Owned(
             HumanFollowUpPriorityCommand(
                 graph.tenant.value,
                 work,
-                graph.outgoing.value,
+                actor,
                 UUID.randomUUID(),
                 claim.id.value,
                 1,
@@ -416,6 +580,13 @@ class HumanFollowUpPriorityIntegrationTest(
 
     private fun path(c: HumanFollowUpPriorityCommand) =
         "/bff/v1/tenants/${c.tenantId}/human-follow-ups/${c.workItemId}/priority-assignments"
+
+    private fun readWork(
+        c: HumanFollowUpPriorityCommand,
+        owned: Boolean = false,
+        actor: UUID = c.actorId,
+    ) = get("/bff/v1/tenants/${c.tenantId}/human-follow-ups" + if (owned) "/owned" else "")
+        .with(RunEscalationTestFixture.session(actor))
 
     private fun body(c: HumanFollowUpPriorityCommand) =
         """{"commandId":"${c.commandId}","claimId":"${c.claimId}",

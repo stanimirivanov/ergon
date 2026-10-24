@@ -49,6 +49,8 @@ data class BrowserResolverFollowUpSummaryResponse(
     val escalationReason: String,
     val openedAt: Instant,
     val claimedAt: Instant,
+    val priority: String,
+    val priorityRevision: Long,
 )
 
 /** Current case header and exact contract revision used to interpret its evidence. */
@@ -199,6 +201,8 @@ private fun ResolverFollowUpCaseSummary.toFollowUpResponse(): BrowserResolverFol
         escalationReason = item.reason.name,
         openedAt = item.openedAt,
         claimedAt = ownedWork.claim.claim.claimedAt,
+        priority = ownedWork.priority.priority.name,
+        priorityRevision = ownedWork.priority.revision.value,
     )
 }
 

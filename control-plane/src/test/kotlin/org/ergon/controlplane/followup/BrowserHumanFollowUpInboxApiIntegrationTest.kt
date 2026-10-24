@@ -11,6 +11,9 @@ import org.ergon.controlplane.followup.application.InvalidHumanFollowUpWorkItemP
 import org.ergon.controlplane.followup.application.StoredHumanFollowUpWorkItem
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
 import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
+import org.ergon.followup.domain.HumanFollowUpPriority
+import org.ergon.followup.domain.HumanFollowUpPriorityRevision
+import org.ergon.followup.domain.HumanFollowUpPrioritySnapshot
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
@@ -45,6 +48,7 @@ import java.util.UUID
 @SpringBootTest(
     properties = [
         "ergon.security.browser-session.enabled=true",
+        "ergon.follow-up.priority-enabled=false",
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://identity.example.test",
         "ergon.security.human-jwt.identity-provider=workforce-sso",
     ],
@@ -80,6 +84,10 @@ class BrowserHumanFollowUpInboxApiIntegrationTest(
                         AvailableHumanFollowUpWork(
                             StoredHumanFollowUpWorkItem(workItem, RECORDED_AT),
                             HumanFollowUpOwnershipRevision(2),
+                            HumanFollowUpPrioritySnapshot(
+                                HumanFollowUpPriority.URGENT,
+                                HumanFollowUpPriorityRevision(7),
+                            ),
                         ),
                     ),
                     HumanFollowUpWorkItemCursor(workItem.openedAt, workItem.id),
@@ -101,6 +109,8 @@ class BrowserHumanFollowUpInboxApiIntegrationTest(
             .andExpect(jsonPath("$.items[0].queueKey").value("access-restoration"))
             .andExpect(jsonPath("$.items[0].status").value("OPEN"))
             .andExpect(jsonPath("$.items[0].ownershipRevision").value(2))
+            .andExpect(jsonPath("$.items[0].priority").value("URGENT"))
+            .andExpect(jsonPath("$.items[0].priorityRevision").value(7))
             .andExpect(jsonPath("$.items[0].recordedAt").value(RECORDED_AT.toString()))
             .andExpect(jsonPath("$.nextCursor.afterOpenedAt").value(workItem.openedAt.toString()))
             .andExpect(jsonPath("$.nextCursor.afterWorkItemId").value(workItem.id.value.toString()))

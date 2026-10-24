@@ -32,6 +32,9 @@ import org.ergon.controlplane.resolution.application.StoredResolutionRunStart
 import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
 import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
+import org.ergon.followup.domain.HumanFollowUpPriority
+import org.ergon.followup.domain.HumanFollowUpPriorityRevision
+import org.ergon.followup.domain.HumanFollowUpPrioritySnapshot
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
@@ -97,6 +100,7 @@ import java.util.UUID
 @SpringBootTest(
     properties = [
         "ergon.security.browser-session.enabled=true",
+        "ergon.follow-up.priority-enabled=false",
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://identity.example.test",
         "ergon.security.human-jwt.identity-provider=workforce-sso",
     ],
@@ -111,6 +115,32 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
 ) {
     @MockitoBean
     private lateinit var summaries: ResolverFollowUpCaseSummaryService
+
+    @Test
+    fun `summary projects priority metadata while commands are disabled without disclosing assignment audit`() {
+        val tenant = UUID.randomUUID()
+        val actor = registerActor(tenant)
+        val prior = summary(actor)
+        Mockito.`when`(summaries.get(tenant, WORK_ITEM_ID.value, actor)).thenReturn(
+            prior.copy(
+                ownedWork =
+                    prior.ownedWork.copy(
+                        priority =
+                            HumanFollowUpPrioritySnapshot(
+                                HumanFollowUpPriority.LOW,
+                                HumanFollowUpPriorityRevision(3),
+                            ),
+                    ),
+            ),
+        )
+        mockMvc
+            .perform(get(SUMMARY_PATH, tenant, WORK_ITEM_ID.value).with(verifiedSession()))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.followUp.priority").value("LOW"))
+            .andExpect(jsonPath("$.followUp.priorityRevision").value(3))
+            .andExpect(jsonPath("$.followUp.commandId").doesNotExist())
+            .andExpect(jsonPath("$.followUp.authorityEvidenceId").doesNotExist())
+    }
 
     @Test
     fun `returns case evidence and run context without private attribution`() {
@@ -128,6 +158,8 @@ class BrowserResolverFollowUpCaseSummaryApiIntegrationTest(
             .andExpect(jsonPath("$.followUp.workItemId").value(WORK_ITEM_ID.value.toString()))
             .andExpect(jsonPath("$.followUp.queueKey").value("access-restoration"))
             .andExpect(jsonPath("$.followUp.escalationReason").value("RETRY_ATTEMPT_LIMIT_REACHED"))
+            .andExpect(jsonPath("$.followUp.priority").value("NORMAL"))
+            .andExpect(jsonPath("$.followUp.priorityRevision").value(0))
             .andExpect(jsonPath("$.case.caseId").value(CASE_ID.value.toString()))
             .andExpect(jsonPath("$.case.goal").value("Restore workspace access"))
             .andExpect(jsonPath("$.case.resolutionContract.key").value("restore-workspace-access"))

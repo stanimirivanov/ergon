@@ -1,6 +1,7 @@
 package org.ergon.controlplane.followup.application
 
 import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
+import org.ergon.followup.domain.HumanFollowUpPrioritySnapshot
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpWorkItem
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
@@ -17,10 +18,11 @@ data class StoredHumanFollowUpWorkItem(
     val recordedAt: Instant,
 )
 
-/** Available work and the current revision a new claim command must compare. */
+/** Available work, its claim fence and current priority metadata; priority never changes inbox ordering. */
 data class AvailableHumanFollowUpWork(
     val workItem: StoredHumanFollowUpWorkItem,
     val ownershipRevision: HumanFollowUpOwnershipRevision,
+    val priority: HumanFollowUpPrioritySnapshot = HumanFollowUpPrioritySnapshot(),
 )
 
 /** Stable keyset position in the oldest-first human follow-up inbox. */
@@ -80,6 +82,7 @@ interface HumanFollowUpWorkItemRepository {
      * Implementations must break equal opening times by work-item identity and
      * return no rows when the actor lacks current tenant-wide resolver evidence
      * at the query instant.
+     * Priority is the latest assignment at the same query snapshot; NORMAL/0 means none exists.
      */
     fun listOpenForResolver(criteria: HumanFollowUpInboxCriteria): List<AvailableHumanFollowUpWork>
 }

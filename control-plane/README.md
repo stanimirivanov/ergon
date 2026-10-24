@@ -61,11 +61,11 @@ and inbound/outbound adapters while `domain-kernel` remains framework-free.
 
 ## Runtime
 
-M05-PR13b adds a separately default-off session/CSRF priority-assignment command
-with exact current-owner recovery over PR13a's independent-revision audit table.
-PR13c current-read projections and PR14 UI/guide must deploy before enablement.
-Existing oldest-first queues and
-payloads remain unchanged; see
+M05-PR13c adds current `priority`/`priorityRevision` to browser shared/owned work
+and owned case summaries, including while commands are disabled. No assignment
+means NORMAL/0; immutable opening/internal retrieval payloads and oldest-first
+queue/cursor semantics are unchanged. Deploy the existing priority schema first
+and compatible PR14 UI/guide before command enablement; see
 [priority foundation](../docs/human-follow-up.md#priority-foundation).
 
 The application requires PostgreSQL. Flyway owns schema creation and evolution.

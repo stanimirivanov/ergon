@@ -12,6 +12,9 @@ import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
 import org.ergon.followup.domain.HumanFollowUpClaim
 import org.ergon.followup.domain.HumanFollowUpClaimId
 import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
+import org.ergon.followup.domain.HumanFollowUpPriority
+import org.ergon.followup.domain.HumanFollowUpPriorityRevision
+import org.ergon.followup.domain.HumanFollowUpPrioritySnapshot
 import org.ergon.followup.domain.HumanFollowUpQueueKey
 import org.ergon.followup.domain.HumanFollowUpSource
 import org.ergon.followup.domain.HumanFollowUpWorkItem
@@ -51,6 +54,7 @@ import java.util.UUID
 @SpringBootTest(
     properties = [
         "ergon.security.browser-session.enabled=true",
+        "ergon.follow-up.priority-enabled=false",
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://identity.example.test",
         "ergon.security.human-jwt.identity-provider=workforce-sso",
     ],
@@ -68,7 +72,10 @@ class BrowserResolverOwnedHumanFollowUpApiIntegrationTest(
     fun `returns owned work without provider identity or authority attribution`() {
         val tenantId = UUID.randomUUID()
         val actorId = registerActor(tenantId)
-        val owned = ownedWork(actorId)
+        val owned =
+            ownedWork(actorId).copy(
+                priority = HumanFollowUpPrioritySnapshot(HumanFollowUpPriority.HIGH, HumanFollowUpPriorityRevision(2)),
+            )
         Mockito
             .`when`(claims.listOwned(tenantId, actorId, 25, CURSOR_AT, CURSOR_CLAIM_ID))
             .thenReturn(
@@ -95,6 +102,8 @@ class BrowserResolverOwnedHumanFollowUpApiIntegrationTest(
             ).andExpect(jsonPath("$.items[0].workItem.queueKey").value("access-restoration"))
             .andExpect(jsonPath("$.items[0].workItem.status").value("OPEN"))
             .andExpect(jsonPath("$.items[0].workItem.ownershipRevision").value(1))
+            .andExpect(jsonPath("$.items[0].workItem.priority").value("HIGH"))
+            .andExpect(jsonPath("$.items[0].workItem.priorityRevision").value(2))
             .andExpect(
                 jsonPath("$.items[0].claim.claimId").value(
                     owned.claim.claim.id.value

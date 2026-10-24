@@ -2,12 +2,12 @@
 
 ## TL;DR
 
-M05-PR13b adds a default-off session/CSRF priority-assignment command and exact
-current-owner acknowledgement over PR13a's immutable revisioned audit schema.
-Current tenant-wide resolver authority and exact active ownership are mandatory
-after lock waits, even for replay; historical receipts never reinstate a value.
-Browser priority projections remain PR13c, followed by PR14 UI/guide; keep the
-producer disabled until both deploy. Priority is administrative metadata
+M05-PR13c projects current priority/revision through authorized browser shared
+and owned work and owned case summaries, including while commands are disabled.
+No assignment means NORMAL/0; value/revision are read together from immutable
+history. PR13b's command still requires exact active ownership and fresh resolver
+authority, including replay. PR14 UI/guide follows; keep the producer disabled
+until compatible UI is deployed. Priority is administrative metadata
 and never changes existing queue order, ownership, risk or runtime/proof state.
 See [priority foundation](../human-follow-up.md#priority-foundation).
 
