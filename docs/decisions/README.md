@@ -134,3 +134,4 @@ benchmarks rather than duplicating them.
 | 0068 | [Isolate requester browser deployments](0068-isolate-requester-browser-deployments.md) |
 | 0069 | [Disclose requester-owned case progress](0069-disclose-requester-owned-case-progress.md) |
 | 0070 | [Record requester information requests](0070-record-requester-information-requests.md) |
+| 0071 | [Authorize requester information commands](0071-authorize-requester-information-commands.md) |

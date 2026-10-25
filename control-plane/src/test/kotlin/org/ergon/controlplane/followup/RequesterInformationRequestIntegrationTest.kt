@@ -3,9 +3,19 @@ package org.ergon.controlplane.followup
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.ergon.cases.domain.CaseId
+import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
+import org.ergon.controlplane.followup.application.HumanFollowUpReleaseCommand
+import org.ergon.controlplane.followup.application.HumanFollowUpReleaseService
+import org.ergon.controlplane.followup.application.RequesterCaseWriteGuard
 import org.ergon.controlplane.followup.application.RequesterInformationRequest
+import org.ergon.controlplane.followup.application.RequesterInformationRequestCommand
+import org.ergon.controlplane.followup.application.RequesterInformationRequestConflictException
+import org.ergon.controlplane.followup.application.RequesterInformationRequestNotFoundException
 import org.ergon.controlplane.followup.application.RequesterInformationRequestRepository
+import org.ergon.controlplane.followup.application.RequesterInformationRequestService
+import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
 import org.ergon.controlplane.resolution.RunEscalationTestFixture
 import org.ergon.controlplane.resolution.RunSupervisionDatabaseFixture
 import org.ergon.followup.domain.HumanFollowUpClaimId
@@ -20,32 +30,58 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Primary
 import org.springframework.dao.DataAccessException
+import org.springframework.http.MediaType
 import org.springframework.jdbc.core.simple.JdbcClient
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import tools.jackson.databind.ObjectMapper
 import java.sql.DriverManager
 import java.time.Clock
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 
-@SpringBootTest
+@SpringBootTest(
+    properties = [
+        "ergon.security.browser-session.enabled=true", "ergon.follow-up.release-enabled=true",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://identity.example.test",
+        "ergon.security.human-jwt.identity-provider=workforce-sso",
+    ],
+)
+@AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
-@Import(InformationRequestClockConfiguration::class)
+@Import(InformationRequestClockConfiguration::class, BrowserSessionTestClientConfiguration::class)
+// Real ownership, database transactions and HTTP security are independent verification boundaries.
+@Suppress("LongParameterList")
 class RequesterInformationRequestIntegrationTest(
     @Autowired private val jdbc: JdbcClient,
     @Autowired private val claims: HumanFollowUpClaimService,
     @Autowired private val requests: RequesterInformationRequestRepository,
+    @Autowired private val service: RequesterInformationRequestService,
+    @Autowired private val releases: HumanFollowUpReleaseService,
+    @Autowired private val claimRepository: HumanFollowUpClaimRepository,
+    @Autowired private val guard: RequesterCaseWriteGuard,
+    @Autowired private val transactions: TransactionRunner,
+    @Autowired private val mvc: MockMvc,
+    @Autowired private val mapper: ObjectMapper,
     @Autowired manager: PlatformTransactionManager,
 ) {
     private val template = TransactionTemplate(manager)
@@ -194,6 +230,160 @@ class RequesterInformationRequestIntegrationTest(
         }
     }
 
+    @Test
+    fun `session CSRF and current owner gates protect exact immutable browser receipts`() {
+        val command = command()
+        mvc
+            .perform(post(path(command)).contentType(MediaType.APPLICATION_JSON).content(body(command)))
+            .andExpect(status().isUnauthorized)
+        mvc
+            .perform(
+                post(path(command))
+                    .with(RunEscalationTestFixture.session(command.actorId))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body(command)),
+            ).andExpect(status().isForbidden)
+        val created = send(command, 201)
+        assertThat(send(command, 200)).isEqualTo(created)
+        val receipt = mapper.readTree(created)
+        assertThat(receipt["authorActorId"].asString()).isEqualTo(command.actorId.toString())
+        assertThat(receipt["question"].asString()).isEqualTo(command.question)
+        assertThat(created).doesNotContain("subject", "requesterActorId", "authorityEvidenceId", "sourceReference")
+        send(command.copy(question = "changed"), 409)
+        send(command.copy(expectedOwnershipRevision = 2), 409)
+        send(command.copy(expectedOwnershipRevision = 0), 400)
+        send(command.copy(question = "\u00A0"), 400)
+        assertThat(count(command)).isEqualTo(1)
+        val otherWork = command(tenant = TenantId(command.tenantId)).copy(requestId = command.requestId)
+        send(otherWork, 409)
+        assertThat(count(command)).isEqualTo(1)
+    }
+
+    @Test
+    fun `hidden work unbound and closed cases share a non disclosing failure even on replay`() {
+        val command = command()
+        val unbound = command(bound = false)
+        val otherActor =
+            jdbc
+                .sql("SELECT actor_id FROM human_actors WHERE tenant_id = :tenant AND actor_id <> :actor LIMIT 1")
+                .param("tenant", command.tenantId)
+                .param("actor", command.actorId)
+                .query(UUID::class.java)
+                .single()
+        val hidden = command.copy(actorId = otherActor)
+        val failures =
+            listOf(command.copy(workItemId = UUID.randomUUID()), unbound, hidden)
+                .map { mapper.readTree(send(it, 404)) }
+        assertThat(failures.map { listOf(it["type"], it["detail"]) }.distinct()).hasSize(1)
+        send(command, 201)
+        jdbc
+            .sql("UPDATE cases SET status = 'VERIFIED_RESOLVED' WHERE tenant_id = :tenant")
+            .param("tenant", command.tenantId)
+            .update()
+        assertThatThrownBy { service.record(command) }
+            .isInstanceOf(RequesterInformationRequestNotFoundException::class.java)
+        assertThat(count(unbound)).isZero()
+    }
+
+    @Test
+    fun `concurrent exact requests record once while competing text conflicts without merging`() {
+        val command = command()
+        val exact = RunEscalationTestFixture.together({ service.record(command) }, { service.record(command) })
+        assertThat(exact.count { it.created }).isEqualTo(1)
+        assertThat(exact.map { it.stored }.distinct()).hasSize(1)
+        val fresh = command.copy(requestId = UUID.randomUUID())
+        val different =
+            RunEscalationTestFixture.together(
+                { runCatching { service.record(fresh) } },
+                { runCatching { service.record(fresh.copy(question = "different intent")) } },
+            )
+        assertThat(different.count { it.isSuccess }).isEqualTo(1)
+        assertThat(different.single { it.isFailure }.exceptionOrNull())
+            .isInstanceOf(RequesterInformationRequestConflictException::class.java)
+        assertThat(count(command)).isEqualTo(2)
+    }
+
+    @Test
+    fun `release serializes with recording and prevents later receipt recovery`() {
+        val command = command()
+        val outcomes =
+            RunEscalationTestFixture.together(
+                { runCatching { service.record(command) } },
+                {
+                    runCatching {
+                        releases.release(
+                            HumanFollowUpReleaseCommand(
+                                command.tenantId,
+                                command.workItemId,
+                                command.claimId,
+                                command.actorId,
+                                1,
+                            ),
+                        )
+                    }
+                },
+            )
+        assertThat(outcomes[1].isSuccess).isTrue()
+        outcomes[0].exceptionOrNull()?.let {
+            assertThat(it).isInstanceOf(RequesterInformationRequestNotFoundException::class.java)
+        }
+        assertThatThrownBy { service.record(command) }
+            .isInstanceOf(RequesterInformationRequestNotFoundException::class.java)
+    }
+
+    @Test
+    fun `authority expiry during case or identity waits rolls back before acknowledgement`() {
+        for (waitAtCase in listOf(true, false)) {
+            val command = command()
+            val time = AtomicReference(NOW)
+            val clock =
+                object : Clock() {
+                    override fun instant(): Instant = time.get()
+
+                    override fun getZone(): ZoneId = ZoneOffset.UTC
+
+                    override fun withZone(zone: ZoneId): Clock = error("unused by command")
+                }
+            val delayedCase =
+                RequesterCaseWriteGuard { tenant, case ->
+                    guard.lockOpenBoundCase(tenant, case).also {
+                        if (waitAtCase) time.set(NOW.plusSeconds(3601))
+                    }
+                }
+            val delayedStorage =
+                RequesterInformationRequestRepository { tenant, request ->
+                    requests.record(tenant, request).also { time.set(NOW.plusSeconds(3601)) }
+                }
+            val delayed =
+                RequesterInformationRequestService(
+                    claimRepository,
+                    delayedCase,
+                    delayedStorage,
+                    transactions,
+                    clock,
+                )
+            assertThatThrownBy { delayed.record(command) }
+                .isInstanceOf(RequesterInformationRequestNotFoundException::class.java)
+            assertThat(count(command)).isZero()
+        }
+    }
+
+    private fun command(
+        bound: Boolean = true,
+        tenant: TenantId = TenantId(UUID.randomUUID()),
+    ): RequesterInformationRequestCommand {
+        val (_, request) = fixture(bound, tenant)
+        return RequesterInformationRequestCommand(
+            tenant.value,
+            request.workItemId.value,
+            request.authorActorId.value,
+            request.requestId.value,
+            request.claimId.value,
+            request.ownershipRevision.value,
+            request.question.value,
+        )
+    }
+
     private fun fixture(
         bound: Boolean = true,
         tenant: TenantId = TenantId(UUID.randomUUID()),
@@ -255,6 +445,42 @@ class RequesterInformationRequestIntegrationTest(
         tenant: TenantId,
         request: RequesterInformationRequest,
     ) = requireNotNull(template.execute { requests.record(tenant, request) })
+
+    private fun path(command: RequesterInformationRequestCommand) =
+        "/bff/v1/tenants/${command.tenantId}/human-follow-ups/${command.workItemId}/information-requests"
+
+    private fun body(command: RequesterInformationRequestCommand) =
+        mapper.writeValueAsString(
+            mapOf(
+                "requestId" to command.requestId,
+                "claimId" to command.claimId,
+                "expectedOwnershipRevision" to command.expectedOwnershipRevision,
+                "question" to command.question,
+            ),
+        )
+
+    private fun send(
+        command: RequesterInformationRequestCommand,
+        expectedStatus: Int,
+    ): String =
+        mvc
+            .perform(
+                post(path(command))
+                    .with(RunEscalationTestFixture.session(command.actorId))
+                    .with(csrf().asHeader())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body(command)),
+            ).andExpect(status().`is`(expectedStatus))
+            .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
+            .andReturn()
+            .response.contentAsString
+
+    private fun count(command: RequesterInformationRequestCommand) =
+        jdbc
+            .sql("SELECT COUNT(*) FROM requester_information_requests WHERE tenant_id = :tenant")
+            .param("tenant", command.tenantId)
+            .query(Long::class.java)
+            .single()
 
     companion object {
         val NOW: Instant = Instant.parse("2026-10-25T14:00:00Z")
