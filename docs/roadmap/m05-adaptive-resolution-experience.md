@@ -59,7 +59,7 @@ refactors remain separate from new business behavior.
 | [M05-PR13](https://github.com/stanimirivanov/ergon/issues/193) | Ergon | Revisioned priority, unchanged queue order (PR13a/b/c) | PR9, PR11a | G4–G6 |
 | M05-PR14 | ergon-ui | Priority display and owner changes | PR6, PR13 | G7 |
 | [M05-PR15](https://github.com/stanimirivanov/ergon/issues/199) | Ergon | Separate requester browser boundary (M03 prerequisite) | PR1 | G1 |
-| M05-PR16 | Ergon | Requester-scoped case progress | PR15 | G2 |
+| [M05-PR16](https://github.com/stanimirivanov/ergon/issues/201) | Ergon | Requester-scoped case progress | PR15 | G2 |
 | M05-PR17 | ergon-ui | First usable authenticated requester app | PR2, PR16 | G3 |
 | M05-PR18 | ergon-ui | Complete bounded requester canvas | PR17 | G4 |
 | M05-PR19 | Ergon | Attributable requester-information requests | PR7, PR16 | G3 |

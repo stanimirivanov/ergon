@@ -1,5 +1,6 @@
 package org.ergon.controlplane.identity.adapter.inbound.http
 
+import org.ergon.controlplane.cases.adapter.inbound.http.RequesterCaseProgressController
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidAuthenticatedHumanIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidBrowserOidcIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.UntrustedHumanIdentityIssuerException
@@ -11,7 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.net.URI
 
 /** Maps browser-session failures without disclosing cross-tenant identity bindings. */
-@RestControllerAdvice(assignableTypes = [BrowserSessionController::class])
+@RestControllerAdvice(assignableTypes = [BrowserSessionController::class, RequesterCaseProgressController::class])
 class BrowserSessionExceptionHandler {
     @ExceptionHandler(AuthenticatedHumanActorNotRegisteredException::class)
     fun actorNotRegistered(exception: AuthenticatedHumanActorNotRegisteredException): ProblemDetail =

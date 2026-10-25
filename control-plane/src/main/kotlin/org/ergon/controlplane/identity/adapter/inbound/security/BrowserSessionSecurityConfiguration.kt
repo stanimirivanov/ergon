@@ -102,12 +102,19 @@ class BrowserSessionSecurityConfiguration(
                     ).permitAll()
                 it.requestMatchers("/oauth2/**", "/login/oauth2/**").denyAll()
                 if (audience == BrowserSessionAudience.REQUESTER) {
-                    it.requestMatchers(HttpMethod.GET, "/bff/v1/csrf", "/bff/v1/tenants/*/session").access { auth, _ ->
-                        val token = auth.get() as? OAuth2AuthenticationToken
-                        AuthorizationDecision(token?.authorizedClientRegistrationId == audience.registrationId)
-                    }
+                    it
+                        .requestMatchers(
+                            HttpMethod.GET,
+                            "/bff/v1/csrf",
+                            "/bff/v1/tenants/*/session",
+                            "/bff/v1/tenants/*/requester-cases/*/progress",
+                        ).access { auth, _ ->
+                            val token = auth.get() as? OAuth2AuthenticationToken
+                            AuthorizationDecision(token?.authorizedClientRegistrationId == audience.registrationId)
+                        }
                     it.anyRequest().denyAll()
                 } else {
+                    it.requestMatchers("/bff/v1/tenants/*/requester-cases/**").denyAll()
                     it.anyRequest().authenticated()
                 }
             }.requestCache {

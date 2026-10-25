@@ -49,6 +49,16 @@ class BrowserSessionApiIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
 ) {
     @Test
+    fun `workbench sessions cannot read requester progress`() {
+        val path = "/bff/v1/tenants/{tenantId}/requester-cases/{caseId}/progress"
+        mockMvc
+            .perform(
+                get(path, UUID.randomUUID(), UUID.randomUUID())
+                    .with(oidcLogin()),
+            ).andExpect(status().isForbidden)
+    }
+
+    @Test
     fun `resolves a verified OIDC session without disclosing tokens or subject`() {
         val tenantId = UUID.randomUUID()
         val actorId = registerActor(tenantId)
