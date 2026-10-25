@@ -2,8 +2,8 @@
 
 ## TL;DR
 
-M05-PR19b adds the authenticated current-owner information-request POST and exact
-recovery over PR19a storage. Protected reads (PR19c), then UI/guide follow.
+M05-PR19c adds bounded current-owner question history and requester-safe case
+questions over PR19a/b storage and commands. UI/guide follow backend review/merge.
 Questions remain untrusted text, not delivery, evidence or approval.
 See [requester information requests](../requester-information-requests.md).
 

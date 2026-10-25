@@ -18,7 +18,8 @@ Goal text is untrusted; consumers must render it as text.
 No source observations, connector references, internal notes, owner IDs, contract,
 run, approval or proof payload is returned. Reads do not mutate or acquire anything.
 There is no collection/list endpoint: callers need an explicitly supplied case
-link. Intake, information requests/responses and discovery are not implemented here.
+link. [Question history](requester-information-requests.md#protected-history) is a
+separate narrow read, not part of progress. Intake, responses and discovery are deferred.
 
 Missing, unbound, foreign-owned and cross-tenant cases return the same
 `404 urn:ergon:problem:requester-case-not-found` type/title/detail. Standard

@@ -1,10 +1,12 @@
 package org.ergon.controlplane.followup.adapter.inbound.http
 
 import org.ergon.controlplane.followup.application.InvalidRequesterInformationRequestException
+import org.ergon.controlplane.followup.application.OwnedInformationRequestsService
 import org.ergon.controlplane.followup.application.RequesterInformationRequestCommand
 import org.ergon.controlplane.followup.application.RequesterInformationRequestConflictException
 import org.ergon.controlplane.followup.application.RequesterInformationRequestNotFoundException
 import org.ergon.controlplane.followup.application.RequesterInformationRequestService
+import org.ergon.controlplane.followup.application.StoredRequesterInformationRequest
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.followup.domain.InvalidRequesterInformationQuestionException
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -14,6 +16,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.core.oidc.user.OidcUser
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -23,14 +26,33 @@ import java.net.URI
 import java.time.Instant
 import java.util.UUID
 
-/** Session-derived authorship; existing BFF filters enforce CSRF and no-store. No GET is exposed here. */
+/** Session-derived identity; existing BFF filters enforce command CSRF and no-store for both methods. */
 @RestController
 @RequestMapping("/bff/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/information-requests")
 @ConditionalOnProperty(prefix = "ergon.security.browser-session", name = ["enabled"], havingValue = "true")
 class BrowserRequesterInformationRequestController(
     private val actors: AuthenticatedHumanActorResolver,
     private val requests: RequesterInformationRequestService,
+    private val history: OwnedInformationRequestsService,
 ) {
+    /** Bounded history, including predecessor authors; access is evaluated anew, never from a retained receipt. */
+    @GetMapping
+    fun list(
+        @PathVariable tenantId: UUID,
+        @PathVariable workItemId: UUID,
+        @AuthenticationPrincipal principal: OidcUser,
+    ): BrowserOwnedInformationRequests {
+        val page =
+            history.list(
+                tenantId,
+                workItemId,
+                actors
+                    .resolve(tenantId, principal)
+                    .actor.id.value,
+            )
+        return BrowserOwnedInformationRequests(page.items.map { it.toReceipt() }, page.truncated)
+    }
+
     /** First write returns 201; exact currently authorized recovery returns the immutable 200 receipt. */
     @PostMapping
     fun record(
@@ -55,20 +77,9 @@ class BrowserRequesterInformationRequestController(
                     request.question,
                 ),
             )
-        val stored = result.stored
-        val value = stored.request
-        return ResponseEntity.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK).body(
-            BrowserRequesterInformationRequestReceipt(
-                value.requestId.value,
-                value.caseId.value,
-                value.claimId.value,
-                value.ownershipRevision.value,
-                value.authorActorId.value,
-                value.question.value,
-                value.requestedAt,
-                stored.recordedAt,
-            ),
-        )
+        return ResponseEntity
+            .status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
+            .body(result.stored.toReceipt())
     }
 
     @ExceptionHandler(
@@ -117,3 +128,20 @@ data class BrowserRequesterInformationRequestReceipt(
     val requestedAt: Instant,
     val recordedAt: Instant,
 )
+
+data class BrowserOwnedInformationRequests(
+    val items: List<BrowserRequesterInformationRequestReceipt>,
+    val truncated: Boolean,
+)
+
+private fun StoredRequesterInformationRequest.toReceipt(): BrowserRequesterInformationRequestReceipt =
+    BrowserRequesterInformationRequestReceipt(
+        request.requestId.value,
+        request.caseId.value,
+        request.claimId.value,
+        request.ownershipRevision.value,
+        request.authorActorId.value,
+        request.question.value,
+        request.requestedAt,
+        recordedAt,
+    )

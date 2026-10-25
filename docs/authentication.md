@@ -31,7 +31,9 @@ SameSite=Lax and no Domain. OIDC secrets and provider tokens remain server-side.
 
 The explicit requester-owned [case progress](requester-case-progress.md) GET is
 also allowed; it requires a separate durable case/requester binding, not approval
-evidence. Its DTO has no private observations or runtime details.
+evidence. Its DTO has no private observations or runtime details. The separately
+allowlisted [question history](requester-information-requests.md#protected-history)
+GET uses that same binding and only requester-safe question fields.
 
 Only those GET routes are allowed. Resolver, bearer, internal, generated login,
 implicit logout and all unspecified routes are denied even to authenticated

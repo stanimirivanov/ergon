@@ -135,10 +135,11 @@ restart the predecessor project so it reattaches its preserved volume. See
 
 ## Interfaces and limitations
 
-M05-PR19b adds current-owner requester-question creation and exact recovery over
-PR19a storage, with session/CSRF and an OPEN explicitly bound case gate.
-Protected reads (PR19c), then UI/guide follow separately; recording is not
-delivery. See [requester information requests](../docs/requester-information-requests.md).
+M05-PR19c adds bounded current-owner question history and requester-safe questions
+over PR19a/b storage and commands. Resolver history requires active owned work,
+fresh authority and an OPEN bound case; requester history requires explicit case
+ownership and survives closure. UI/guide follow separately; neither recording nor
+reading means delivery. See [requester information requests](../docs/requester-information-requests.md).
 
 Administrative follow-up completion has a separate default-off browser command.
 Deploy V20261023195734 and all compatible readers/writers before enabling it

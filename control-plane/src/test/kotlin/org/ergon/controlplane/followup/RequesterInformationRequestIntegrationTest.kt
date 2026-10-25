@@ -4,10 +4,13 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.ergon.cases.domain.CaseId
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommand
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
 import org.ergon.controlplane.followup.application.HumanFollowUpReleaseCommand
 import org.ergon.controlplane.followup.application.HumanFollowUpReleaseService
+import org.ergon.controlplane.followup.application.OwnedInformationRequestsReader
+import org.ergon.controlplane.followup.application.OwnedInformationRequestsService
 import org.ergon.controlplane.followup.application.RequesterCaseWriteGuard
 import org.ergon.controlplane.followup.application.RequesterInformationRequest
 import org.ergon.controlplane.followup.application.RequesterInformationRequestCommand
@@ -41,6 +44,7 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
@@ -79,12 +83,107 @@ class RequesterInformationRequestIntegrationTest(
     @Autowired private val releases: HumanFollowUpReleaseService,
     @Autowired private val claimRepository: HumanFollowUpClaimRepository,
     @Autowired private val guard: RequesterCaseWriteGuard,
+    @Autowired private val history: OwnedInformationRequestsService,
+    @Autowired private val historyReader: OwnedInformationRequestsReader,
     @Autowired private val transactions: TransactionRunner,
     @Autowired private val mvc: MockMvc,
     @Autowired private val mapper: ObjectMapper,
     @Autowired manager: PlatformTransactionManager,
 ) {
     private val template = TransactionTemplate(manager)
+
+    @Test
+    fun `owner history stays bounded across authors and is withdrawn after release or case closure`() {
+        val command = command()
+        val receipt = service.record(command).stored
+        mvc.perform(get(path(command))).andExpect(status().isUnauthorized)
+        val json =
+            mapper.readTree(
+                mvc
+                    .perform(get(path(command)).with(RunEscalationTestFixture.session(command.actorId)))
+                    .andExpect(status().isOk)
+                    .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
+                    .andReturn()
+                    .response.contentAsString,
+            )
+        assertThat(json["items"][0]["requestId"].asText()).isEqualTo(command.requestId.toString())
+        assertThat(json["truncated"].asBoolean()).isFalse()
+        releases.release(
+            HumanFollowUpReleaseCommand(command.tenantId, command.workItemId, command.claimId, command.actorId, 1),
+        )
+        mvc
+            .perform(get(path(command)).with(RunEscalationTestFixture.session(command.actorId)))
+            .andExpect(status().isNotFound)
+        val nextActor =
+            jdbc
+                .sql("SELECT requester_actor_id FROM case_requesters WHERE tenant_id = :tenant")
+                .param("tenant", command.tenantId)
+                .query(UUID::class.java)
+                .single()
+        val successor = claimAfterRelease(command, nextActor)
+        assertThat(successor.storedClaim.claim.id.value).isNotEqualTo(command.claimId)
+        assertThat(history.list(command.tenantId, command.workItemId, nextActor).items).containsExactly(receipt)
+        for ((tenant, work, actor) in listOf(
+            Triple(command.tenantId, command.workItemId, command.actorId),
+            Triple(UUID.randomUUID(), command.workItemId, nextActor),
+            Triple(command.tenantId, UUID.randomUUID(), nextActor),
+        )) {
+            assertThatThrownBy { history.list(tenant, work, actor) }
+                .isInstanceOf(RequesterInformationRequestNotFoundException::class.java)
+        }
+        jdbc
+            .sql("UPDATE cases SET status = 'VERIFIED_RESOLVED' WHERE tenant_id = :tenant")
+            .param("tenant", command.tenantId)
+            .update()
+        mvc
+            .perform(get(path(command)).with(RunEscalationTestFixture.session(nextActor)))
+            .andExpect(status().isNotFound)
+        val unbound = command(bound = false)
+        mvc
+            .perform(get(path(unbound)).with(RunEscalationTestFixture.session(unbound.actorId)))
+            .andExpect(status().isNotFound)
+        val requesterPath = "/bff/v1/tenants/${command.tenantId}/requester-cases/${receipt.request.caseId.value}"
+        mvc
+            .perform(
+                get("$requesterPath/information-requests")
+                    .with(RunEscalationTestFixture.session(command.actorId)),
+            ).andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `owner authority is rechecked after case and history waits before disclosure`() {
+        for (atCase in listOf(true, false)) {
+            val command = command()
+            service.record(command)
+            val time = AtomicReference(NOW)
+            val clock =
+                object : Clock() {
+                    override fun instant(): Instant = time.get()
+
+                    override fun getZone(): ZoneId = ZoneOffset.UTC
+
+                    override fun withZone(zone: ZoneId): Clock = error("unused by read")
+                }
+            val delayedCase =
+                RequesterCaseWriteGuard { tenant, case ->
+                    guard.lockOpenBoundCase(tenant, case).also { if (atCase) time.set(NOW.plusSeconds(3601)) }
+                }
+            val delayedHistory =
+                OwnedInformationRequestsReader { tenant, work, limit ->
+                    historyReader.latest(tenant, work, limit).also { time.set(NOW.plusSeconds(3601)) }
+                }
+            val reader =
+                OwnedInformationRequestsService(
+                    claimRepository,
+                    delayedCase,
+                    delayedHistory,
+                    transactions,
+                    clock,
+                )
+            assertThatThrownBy { reader.list(command.tenantId, command.workItemId, command.actorId) }
+                .isInstanceOf(RequesterInformationRequestNotFoundException::class.java)
+        }
+    }
 
     @Test
     fun `first write and replay use database attribution without merging competing intent`() {
@@ -367,6 +466,15 @@ class RequesterInformationRequestIntegrationTest(
             assertThat(count(command)).isZero()
         }
     }
+
+    // Later ownership cycles require a revision-checked command, never legacy claim replay.
+    private fun claimAfterRelease(
+        command: RequesterInformationRequestCommand,
+        actor: UUID,
+    ) = claims
+        .claimWithCommand(
+            HumanFollowUpClaimCommand(command.tenantId, command.workItemId, actor, UUID.randomUUID(), 2),
+        ).receipt
 
     private fun command(
         bound: Boolean = true,
