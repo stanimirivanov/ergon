@@ -60,8 +60,7 @@ class RequesterInformationRequestService(
      * @throws InvalidRequesterInformationRequestException for nonpositive expected revision.
      * @throws org.ergon.followup.domain.InvalidRequesterInformationQuestionException for invalid question text.
      */
-    // Authority, target, fencing and intent have distinct safe failures; keep their gates explicit.
-    @Suppress("ThrowsCount")
+    @Suppress("ThrowsCount") // Authority, target, fencing and intent retain distinct safe failures.
     fun record(command: RequesterInformationRequestCommand): RequesterInformationRequestRecording {
         if (command.expectedOwnershipRevision <= 0) throw InvalidRequesterInformationRequestException()
         val question = RequesterInformationQuestion(command.question)
