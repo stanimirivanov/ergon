@@ -27,6 +27,7 @@ links from those documents only when the task crosses another boundary.
 ## Product and architecture
 
 - [Requester case progress](requester-case-progress.md) — explicit requester ownership and narrow lifecycle disclosure.
+- [Requester information requests](requester-information-requests.md) — immutable question storage and staged command/read delivery.
 
 - [Product definition](product.md) — thesis, vocabulary, users, and non-goals.
 - [Architecture](architecture.md) — runtime shape, trust boundaries, and
