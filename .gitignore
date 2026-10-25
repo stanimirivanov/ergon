@@ -22,6 +22,7 @@ Thumbs.db
 # Logs and temporary files
 *.log
 *.tmp
+__pycache__/
 
 # detekt report output (default location when no custom output path is configured)
 detekt/
