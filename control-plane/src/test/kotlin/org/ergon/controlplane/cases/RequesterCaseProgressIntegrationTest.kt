@@ -117,12 +117,11 @@ class RequesterCaseProgressIntegrationTest(
         assertThat(page["items"][99]["requestId"].asText()).isEqualTo(UUID(0, 2).toString())
         val owned = history.list(tenant.value, work, graph.outgoing.value)
         assertThat(owned.truncated).isTrue()
-        assertThat(
-            owned.items.map {
-                it.request.requestId.value
-                    .toString()
-            },
-        ).isEqualTo(page["items"].map { it["requestId"].asText() })
+        val requesterIds =
+            (0 until page["items"].size()).map { index ->
+                UUID.fromString(page["items"][index]["requestId"].asText())
+            }
+        assertThat(owned.items.map { it.request.requestId.value }).containsExactlyElementsOf(requesterIds)
         jdbc
             .sql("UPDATE cases SET status = 'VERIFIED_RESOLVED' WHERE tenant_id = :tenant")
             .param("tenant", tenant.value)

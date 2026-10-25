@@ -4,6 +4,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.ergon.cases.domain.CaseId
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.followup.application.HumanFollowUpClaimCommand
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
 import org.ergon.controlplane.followup.application.HumanFollowUpReleaseCommand
@@ -119,7 +120,7 @@ class RequesterInformationRequestIntegrationTest(
                 .param("tenant", command.tenantId)
                 .query(UUID::class.java)
                 .single()
-        val successor = claims.claim(command.tenantId, command.workItemId, nextActor)
+        val successor = claimAfterRelease(command, nextActor)
         assertThat(successor.storedClaim.claim.id.value).isNotEqualTo(command.claimId)
         assertThat(history.list(command.tenantId, command.workItemId, nextActor).items).containsExactly(receipt)
         for ((tenant, work, actor) in listOf(
@@ -465,6 +466,15 @@ class RequesterInformationRequestIntegrationTest(
             assertThat(count(command)).isZero()
         }
     }
+
+    // Later ownership cycles require a revision-checked command, never legacy claim replay.
+    private fun claimAfterRelease(
+        command: RequesterInformationRequestCommand,
+        actor: UUID,
+    ) = claims
+        .claimWithCommand(
+            HumanFollowUpClaimCommand(command.tenantId, command.workItemId, actor, UUID.randomUUID(), 2),
+        ).receipt
 
     private fun command(
         bound: Boolean = true,
