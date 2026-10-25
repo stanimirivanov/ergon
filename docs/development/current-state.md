@@ -2,9 +2,9 @@
 
 ## TL;DR
 
-M05-PR19a supplies immutable requester-question storage and validated text values.
-There is no new browser endpoint. Authenticated creation/recovery (PR19b),
-protected reads (PR19c), then UI/guide follow separately.
+M05-PR19b adds the authenticated current-owner information-request POST and exact
+recovery over PR19a storage. Protected reads (PR19c), then UI/guide follow.
+Questions remain untrusted text, not delivery, evidence or approval.
 See [requester information requests](../requester-information-requests.md).
 
 M05-PR16 adds requester-owned case progress with explicit immutable ownership,

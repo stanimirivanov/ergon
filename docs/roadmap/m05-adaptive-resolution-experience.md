@@ -99,7 +99,7 @@ handwritten changed lines; re-slice an overrun before implementation rather than
 dropping tests. No placeholder interfaces, services or temporary stubs are planned.
 
 M05-PR19 is split into three backend PRs: PR19a establishes tested domain/storage
-foundations (G3); PR19b adds the authenticated current-owner command and exact
+foundations (G3); [PR19b](https://github.com/stanimirivanov/ergon/issues/205) adds the authenticated current-owner command and exact
 recovery (G4); PR19c adds protected owner history and requester reads (G5).
 Each depends on the previous part. Command and reads consume the storage
 foundation independently. Merge all three before PR20's composer/guide or

@@ -130,6 +130,7 @@ class RequesterBrowserSessionIntegrationTest(
         val paths =
             listOf(
                 "/bff/v1/tenants/$tenantId/human-follow-ups",
+                "/bff/v1/tenants/$tenantId/human-follow-ups/${UUID.randomUUID()}/information-requests",
                 "/internal/v1/tenants/$tenantId/human-actors",
             )
         for (path in paths) {
