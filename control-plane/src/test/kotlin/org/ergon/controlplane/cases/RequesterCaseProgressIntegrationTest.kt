@@ -4,9 +4,13 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.ergon.controlplane.cases.application.CaseCommandService
 import org.ergon.controlplane.cases.application.OpenCaseCommand
+import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
+import org.ergon.controlplane.followup.application.OwnedInformationRequestsService
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
 import org.ergon.controlplane.identity.application.AttestApprovalAuthorityCommand
 import org.ergon.controlplane.identity.application.HumanAuthorityService
+import org.ergon.controlplane.resolution.RunSupervisionDatabaseFixture
+import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthority
 import org.flywaydb.core.Flyway
 import org.hamcrest.Matchers.containsString
@@ -27,9 +31,12 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
@@ -54,6 +61,8 @@ import java.util.UUID
 @Import(BrowserSessionTestClientConfiguration::class, RequesterCaseProgressIntegrationTest.FixedClock::class)
 @Testcontainers(disabledWithoutDocker = true)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+// Both browser projections share real requester identity, transactions and ownership fixtures.
+@Suppress("LongParameterList")
 class RequesterCaseProgressIntegrationTest(
     @Autowired private val mvc: MockMvc,
     @Autowired private val cases: CaseCommandService,
@@ -61,8 +70,71 @@ class RequesterCaseProgressIntegrationTest(
     @Autowired private val jdbc: JdbcClient,
     @Autowired private val registrations: ClientRegistrationRepository,
     @Autowired private val clock: Clock,
+    @Autowired private val claims: HumanFollowUpClaimService,
+    @Autowired private val history: OwnedInformationRequestsService,
+    @Autowired manager: PlatformTransactionManager,
 ) {
     private val mapper = JsonMapper.builder().build()
+    private val transactions = TransactionTemplate(manager)
+
+    @Test
+    fun `question history is requester safe bounded deterministic and survives case closure`() {
+        val (graph, work, case) = questionWork()
+        val tenant = graph.tenant
+        val path = "/bff/v1/tenants/${tenant.value}/requester-cases/$case/information-requests"
+        mvc
+            .perform(get(path).with(login("question-reader")))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items").isEmpty)
+            .andExpect(jsonPath("$.truncated").value(false))
+        jdbc
+            .sql(
+                """
+                INSERT INTO requester_information_requests
+                    (tenant_id, request_id, work_item_id, case_id, ownership_revision, question, requested_at, recorded_at)
+                SELECT :tenant, LPAD(TO_HEX(n), 32, '0')::UUID, :work, :case, 1, '<script>question</script>', :at, :at
+                FROM GENERATE_SERIES(1, 101) n
+                """.trimIndent(),
+            ).param("tenant", tenant.value)
+            .param("work", work)
+            .param("case", case)
+            .param("at", clock.instant().atOffset(ZoneOffset.UTC))
+            .update()
+        val response =
+            mvc
+                .perform(get(path).with(login("question-reader")))
+                .andExpect(status().isOk)
+                .andExpect(header().string("Cache-Control", containsString("no-store")))
+                .andExpect(jsonPath("$.truncated").value(true))
+                .andReturn()
+                .response.contentAsString
+        val page = mapper.readTree(response)
+        assertThat(page.propertyNames()).containsExactlyInAnyOrder("items", "truncated")
+        assertThat(page["items"].size()).isEqualTo(100)
+        assertThat(page["items"][0].propertyNames())
+            .containsExactlyInAnyOrder("requestId", "question", "requestedAt", "recordedAt")
+        assertThat(page["items"][0]["requestId"].asText()).isEqualTo(UUID(0, 101).toString())
+        assertThat(page["items"][99]["requestId"].asText()).isEqualTo(UUID(0, 2).toString())
+        val owned = history.list(tenant.value, work, graph.outgoing.value)
+        assertThat(owned.truncated).isTrue()
+        assertThat(
+            owned.items.map {
+                it.request.requestId.value
+                    .toString()
+            },
+        ).isEqualTo(page["items"].map { it["requestId"].asText() })
+        jdbc
+            .sql("UPDATE cases SET status = 'VERIFIED_RESOLVED' WHERE tenant_id = :tenant")
+            .param("tenant", tenant.value)
+            .update()
+        mvc
+            .perform(get(path).with(login("question-reader")))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(100))
+        mvc.perform(get(path)).andExpect(status().isUnauthorized)
+        mvc.perform(get(path).with(oidcLogin())).andExpect(status().isForbidden)
+        mvc.perform(post(path).with(login("question-reader"))).andExpect(status().isForbidden)
+    }
 
     @Test
     fun `owner sees only narrow projection without approval authority and reads never change the case`() {
@@ -121,14 +193,19 @@ class RequesterCaseProgressIntegrationTest(
         actor(otherTenant, "viewer")
         val targets = listOf(tenant to bound, tenant to unowned, tenant to UUID.randomUUID(), otherTenant to bound)
         val bodies =
-            targets.map { (t, c) ->
-                mvc
-                    .perform(get(PATH, t, c).param("actorId", owner.toString()).with(login("viewer")))
-                    .andExpect(status().isNotFound)
-                    .andExpect(header().string("Cache-Control", containsString("no-store")))
-                    .andExpect(jsonPath("$.type").value("urn:ergon:problem:requester-case-not-found"))
-                    .andReturn()
-                    .response.contentAsString
+            targets.flatMap { (t, c) ->
+                listOf("progress", "information-requests").map { suffix ->
+                    mvc
+                        .perform(
+                            get("/bff/v1/tenants/$t/requester-cases/$c/$suffix")
+                                .param("actorId", owner.toString())
+                                .with(login("viewer")),
+                        ).andExpect(status().isNotFound)
+                        .andExpect(header().string("Cache-Control", containsString("no-store")))
+                        .andExpect(jsonPath("$.type").value("urn:ergon:problem:requester-case-not-found"))
+                        .andReturn()
+                        .response.contentAsString
+                }
             }
         // RFC 9457 instance reflects the caller's path, not case existence.
         val problems = bodies.map { mapper.readTree(it) }
@@ -232,6 +309,44 @@ class RequesterCaseProgressIntegrationTest(
             }
         }
         assertThat(current.info().pending()).isEmpty()
+    }
+
+    private fun questionWork(): Triple<RunSupervisionDatabaseFixture, UUID, UUID> {
+        val tenant = TenantId(UUID.randomUUID())
+        val requester = actor(tenant.value, "question-reader")
+        val graph =
+            requireNotNull(
+                transactions.execute {
+                    RunSupervisionDatabaseFixture.seed(jdbc, clock.instant(), tenant = tenant)
+                },
+            )
+        val work = UUID.randomUUID()
+        transactions.executeWithoutResult {
+            // Only the prior escalation graph is synthetic; question and ownership constraints stay enabled.
+            jdbc.sql("SET LOCAL session_replication_role = replica").update()
+            jdbc
+                .sql(
+                    """
+                    INSERT INTO human_follow_up_work_items (tenant_id, work_item_id, run_id, escalation_event_id, reason, status, opened_at)
+                    VALUES (:tenant, :work, :run, :event, 'RETRY_ATTEMPT_LIMIT_REACHED', 'OPEN', :at)
+                    """.trimIndent(),
+                ).param("tenant", tenant.value)
+                .param("work", work)
+                .param("run", graph.run.value)
+                .param("event", UUID.randomUUID())
+                .param("at", clock.instant().atOffset(ZoneOffset.UTC))
+                .update()
+        }
+        claims.claim(tenant.value, work, graph.outgoing.value)
+        val case =
+            jdbc
+                .sql("SELECT case_id FROM resolution_runs WHERE tenant_id = :tenant AND run_id = :run")
+                .param("tenant", tenant.value)
+                .param("run", graph.run.value)
+                .query(UUID::class.java)
+                .single()
+        bind(tenant.value, case, requester)
+        return Triple(graph, work, case)
     }
 
     private fun actor(

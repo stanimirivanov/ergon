@@ -2,9 +2,9 @@
 
 ## TL;DR
 
-M05-PR19b adds authenticated current-owner creation and exact recovery over PR19a
-storage. Recording is not delivery or evidence. Protected reads follow in PR19c,
-before PR20 UI and user guide.
+M05-PR19c adds protected owner history and requester-safe questions over PR19a/b
+storage and commands. Recording and reading are not delivery or evidence.
+PR20 UI and user guide follow backend review/merge.
 
 ## Command and recovery
 
@@ -28,6 +28,31 @@ changed intent, and `400 invalid-requester-information-request` for invalid
 question/revision. Replay requires fresh access, even if a receipt was retained.
 Browser-disabled requests keep the existing 503; session/CSRF/no-store rules apply.
 
+## Protected history
+
+GET the same work resource as the current authorized resolver owner. Active work
+and an OPEN explicitly bound case are mandatory, including for empty history.
+Work-then-case locks serialize access with ownership and case changes; authority
+is checked again after waits and selection. Items use the POST receipt shape,
+including immutable predecessor attribution; release/completion/expiry withdraw
+access with the existing neutral information-request 404.
+
+In the separate requester deployment, GET
+`/bff/v1/tenants/{tenantId}/requester-cases/{caseId}/information-requests`.
+Only explicit tenant/case ownership grants access. Items contain exactly
+`requestId`, `question`, `requestedAt`, `recordedAt`; no author, work, claim,
+recipient/provider identity, evidence or run data is loaded into this projection.
+An owned empty case returns an empty page; absent, unbound, foreign-owned and
+cross-tenant cases share `404 urn:ergon:problem:requester-case-not-found`.
+Closure and resolver ownership changes do not erase requester history.
+
+Both no-store pages have `items` and `truncated`, ordered newest-first by
+`(recordedAt, requestId)`, at most 100 items. Truncation means older questions were
+omitted, never answered/delivered. Requester GET is explicitly allowlisted;
+workbench sessions cannot use it, and requester sessions cannot use resolver
+reads or writes. Browser-disabled reads return the established 503. See
+[ADR 0072](decisions/0072-protect-requester-information-history.md).
+
 ## Storage contract
 
 Each tenant-wide request UUID records one exact question, source work/case and
@@ -47,7 +72,11 @@ evidence, instructions, consent or approval. Recording has no delivery meaning.
 
 ## Rollout and limits
 
-Apply V20261025141955 before this command or future readers. No backfill or existing-row
+Apply V20261025141955 before the command. V20261025185000 adds tenant/work and
+tenant/case history indexes, scanning retained questions and blocking writes
+during their transactional builds; budget a migration window, I/O, index/WAL
+space and replication lag. Preserve these additive indexes on application rollback.
+No backfill or existing-row
 rewrite is needed; foreign-key DDL briefly locks parent tables. Keep additive
 schema and immutable audit on rollback; block this POST at ingress or stop its
 deployment to disable writes. No edit/delete/retention API exists.

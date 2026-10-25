@@ -93,7 +93,11 @@ class BrowserSessionUnavailableController {
     fun loginUnavailable(): ProblemDetail = unavailableProblem()
 
     /** Reports that no tenant session can be resolved without browser OIDC configuration. */
-    @GetMapping("/v1/tenants/{tenantId}/session", "/v1/tenants/{tenantId}/requester-cases/*/progress")
+    @GetMapping(
+        "/v1/tenants/{tenantId}/session",
+        "/v1/tenants/{tenantId}/requester-cases/*/progress",
+        "/v1/tenants/{tenantId}/requester-cases/*/information-requests",
+    )
     fun sessionUnavailable(
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
     ): ProblemDetail = unavailableProblem()
@@ -118,6 +122,7 @@ class BrowserSessionUnavailableController {
     @GetMapping(
         "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/case-summary",
         "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/notes",
+        "/v1/tenants/{tenantId}/human-follow-ups/{workItemId}/information-requests",
     )
     fun resolverFollowUpContextUnavailable(
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,

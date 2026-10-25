@@ -1,6 +1,7 @@
 package org.ergon.controlplane.followup.adapter.out.persistence
 
 import org.ergon.cases.domain.CaseId
+import org.ergon.controlplane.followup.application.OwnedInformationRequestsReader
 import org.ergon.controlplane.followup.application.RequesterInformationRequest
 import org.ergon.controlplane.followup.application.RequesterInformationRequestRecording
 import org.ergon.controlplane.followup.application.RequesterInformationRequestRepository
@@ -24,7 +25,33 @@ import kotlin.jvm.optionals.getOrNull
 @Repository
 class PostgresRequesterInformationRequestRepository(
     private val jdbc: JdbcClient,
-) : RequesterInformationRequestRepository {
+) : RequesterInformationRequestRepository,
+    OwnedInformationRequestsReader {
+    override fun latest(
+        tenant: TenantId,
+        work: HumanFollowUpWorkItemId,
+        limit: Int,
+    ): List<StoredRequesterInformationRequest> =
+        jdbc
+            .sql(
+                """
+                SELECT r.request_id, r.work_item_id, r.case_id, r.ownership_revision, r.question,
+                    r.requested_at, r.recorded_at, o.claim_id, o.resolver_actor_id
+                FROM requester_information_requests r
+                JOIN human_follow_up_ownership_events o
+                    ON o.tenant_id = r.tenant_id AND o.work_item_id = r.work_item_id
+                    AND o.ownership_revision = r.ownership_revision
+                WHERE r.tenant_id = :tenant AND r.work_item_id = :work
+                ORDER BY r.recorded_at DESC, r.request_id DESC
+                LIMIT :limit
+                """.trimIndent(),
+            ).param("tenant", tenant.value)
+            .param("work", work.value)
+            .param("limit", limit)
+            .query(DataClassRowMapper(InformationRequestRow::class.java))
+            .list()
+            .map { it.toStored() }
+
     override fun record(
         tenant: TenantId,
         request: RequesterInformationRequest,

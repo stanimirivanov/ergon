@@ -17,6 +17,11 @@ class BrowserSessionUnavailableControllerTest {
             .perform(post(path))
             .andExpect(status().isServiceUnavailable)
             .andExpect(jsonPath("$.type").value("urn:ergon:problem:browser-authentication-unavailable"))
+        val requesterCase = "/bff/v1/tenants/${UUID.randomUUID()}/requester-cases/${UUID.randomUUID()}"
+        val requesterPath = "$requesterCase/information-requests"
+        for (readPath in listOf(path, requesterPath)) {
+            mockMvc.perform(get(readPath)).andExpect(status().isServiceUnavailable)
+        }
     }
 
     @Test
