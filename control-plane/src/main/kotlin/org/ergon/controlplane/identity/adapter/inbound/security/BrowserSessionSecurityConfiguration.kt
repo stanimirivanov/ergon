@@ -3,17 +3,22 @@ package org.ergon.controlplane.identity.adapter.inbound.security
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.boot.web.server.WebServerFactoryCustomizer
+import org.springframework.boot.web.server.servlet.ConfigurableServletWebServerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
+import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.authentication.AnonymousAuthenticationToken
 import org.springframework.security.authentication.InsufficientAuthenticationException
+import org.springframework.security.authorization.AuthorizationDecision
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.core.Authentication
 import org.springframework.security.core.AuthenticationException
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken
 import org.springframework.security.oauth2.client.registration.ClientRegistration
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver
@@ -40,7 +45,20 @@ internal const val BROWSER_RETURN_TO_SESSION_ATTRIBUTE = "ergon.browser.return-t
     name = ["enabled"],
     havingValue = "true",
 )
-class BrowserSessionSecurityConfiguration {
+class BrowserSessionSecurityConfiguration(
+    private val registrations: ClientRegistrationRepository,
+    private val trust: HumanJwtTrust,
+) {
+    /** Separates requester cookies while retaining the common secure session settings. */
+    @Bean
+    @Order(Int.MAX_VALUE)
+    fun cookieRules(audience: BrowserSessionAudience): WebServerFactoryCustomizer<ConfigurableServletWebServerFactory> =
+        WebServerFactoryCustomizer { factory ->
+            if (audience == BrowserSessionAudience.REQUESTER) {
+                factory.settings.session.cookie.name = "__Host-Http-Ergon-Requester-Session"
+            }
+        }
+
     @Bean
     fun browserSessionEntryPoint(objectMapper: ObjectMapper) = BrowserSessionAuthenticationEntryPoint(objectMapper)
 
@@ -54,13 +72,11 @@ class BrowserSessionSecurityConfiguration {
     @Order(1)
     fun browserSessionSecurityFilterChain(
         http: HttpSecurity,
-        registrations: ClientRegistrationRepository,
-        trust: HumanJwtTrust,
+        audience: BrowserSessionAudience,
         authenticationEntryPoint: BrowserSessionAuthenticationEntryPoint,
         accessDeniedHandler: BrowserSessionAccessDeniedHandler,
     ): SecurityFilterChain {
-        val registration = registrations.requiredBrowserRegistration()
-        registration.validateForBrowserSession(trust)
+        requiredBrowserRegistration(registrations, trust, audience)
 
         val authorizationRequests =
             DefaultOAuth2AuthorizationRequestResolver(registrations, "/oauth2/authorization").apply {
@@ -68,11 +84,32 @@ class BrowserSessionSecurityConfiguration {
                 setAuthorizationRequestCustomizer(OAuth2AuthorizationRequestCustomizers.withPkce())
             }
 
+        // A requester deployment must not fall through to the legacy internal API chain.
+        if (audience == BrowserSessionAudience.WORKBENCH) {
+            http.securityMatcher("/bff/**", "/oauth2/**", "/login/oauth2/**")
+        } else {
+            // Local logout is a separately planned contract, not an implicit filter endpoint.
+            http.logout { it.disable() }
+        }
         http
-            .securityMatcher("/bff/**", "/oauth2/**", "/login/oauth2/**")
             .authorizeHttpRequests {
-                it.requestMatchers("/bff/login", "/oauth2/**", "/login/oauth2/**").permitAll()
-                it.anyRequest().authenticated()
+                it
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/bff/login",
+                        "/oauth2/authorization/${audience.registrationId}",
+                        "/login/oauth2/code/${audience.registrationId}",
+                    ).permitAll()
+                it.requestMatchers("/oauth2/**", "/login/oauth2/**").denyAll()
+                if (audience == BrowserSessionAudience.REQUESTER) {
+                    it.requestMatchers(HttpMethod.GET, "/bff/v1/csrf", "/bff/v1/tenants/*/session").access { auth, _ ->
+                        val token = auth.get() as? OAuth2AuthenticationToken
+                        AuthorizationDecision(token?.authorizedClientRegistrationId == audience.registrationId)
+                    }
+                    it.anyRequest().denyAll()
+                } else {
+                    it.anyRequest().authenticated()
+                }
             }.requestCache {
                 // API probes must not become post-login redirect targets.
                 it.requestCache(NullRequestCache())
@@ -80,9 +117,18 @@ class BrowserSessionSecurityConfiguration {
                 it.authenticationEntryPoint(authenticationEntryPoint)
                 it.accessDeniedHandler(accessDeniedHandler)
             }.oauth2Login { login ->
-                login.authorizationEndpoint { endpoint ->
-                    endpoint.authorizationRequestResolver(authorizationRequests)
+                if (audience == BrowserSessionAudience.REQUESTER) {
+                    login.loginPage("/bff/login")
+                    login.failureHandler { request, response, exception ->
+                        authenticationEntryPoint.commence(request, response, exception)
+                    }
                 }
+                login.authorizationEndpoint { endpoint ->
+                    endpoint.authorizationRequestResolver(
+                        AudienceAuthorizationRequestResolver(authorizationRequests, audience.registrationId),
+                    )
+                }
+                login.redirectionEndpoint { it.baseUri("/login/oauth2/code/${audience.registrationId}") }
                 login.successHandler(BrowserAuthenticationSuccessHandler())
             }
         return http.build()
@@ -160,7 +206,7 @@ class BrowserSessionAuthenticationEntryPoint(
     }
 }
 
-/** Restores only a validated local workbench path after successful OIDC login. */
+/** Restores only a validated local tenant path after successful OIDC login. */
 internal class BrowserAuthenticationSuccessHandler : AuthenticationSuccessHandler {
     override fun onAuthenticationSuccess(
         request: HttpServletRequest,
@@ -174,9 +220,15 @@ internal class BrowserAuthenticationSuccessHandler : AuthenticationSuccessHandle
     }
 }
 
-private fun ClientRegistrationRepository.requiredBrowserRegistration(): ClientRegistration =
-    findByRegistrationId(BROWSER_REGISTRATION_ID)
-        ?: error("OAuth client registration '$BROWSER_REGISTRATION_ID' is required when browser sessions are enabled")
+/** Fails startup unless this deployment's fixed confidential registration matches the trusted issuer. */
+internal fun requiredBrowserRegistration(
+    registrations: ClientRegistrationRepository,
+    trust: HumanJwtTrust,
+    audience: BrowserSessionAudience,
+): ClientRegistration =
+    requireNotNull(registrations.findByRegistrationId(audience.registrationId)) {
+        "OAuth client registration '${audience.registrationId}' is required when browser sessions are enabled"
+    }.also { it.validateForBrowserSession(trust) }
 
 private fun ClientRegistration.validateForBrowserSession(trust: HumanJwtTrust) {
     require(authorizationGrantType == AuthorizationGrantType.AUTHORIZATION_CODE) {

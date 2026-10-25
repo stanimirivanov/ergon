@@ -294,6 +294,14 @@ does not replace human/capability authority or revoke admitted provider work.
 Preserve immutable lease/admission history and original uncertain intent; see
 [control API and rollout](../docs/operations/browser-run-control.md).
 
+## Requester browser deployment
+
+Requester browser hosting uses a separate process/origin, not the resolver BFF's
+authority. Set `ERGON_BROWSER_SESSION_AUDIENCE=requester` with browser sessions
+enabled and provision only its `ergon-requester` confidential registration.
+Only login/session/CSRF are allowed; resolver/internal routes fail closed.
+No migration is needed. See [requester deployment](../docs/authentication.md#requester-browser-deployment).
+
 ## Verify
 
 Docker must be running so Testcontainers executes PostgreSQL tests.

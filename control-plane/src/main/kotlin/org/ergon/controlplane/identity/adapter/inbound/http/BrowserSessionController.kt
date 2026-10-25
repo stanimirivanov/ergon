@@ -2,8 +2,8 @@ package org.ergon.controlplane.identity.adapter.inbound.http
 
 import jakarta.servlet.http.HttpServletRequest
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
-import org.ergon.controlplane.identity.adapter.inbound.security.BROWSER_REGISTRATION_ID
 import org.ergon.controlplane.identity.adapter.inbound.security.BROWSER_RETURN_TO_SESSION_ATTRIBUTE
+import org.ergon.controlplane.identity.adapter.inbound.security.BrowserSessionAudience
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidBrowserOidcIdentityException
 import org.ergon.controlplane.identity.application.StoredHumanActor
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -32,6 +32,7 @@ import java.util.UUID
 )
 class BrowserSessionController(
     private val actors: AuthenticatedHumanActorResolver,
+    private val audience: BrowserSessionAudience,
 ) {
     /** Returns the opaque session-bound token and header name required for browser mutations. */
     @GetMapping("/bff/v1/csrf")
@@ -48,7 +49,7 @@ class BrowserSessionController(
         @AuthenticationPrincipal principal: OidcUser,
     ): BrowserActorSessionResponse = actors.resolve(tenantId, principal).toBrowserSessionResponse()
 
-    /** Starts login only for a canonical tenant workbench path kept in the server session. */
+    /** Starts this deployment's login, preserving only a canonical tenant path in the server session. */
     @GetMapping("/bff/login")
     fun login(
         @RequestParam returnTo: String,
@@ -58,7 +59,7 @@ class BrowserSessionController(
         request.session.setAttribute(BROWSER_RETURN_TO_SESSION_ATTRIBUTE, validatedReturnTo)
         return ResponseEntity
             .status(HttpStatus.FOUND)
-            .location(URI.create("/oauth2/authorization/$BROWSER_REGISTRATION_ID"))
+            .location(URI.create("/oauth2/authorization/${audience.registrationId}"))
             .build()
     }
 }

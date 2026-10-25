@@ -6,6 +6,7 @@ import org.ergon.controlplane.identity.adapter.inbound.security.BROWSER_RETURN_T
 import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -164,11 +165,13 @@ class BrowserSessionApiIntegrationTest(
 @TestConfiguration(proxyBeanMethods = false)
 internal class BrowserSessionTestClientConfiguration {
     @Bean
-    fun browserClientRegistrationRepository(): ClientRegistrationRepository =
+    fun browserClientRegistrationRepository(
+        @Value("\${ergon.security.browser-session.audience:workbench}") audience: String,
+    ): ClientRegistrationRepository =
         InMemoryClientRegistrationRepository(
             ClientRegistration
-                .withRegistrationId(BROWSER_REGISTRATION_ID)
-                .clientId("ergon-workbench-test")
+                .withRegistrationId("ergon-$audience")
+                .clientId("ergon-$audience-test")
                 .clientSecret("test-only-secret")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)

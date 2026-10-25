@@ -39,6 +39,7 @@ ergon:
   security:
     browser-session:
       enabled: ${ERGON_BROWSER_SESSION_ENABLED:false}
+      audience: ${ERGON_BROWSER_SESSION_AUDIENCE:workbench}
     human-jwt:
       identity-provider: ${ERGON_HUMAN_IDENTITY_PROVIDER:}
 
