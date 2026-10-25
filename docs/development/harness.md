@@ -54,6 +54,59 @@ review, and the engineering standards. The repository-policy check must not be
 described as an architecture check. Adding a reliable architecture sensor is a
 separate focused change with its own design and evidence.
 
+## CI stages
+
+The [CI workflow](../../.github/workflows/ci.yml) runs policy, formatting and
+static analysis as independent parallel matrix jobs. After they succeed, one
+runner executes compilation, unit tests, PostgreSQL tests and packaging in
+separate steps. PostgreSQL tests still run after a unit failure if compilation
+passed, but packaging requires all prior steps to pass. Docker concurrency,
+assertions and timeouts are unchanged.
+
+Run a stage locally with Python 3.11+ (standard library only):
+
+```powershell
+python tools/ci/verify.py policy
+python tools/ci/verify.py formatting
+python tools/ci/verify.py static
+python tools/ci/verify.py compile
+python tools/ci/verify.py unit
+python tools/ci/verify.py postgres
+python tools/ci/verify.py package
+```
+
+Use `python3` on Ubuntu. Compilation prepares fresh flattened parent/domain
+artifacts in the local Maven repository; direct test goals otherwise cannot
+resolve the internal dependency across invocations. Later steps reuse compiled
+classes instead of repeating Maven lifecycle phases. Packaging produces the
+executable control-plane jar only after CI tests succeed. Do not clean targets
+between these steps. Plain `./mvnw -B -ntp verify` remains the complete baseline;
+the CI-only profiles do not change its selection.
+
+The source inventory requires the existing three reactor modules and the
+standard Surefire test-name patterns. All current container suites are
+`control-plane/*IntegrationTest` classes; `ci-unit` excludes exactly that
+pattern and `ci-postgres` includes it. Default test names are reserved for
+actual suites, including composed-annotation tests. Update this explicit
+convention and inventory together before introducing other suite mechanisms.
+The runner removes only that lane's generated reports before execution and
+rejects missing, unexpected, empty, failing or skipped suites. A zero Maven
+exit code alone cannot establish complete coverage.
+
+Each stage prints a bounded summary and writes the full Maven transcript to
+`target/ci/<stage>.log`. Surefire redirects test output into per-suite files;
+XML reports retain failure details. CI uploads diagnostics even on failure as
+`ci-policy`, `ci-formatting`, `ci-static` and `ci-reactor`, retained seven days.
+Use the workflow summary and Artifacts section; logs are not silenced with
+`-q` or discarded. Keep secrets and production/customer data out of test logs.
+
+The existing required status `build` is retained as an always-evaluated aggregate:
+both the check matrix and reactor job must report success. Failed, cancelled,
+skipped or missing prerequisites fail the gate. No branch-protection rename is
+needed where `build` is already required; repository administrators must ensure
+that status is actually required. The workflow cannot configure protection itself.
+Regression checks: `python -m unittest discover -s tools/ci -v`.
+
 ## Repository policy
 
 The tooling-only `tools/repository-policy` Maven module parses rendered
@@ -135,9 +188,10 @@ helps or obstructs; do not turn them into vanity targets. New sensors begin
 focused or advisory and become blocking only after demonstrating useful,
 stable signal.
 
-CI runs repository policy before the Docker-backed full reactor so inexpensive
-structural drift fails early. The checkout does not persist GitHub credentials.
-This ordering improves feedback isolation without weakening the full gate.
+CI runs policy and static checks before Docker-backed stages so inexpensive
+drift fails early. The checkout does not persist GitHub credentials. The
+aggregate gate retains complete verification rather than treating a partial
+stage or uploaded artifact as success.
 
 ## Completion evidence
 

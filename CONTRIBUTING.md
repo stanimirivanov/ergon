@@ -185,6 +185,13 @@ other inner-loop commands do not replace the applicable baseline. See the
 [harness guide](docs/development/harness.md#feedback-tiers) for the T0 through
 T3 feedback model and boundary-specific checks.
 
+CI exposes equivalent checks through the [staged harness](docs/development/harness.md#ci-stages).
+The required `build` status is the aggregate gate, not just successful packaging.
+Surefire-discoverable test class/file names are reserved for real suites.
+Container suites belong in `control-plane` and end in `IntegrationTest`; other
+suites use the standard Surefire test names. Keep this convention, the Maven
+lane filters and the harness inventory consistent when adding tests or modules.
+
 When a required check cannot run, report the exact check as **not run**, the
 blocking condition, checks that did run, residual risk, and where the missing
 check should run. Never report a skipped or unexecuted check as passed, weaken a
