@@ -8,7 +8,7 @@
 
 Finish the resolver experience and deliver a separately authenticated requester
 canvas over the existing case/runtime boundaries. The 28 plan coordinates below
-deliver 31 PRs: 15 Ergon (PR11 and PR13 are split) and 16 ergon-ui; GitHub owns their live
+deliver 33 PRs: 17 Ergon (PR11, PR13 and PR19 are split) and 16 ergon-ui; GitHub owns their live
 state. Each backend contract
 is reviewed and merged before its dependent UI, which includes its user-guide
 update. This plan does not implement or authorize a new runtime protocol.
@@ -62,14 +62,14 @@ refactors remain separate from new business behavior.
 | [M05-PR16](https://github.com/stanimirivanov/ergon/issues/201) | Ergon | Requester-scoped case progress | PR15 | G2 |
 | M05-PR17 | ergon-ui | First usable authenticated requester app | PR2, PR16 | G3 |
 | M05-PR18 | ergon-ui | Complete bounded requester canvas | PR17 | G4 |
-| M05-PR19 | Ergon | Attributable requester-information requests | PR7, PR16 | G3 |
-| M05-PR20 | ergon-ui | Information-request composer in owned work | PR8, PR19 | G4 |
-| M05-PR21 | Ergon | Replay-safe requester responses | PR19 | G4 |
-| M05-PR22 | ergon-ui | Adaptive response forms | PR18, PR21 | G5 |
+| [M05-PR19](https://github.com/stanimirivanov/ergon/issues/203) | Ergon | Attributable requester-information requests (PR19a/b/c) | PR7, PR16 | G3–G5 |
+| M05-PR20 | ergon-ui | Information-request composer in owned work | PR8, PR19 | G6 |
+| M05-PR21 | Ergon | Replay-safe requester responses | PR19 | G6 |
+| M05-PR22 | ergon-ui | Adaptive response forms | PR18, PR21 | G7 |
 | M05-PR23 | Ergon | Authenticated, requester-owned case intake | PR16 | G3 |
 | M05-PR24 | ergon-ui | Intake submission and uncertain recovery | PR17, PR23 | G4 |
-| M05-PR25 | Ergon | Durable deduplicated in-app notifications | PR9, PR19, PR21 | G5 |
-| M05-PR26 | ergon-ui | Notification surfaces with fresh target access | PR10, PR22, PR25 | G6 |
+| M05-PR25 | Ergon | Durable deduplicated in-app notifications | PR9, PR19, PR21 | G7 |
+| M05-PR26 | ergon-ui | Notification surfaces with fresh target access | PR10, PR22, PR25 | G8 |
 | M05-PR27 | Ergon | Safe local browser logout (M03 prerequisite) | PR15 | G2 |
 | M05-PR28 | ergon-ui | Sign-out and private-state retirement (M03 prerequisite) | PR17, PR27 | G4 |
 
@@ -98,6 +98,14 @@ for backend review/merge before dependent UI. Each PR targets roughly 200–500
 handwritten changed lines; re-slice an overrun before implementation rather than
 dropping tests. No placeholder interfaces, services or temporary stubs are planned.
 
+M05-PR19 is split into three backend PRs: PR19a establishes tested domain/storage
+foundations (G3); PR19b adds the authenticated current-owner command and exact
+recovery (G4); PR19c adds protected owner history and requester reads (G5).
+Each depends on the previous part. Command and reads consume the storage
+foundation independently. Merge all three before PR20's composer/guide or
+PR21's responses. PR19a exposes no HTTP endpoint.
+The original plan coordinate and milestone remain unchanged.
+
 ## Boundaries and reuse
 
 The accepted bounded scope excludes attachments/scanning/retention, requester
@@ -112,7 +120,7 @@ deliverable. The seven concept views span these boundaries, not seven M05 pages.
 
 PR15, PR27 and PR28 are the only cross-milestone prerequisites: M03 gains a
 separate requester client and local logout, not a new authority algebra or global
-provider revocation. They retain M03 issue ownership (3/31 PRs, about 10%).
+provider revocation. They retain M03 issue ownership (3/33 PRs, about 9%).
 There are no interface stubs to retire and no new third-party runtime dependency
 is justified. Reuse Spring Security, RTK Query/Effect, React Hook Form, ui-web
 modality and Playwright; borrow interaction patterns without importing a help-desk,

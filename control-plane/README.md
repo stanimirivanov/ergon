@@ -135,6 +135,10 @@ restart the predecessor project so it reattaches its preserved volume. See
 
 ## Interfaces and limitations
 
+M05-PR19a adds immutable requester-question storage, not a browser command.
+Authenticated creation/recovery (PR19b), protected reads (PR19c), then UI/guide
+follow separately; see [requester information requests](../docs/requester-information-requests.md).
+
 Administrative follow-up completion has a separate default-off browser command.
 Deploy V20261023195734 and all compatible readers/writers before enabling it
 after the dependent UI. Exact authorized replay acknowledges only original
