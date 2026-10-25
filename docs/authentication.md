@@ -1,9 +1,46 @@
 # Human authentication
 
-> **TL;DR:** API callers can resolve a human actor from a verified bearer JWT.
-> An optional confidential OIDC BFF gives the workbench an opaque server
-> session instead of browser-visible provider tokens. Both paths map the exact
-> trusted issuer and opaque subject to an actor inside the requested tenant.
+## TL;DR
+
+API callers can resolve a human actor from a verified bearer JWT. An optional
+confidential OIDC BFF gives each separately deployed browser application an opaque
+server session instead of provider tokens. Both paths map the exact trusted issuer
+and opaque subject to an actor inside the requested tenant.
+
+## Requester browser deployment
+
+M05-PR15 adds `ERGON_BROWSER_SESSION_AUDIENCE=requester` alongside
+`ERGON_BROWSER_SESSION_ENABLED=true`. The default audience remains `workbench`.
+Deploy a **separate backend process and origin**, with a distinct confidential
+IdP client registered as `ergon-requester`; use the same registration settings
+shown below, replacing `ergon-workbench` with `ergon-requester` and supplying its
+own client ID/secret. Restrict its IdP callback to
+`https://<requester-origin>/login/oauth2/code/ergon-requester`. Unknown audiences,
+missing selected registrations and issuer/client-policy mismatches fail startup.
+Requester mode also refuses startup with browser sessions disabled: stop that
+deployment to disable access, never fall back to legacy API security. Default
+disabled workbench behavior is unchanged. Never share session stores or repurpose
+a running workbench origin.
+
+This deployment reuses `/bff/login?returnTo=/tenants/{tenantId}`, the tenant
+`session` probe and `/bff/v1/csrf`, with unchanged sanitized/no-store DTOs. Login
+always selects its fixed client and PKCE; only that client's callbacks are
+accepted. Session/CSRF reads reject other-client authentication. The cookie is
+`__Host-Http-Ergon-Requester-Session`, retaining Secure, HttpOnly, Path=/,
+SameSite=Lax and no Domain. OIDC secrets and provider tokens remain server-side.
+
+Only those GET routes are allowed. Resolver, bearer, internal, generated login,
+implicit logout and all unspecified routes are denied even to authenticated
+requesters. Do not route the requester origin to the workbench backend. Use
+process/container health checks; HTTP health/docs routes are not public here.
+Tenant actor registration proves identity only: this slice exposes no case,
+intake, requester ownership or resolver authority. Later requester slices must
+explicitly extend the allowlist and enforce their own application authorization.
+
+No migration is required. Roll back by stopping the requester deployment and
+retiring its origin's cookie, leaving the workbench unchanged. Logout remains
+M05-PR27. Mock OIDC tests plus a real embedded-server cookie check do not replace
+live two-origin/IdP acceptance. See [ADR 0068](decisions/0068-isolate-requester-browser-deployments.md).
 
 ## Bearer API authentication
 

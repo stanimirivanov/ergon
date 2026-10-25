@@ -8,6 +8,7 @@ import org.ergon.controlplane.resolution.application.MAX_ASSIGNING_MACHINE_SUBJE
 import org.ergon.identity.domain.HumanActor
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Conditional
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
@@ -93,6 +94,7 @@ class HumanJwtSecurityConfiguration {
 
     @Bean
     @Order(2)
+    @Conditional(NonRequesterDeployment::class)
     fun humanJwtSecurityFilterChain(
         http: HttpSecurity,
         jwtDecoder: JwtDecoder,

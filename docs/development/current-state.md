@@ -2,6 +2,12 @@
 
 ## TL;DR
 
+M05-PR15 (M03 prerequisite) adds an opt-in, separately deployed requester browser
+audience with its own confidential OIDC client and cookie. Only login, tenant
+session and CSRF reads are allowed; all resolver/internal routes are denied.
+Case progress, intake, requester UI/guide and logout remain separate slices.
+See [requester deployment](../authentication.md#requester-browser-deployment).
+
 M05-PR13c projects current priority/revision through authorized browser shared
 and owned work and owned case summaries, including while commands are disabled.
 No assignment means NORMAL/0; value/revision are read together from immutable
