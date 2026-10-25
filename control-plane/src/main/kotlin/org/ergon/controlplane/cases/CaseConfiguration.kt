@@ -8,6 +8,8 @@ import org.ergon.controlplane.cases.application.CaseProjectionWriter
 import org.ergon.controlplane.cases.application.CaseQueryService
 import org.ergon.controlplane.cases.application.CaseTimelineRepository
 import org.ergon.controlplane.cases.application.IdentityGenerator
+import org.ergon.controlplane.cases.application.RequesterCaseProgressReader
+import org.ergon.controlplane.cases.application.RequesterCaseProgressService
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
 import org.springframework.context.annotation.Bean
@@ -18,6 +20,9 @@ import java.util.UUID
 /** Explicitly wires the framework-free case application services to their adapters. */
 @Configuration(proxyBeanMethods = false)
 class CaseConfiguration {
+    @Bean
+    fun requesterCaseProgress(reader: RequesterCaseProgressReader) = RequesterCaseProgressService(reader)
+
     @Bean
     fun caseCommandService(
         eventStore: CaseEventStore,

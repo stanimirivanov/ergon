@@ -132,3 +132,4 @@ benchmarks rather than duplicating them.
 | 0066 | [Complete owned follow-up with exact recovery](0066-complete-owned-follow-up-with-exact-recovery.md) |
 | 0067 | [Record independent follow-up priority](0067-record-independent-follow-up-priority.md) |
 | 0068 | [Isolate requester browser deployments](0068-isolate-requester-browser-deployments.md) |
+| 0069 | [Disclose requester-owned case progress](0069-disclose-requester-owned-case-progress.md) |

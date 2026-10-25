@@ -2,9 +2,15 @@
 
 ## TL;DR
 
+M05-PR16 adds requester-owned case progress with explicit immutable ownership,
+not approval authority. Legacy cases remain unowned/hidden; trusted bootstrap is
+required until authenticated intake. No source or runtime evidence is disclosed.
+See [requester case progress](../requester-case-progress.md).
+
 M05-PR15 (M03 prerequisite) adds an opt-in, separately deployed requester browser
 audience with its own confidential OIDC client and cookie. Only login, tenant
-session and CSRF reads are allowed; all resolver/internal routes are denied.
+session and CSRF reads were initially allowed; PR16 adds the explicitly owned
+progress read. All resolver/internal routes remain denied.
 Case progress, intake, requester UI/guide and logout remain separate slices.
 See [requester deployment](../authentication.md#requester-browser-deployment).
 

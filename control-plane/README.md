@@ -296,6 +296,12 @@ Preserve immutable lease/admission history and original uncertain intent; see
 
 ## Requester browser deployment
 
+M05-PR16 exposes only explicitly owned case goal/status/timestamps at the progress
+resource. Deploy the additive ownership migration first; existing cases remain
+unowned. Keep bindings on rollback. Until authenticated intake, reviewed privileged
+bootstrap is required; no browser ownership writer exists. See
+[requester progress](../docs/requester-case-progress.md).
+
 Requester browser hosting uses a separate process/origin, not the resolver BFF's
 authority. Set `ERGON_BROWSER_SESSION_AUDIENCE=requester` with browser sessions
 enabled and provision only its `ergon-requester` confidential registration.

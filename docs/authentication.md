@@ -29,15 +29,20 @@ accepted. Session/CSRF reads reject other-client authentication. The cookie is
 `__Host-Http-Ergon-Requester-Session`, retaining Secure, HttpOnly, Path=/,
 SameSite=Lax and no Domain. OIDC secrets and provider tokens remain server-side.
 
+The explicit requester-owned [case progress](requester-case-progress.md) GET is
+also allowed; it requires a separate durable case/requester binding, not approval
+evidence. Its DTO has no private observations or runtime details.
+
 Only those GET routes are allowed. Resolver, bearer, internal, generated login,
 implicit logout and all unspecified routes are denied even to authenticated
 requesters. Do not route the requester origin to the workbench backend. Use
 process/container health checks; HTTP health/docs routes are not public here.
-Tenant actor registration proves identity only: this slice exposes no case,
-intake, requester ownership or resolver authority. Later requester slices must
+Tenant actor registration proves identity only: it grants no case ownership,
+intake or resolver authority. Later requester slices must
 explicitly extend the allowlist and enforce their own application authorization.
 
-No migration is required. Roll back by stopping the requester deployment and
+The browser boundary itself requires no migration; requester progress additionally
+requires the ownership migration described in its guide. Roll back by stopping the requester deployment and
 retiring its origin's cookie, leaving the workbench unchanged. Logout remains
 M05-PR27. Mock OIDC tests plus a real embedded-server cookie check do not replace
 live two-origin/IdP acceptance. See [ADR 0068](decisions/0068-isolate-requester-browser-deployments.md).

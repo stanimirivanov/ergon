@@ -34,7 +34,7 @@ class HumanFollowUpPriorityMigrationIntegrationTest {
         flyway(schema, "20261023195734").migrate()
         val f = fixture(schema)
         val before = snapshot(f)
-        val current = flyway(schema)
+        val current = flyway(schema, "20261024101559")
         current.migrate()
         current.validate()
         assertThat(

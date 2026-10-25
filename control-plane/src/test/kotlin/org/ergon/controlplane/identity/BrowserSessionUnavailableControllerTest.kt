@@ -10,6 +10,14 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import java.util.UUID
 
 class BrowserSessionUnavailableControllerTest {
+    @Test
+    fun `requester progress is unavailable without browser sessions`() {
+        val path = "/bff/v1/tenants/{tenantId}/requester-cases/{caseId}/progress"
+        mockMvc
+            .perform(get(path, UUID.randomUUID(), UUID.randomUUID()))
+            .andExpect(status().isServiceUnavailable)
+    }
+
     private val mockMvc = MockMvcBuilders.standaloneSetup(BrowserSessionUnavailableController()).build()
 
     @Test
