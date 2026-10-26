@@ -8,7 +8,7 @@
 
 Finish the resolver experience and deliver a separately authenticated requester
 canvas over the existing case/runtime boundaries. The 28 plan coordinates below
-deliver 33 PRs: 17 Ergon (PR11, PR13 and PR19 are split) and 16 ergon-ui; GitHub owns their live
+deliver 36 PRs: 19 Ergon (PR11, PR13, PR19 and PR21 are split) and 17 ergon-ui (PR20 is split); GitHub owns their live
 state. Each backend contract
 is reviewed and merged before its dependent UI, which includes its user-guide
 update. This plan does not implement or authorize a new runtime protocol.
@@ -107,6 +107,17 @@ PR21's responses. PR19a exposes no HTTP endpoint.
 The original plan coordinate and milestone remain unchanged.
 
 ## Boundaries and reuse
+
+M05-PR21 is split into three backend deliveries before implementation:
+PR21a ([issue #211](https://github.com/stanimirivanov/ergon/issues/211)) supplies
+tested immutable answer storage (G6); PR21b adds authenticated requester recording
+and exact recovery (G7); PR21c adds protected audience-specific reads (G8).
+Each depends on the preceding part. Command and reads independently consume the
+storage foundation; no HTTP producer exists in PR21a. PR22 waits for all three.
+PR20 was delivered as history inspection (ergon-ui PR #217) and confirmed
+composition/recovery (ergon-ui PR #219). Accounting for that split and PR21's
+three deliveries, the plan now delivers 36 PRs: 19 Ergon and 17 ergon-ui.
+Stable plan coordinates are unchanged.
 
 The accepted bounded scope excludes attachments/scanning/retention, requester
 capability approvals or contractual consent, arbitrary schema-driven forms,

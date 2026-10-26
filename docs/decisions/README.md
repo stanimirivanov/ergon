@@ -136,3 +136,4 @@ benchmarks rather than duplicating them.
 | 0070 | [Record requester information requests](0070-record-requester-information-requests.md) |
 | 0071 | [Authorize requester information commands](0071-authorize-requester-information-commands.md) |
 | 0072 | [Protect requester information history](0072-protect-requester-information-history.md) |
+| 0073 | [Record immutable requester answers](0073-record-immutable-requester-answers.md) |

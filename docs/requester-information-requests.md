@@ -55,6 +55,29 @@ reads or writes. Browser-disabled reads return the established 503. See
 
 ## Storage contract
 
+### Response foundation
+
+M05-PR21a adds immutable answer storage, not a browser command or disclosure.
+One final answer is allowed per tenant/question; a response UUID identifies
+tenant-wide exact intent. Text preserves whitespace and uses the question's
+4000-code-point/Unicode constraints. Case/requester attribution is reconstructed
+from immutable parents. Answers remain untrusted source material, never facts,
+consent, approval or proof; no case observation stream is appended by this foundation.
+
+The response repository requires a caller-owned READ COMMITTED transaction.
+After either unique-key wait it returns one whole persisted winner; response-ID
+collision takes precedence when the supplied question identifies another winner.
+The caller must compare every intent coordinate and authorize before disclosure.
+No current-access or OPEN-case check is supplied by storage.
+
+PR21b adds authenticated recording/recovery; PR21c adds protected reads before
+PR22's UI and user guide. Deploy V20261026102606 first. This empty-table additive
+migration briefly locks the question parent for FK DDL, without scanning or
+rewriting old rows. Preserve immutable schema/audit on rollback and budget future
+answer retention, WAL and backups. See [ADR 0073](decisions/0073-record-immutable-requester-answers.md).
+
+### Question storage
+
 Each tenant-wide request UUID records one exact question, source work/case and
 historical ownership revision. Author/claim are reconstructed from the immutable
 CLAIMED event; the recipient is the case's immutable explicit requester binding.
