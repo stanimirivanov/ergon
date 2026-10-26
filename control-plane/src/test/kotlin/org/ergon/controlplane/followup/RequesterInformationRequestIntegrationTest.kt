@@ -18,14 +18,18 @@ import org.ergon.controlplane.followup.application.RequesterInformationRequestCo
 import org.ergon.controlplane.followup.application.RequesterInformationRequestNotFoundException
 import org.ergon.controlplane.followup.application.RequesterInformationRequestRepository
 import org.ergon.controlplane.followup.application.RequesterInformationRequestService
+import org.ergon.controlplane.followup.application.RequesterInformationResponse
+import org.ergon.controlplane.followup.application.RequesterInformationResponseRepository
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
 import org.ergon.controlplane.resolution.RunEscalationTestFixture
 import org.ergon.controlplane.resolution.RunSupervisionDatabaseFixture
 import org.ergon.followup.domain.HumanFollowUpClaimId
 import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
+import org.ergon.followup.domain.RequesterInformationAnswer
 import org.ergon.followup.domain.RequesterInformationQuestion
 import org.ergon.followup.domain.RequesterInformationRequestId
+import org.ergon.followup.domain.RequesterInformationResponseId
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
 import org.flywaydb.core.Flyway
@@ -85,6 +89,7 @@ class RequesterInformationRequestIntegrationTest(
     @Autowired private val guard: RequesterCaseWriteGuard,
     @Autowired private val history: OwnedInformationRequestsService,
     @Autowired private val historyReader: OwnedInformationRequestsReader,
+    @Autowired private val responses: RequesterInformationResponseRepository,
     @Autowired private val transactions: TransactionRunner,
     @Autowired private val mvc: MockMvc,
     @Autowired private val mapper: ObjectMapper,
@@ -108,6 +113,8 @@ class RequesterInformationRequestIntegrationTest(
             )
         assertThat(json["items"][0]["requestId"].asText()).isEqualTo(command.requestId.toString())
         assertThat(json["truncated"].asBoolean()).isFalse()
+        assertThat(json["items"][0]["response"].isNull).isTrue()
+        val response = answer(command)
         releases.release(
             HumanFollowUpReleaseCommand(command.tenantId, command.workItemId, command.claimId, command.actorId, 1),
         )
@@ -122,7 +129,9 @@ class RequesterInformationRequestIntegrationTest(
                 .single()
         val successor = claimAfterRelease(command, nextActor)
         assertThat(successor.storedClaim.claim.id.value).isNotEqualTo(command.claimId)
-        assertThat(history.list(command.tenantId, command.workItemId, nextActor).items).containsExactly(receipt)
+        val successorHistory = history.list(command.tenantId, command.workItemId, nextActor).items.single()
+        assertThat(successorHistory.stored).isEqualTo(receipt)
+        assertThat(successorHistory.response?.responseId).isEqualTo(response.response.responseId.value)
         for ((tenant, work, actor) in listOf(
             Triple(command.tenantId, command.workItemId, command.actorId),
             Triple(UUID.randomUUID(), command.workItemId, nextActor),
@@ -142,21 +151,46 @@ class RequesterInformationRequestIntegrationTest(
         mvc
             .perform(get(path(unbound)).with(RunEscalationTestFixture.session(unbound.actorId)))
             .andExpect(status().isNotFound)
-        val requesterPath = "/bff/v1/tenants/${command.tenantId}/requester-cases/${receipt.request.caseId.value}"
-        mvc
-            .perform(
-                get("$requesterPath/information-requests")
-                    .with(RunEscalationTestFixture.session(command.actorId)),
-            ).andExpect(status().isForbidden)
     }
 
     @Test
-    fun `workbench sessions cannot invoke requester answer commands`() {
-        val path =
+    fun `owner answer history has exact fields while question replay receipts stay unchanged`() {
+        val command = command()
+        service.record(command)
+        val response = answer(command)
+        val answered =
+            mapper.readTree(
+                mvc
+                    .perform(get(path(command)).with(RunEscalationTestFixture.session(command.actorId)))
+                    .andExpect(status().isOk)
+                    .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
+                    .andReturn()
+                    .response.contentAsString,
+            )["items"][0]["response"]
+        assertThat(answered.propertyNames())
+            .containsExactlyInAnyOrder("responseId", "answer", "respondedAt", "recordedAt")
+        assertThat(answered["responseId"].asString()).isEqualTo(
+            response.response.responseId.value
+                .toString(),
+        )
+        assertThat(answered["answer"].asString()).isEqualTo(response.response.answer.value)
+        assertThat(Instant.parse(answered["respondedAt"].asString())).isEqualTo(response.response.respondedAt)
+        assertThat(Instant.parse(answered["recordedAt"].asString())).isEqualTo(response.recordedAt)
+        // A read's optional response must not leak into command replay receipts.
+        assertThat(mapper.readTree(send(command, 200)).has("response")).isFalse()
+    }
+
+    @Test
+    fun `workbench sessions cannot access requester question or answer resources`() {
+        val questions =
             "/bff/v1/tenants/${UUID.randomUUID()}/requester-cases/${UUID.randomUUID()}" +
-                "/information-requests/${UUID.randomUUID()}/responses"
+                "/information-requests"
+        val path = "$questions/${UUID.randomUUID()}/responses"
         mvc
             .perform(post(path).with(RunEscalationTestFixture.session(UUID.randomUUID())).with(csrf()))
+            .andExpect(status().isForbidden)
+        mvc
+            .perform(get(questions).with(RunEscalationTestFixture.session(UUID.randomUUID())))
             .andExpect(status().isForbidden)
     }
 
@@ -165,6 +199,7 @@ class RequesterInformationRequestIntegrationTest(
         for (atCase in listOf(true, false)) {
             val command = command()
             service.record(command)
+            answer(command)
             val time = AtomicReference(NOW)
             val clock =
                 object : Clock() {
@@ -476,6 +511,22 @@ class RequesterInformationRequestIntegrationTest(
             assertThat(count(command)).isZero()
         }
     }
+
+    private fun answer(command: RequesterInformationRequestCommand) =
+        requireNotNull(
+            template.execute {
+                responses
+                    .record(
+                        TenantId(command.tenantId),
+                        RequesterInformationResponse(
+                            RequesterInformationResponseId(UUID.randomUUID()),
+                            RequesterInformationRequestId(command.requestId),
+                            RequesterInformationAnswer(" <script>untrusted answer</script> 😀 \n"),
+                            NOW.plusSeconds(1),
+                        ),
+                    ).stored
+            },
+        )
 
     // Later ownership cycles require a revision-checked command, never legacy claim replay.
     private fun claimAfterRelease(

@@ -5,7 +5,7 @@
 M05-PR19c adds protected owner history and requester-safe questions over PR19a/b
 storage and commands. Recording and reading are not delivery or evidence.
 M05-PR21b adds authenticated requester answers and exact recovery over PR21a storage.
-PR21c reads precede PR22 UI and user guide.
+M05-PR21c adds narrow answers to both protected histories; PR22 UI and user guide follow backend review/merge.
 
 ## Answer command and recovery
 
@@ -31,7 +31,7 @@ disabled browser authentication returns 503. See [ADR 0074](decisions/0074-autho
 
 Deploy V20261026102606 before the command. No new migration, dependency or flag.
 Block this POST at ingress or roll back application code for behavioral rollback;
-preserve additive schema and immutable audit. Reads and UI/guide remain separate.
+preserve additive schema and immutable audit. UI/guide remain a separate dependent slice.
 
 ## Command and recovery
 
@@ -60,18 +60,26 @@ Browser-disabled requests keep the existing 503; session/CSRF/no-store rules app
 GET the same work resource as the current authorized resolver owner. Active work
 and an OPEN explicitly bound case are mandatory, including for empty history.
 Work-then-case locks serialize access with ownership and case changes; authority
-is checked again after waits and selection. Items use the POST receipt shape,
-including immutable predecessor attribution; release/completion/expiry withdraw
+is checked again after waits and selection. Items retain all question POST receipt fields,
+including immutable predecessor attribution, plus nullable `response`; release/completion/expiry withdraw
 access with the existing neutral information-request 404.
 
 In the separate requester deployment, GET
 `/bff/v1/tenants/{tenantId}/requester-cases/{caseId}/information-requests`.
 Only explicit tenant/case ownership grants access. Items contain exactly
-`requestId`, `question`, `requestedAt`, `recordedAt`; no author, work, claim,
+`requestId`, `question`, `requestedAt`, `recordedAt`, `response`; no author, work, claim,
 recipient/provider identity, evidence or run data is loaded into this projection.
 An owned empty case returns an empty page; absent, unbound, foreign-owned and
 cross-tenant cases share `404 urn:ergon:problem:requester-case-not-found`.
 Closure and resolver ownership changes do not erase requester history.
+
+In either history, `response` is null when no answer exists in that SQL snapshot;
+otherwise it contains exactly `responseId`, `answer`, `respondedAt`, `recordedAt`.
+Text and timestamps are the whole persisted winner, not a merged command or a
+delivery/evidence/consent/verification assessment. No recipient/provider identity
+is loaded. Answers join on tenant and question, using the existing unique index;
+answer time/presence never changes the question order or truncation boundary.
+Reads do not acknowledge delivery or mutate case, work, run or proof state.
 
 Both no-store pages have `items` and `truncated`, ordered newest-first by
 `(recordedAt, requestId)`, at most 100 items. Truncation means older questions were
@@ -79,6 +87,13 @@ omitted, never answered/delivered. Requester GET is explicitly allowlisted;
 workbench sessions cannot use it, and requester sessions cannot use resolver
 reads or writes. Browser-disabled reads return the established 503. See
 [ADR 0072](decisions/0072-protect-requester-information-history.md).
+The additive answer disclosure is governed by
+[ADR 0075](decisions/0075-disclose-protected-requester-answers.md).
+Question/answer POST receipts remain unchanged. Old readers may ignore `response`;
+mixed-version clients must tolerate its absence until all readers are upgraded.
+No migration, dependency or flag is added; deploy the existing response schema
+V20261026102606 before these readers, then the dependent UI. Application rollback
+removes answer disclosure without deleting any immutable history.
 
 ## Storage contract
 
@@ -97,7 +112,7 @@ collision takes precedence when the supplied question identifies another winner.
 The caller must compare every intent coordinate and authorize before disclosure.
 No current-access or OPEN-case check is supplied by storage.
 
-PR21b now adds authenticated recording/recovery; PR21c adds protected reads before
+PR21b adds authenticated recording/recovery; PR21c adds protected reads before
 PR22's UI and user guide. Deploy V20261026102606 first. This empty-table additive
 migration briefly locks the question parent for FK DDL, without scanning or
 rewriting old rows. Preserve immutable schema/audit on rollback and budget future
@@ -131,7 +146,7 @@ rewrite is needed; foreign-key DDL briefly locks parent tables. Keep additive
 schema and immutable audit on rollback; block this POST at ingress or stop its
 deployment to disable writes. No edit/delete/retention API exists.
 
-Existing browser contracts are unchanged. No notifications, responses or UI/guide
-update are included in this backend command. See
+Existing write contracts are unchanged; the histories gain only nullable `response`.
+No notifications, observation ingestion or UI/guide update are included in this backend slice. See
 [ADR 0070](decisions/0070-record-requester-information-requests.md) and
 [ADR 0071](decisions/0071-authorize-requester-information-commands.md).

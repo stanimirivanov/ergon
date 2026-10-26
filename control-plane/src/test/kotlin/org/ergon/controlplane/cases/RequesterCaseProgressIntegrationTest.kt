@@ -41,6 +41,7 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.sql.DriverManager
 import java.time.Clock
@@ -87,19 +88,7 @@ class RequesterCaseProgressIntegrationTest(
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items").isEmpty)
             .andExpect(jsonPath("$.truncated").value(false))
-        jdbc
-            .sql(
-                """
-                INSERT INTO requester_information_requests
-                    (tenant_id, request_id, work_item_id, case_id, ownership_revision, question, requested_at, recorded_at)
-                SELECT :tenant, LPAD(TO_HEX(n), 32, '0')::UUID, :work, :case, 1, '<script>question</script>', :at, :at
-                FROM GENERATE_SERIES(1, 101) n
-                """.trimIndent(),
-            ).param("tenant", tenant.value)
-            .param("work", work)
-            .param("case", case)
-            .param("at", clock.instant().atOffset(ZoneOffset.UTC))
-            .update()
+        recordBoundedQuestionHistory(tenant, work, case)
         val response =
             mvc
                 .perform(get(path).with(login("question-reader")))
@@ -112,7 +101,7 @@ class RequesterCaseProgressIntegrationTest(
         assertThat(page.propertyNames()).containsExactlyInAnyOrder("items", "truncated")
         assertThat(page["items"].size()).isEqualTo(100)
         assertThat(page["items"][0].propertyNames())
-            .containsExactlyInAnyOrder("requestId", "question", "requestedAt", "recordedAt")
+            .containsExactlyInAnyOrder("requestId", "question", "requestedAt", "recordedAt", "response")
         assertThat(page["items"][0]["requestId"].asText()).isEqualTo(UUID(0, 101).toString())
         assertThat(page["items"][99]["requestId"].asText()).isEqualTo(UUID(0, 2).toString())
         val owned = history.list(tenant.value, work, graph.outgoing.value)
@@ -121,7 +110,17 @@ class RequesterCaseProgressIntegrationTest(
             (0 until page["items"].size()).map { index ->
                 UUID.fromString(page["items"][index]["requestId"].asText())
             }
-        assertThat(owned.items.map { it.request.requestId.value }).containsExactlyElementsOf(requesterIds)
+        assertThat(owned.items.map { it.stored.request.requestId.value }).containsExactlyElementsOf(requesterIds)
+        val answer = page["items"][0]["response"]
+        assertRecordedAnswer(answer)
+        assertThat(page["items"][1]["response"].isNull).isTrue()
+        assertThat(
+            owned.items
+                .first()
+                .response
+                ?.answer,
+        ).isEqualTo(answer["answer"].asString())
+        assertThat(owned.items.count { it.response != null }).isEqualTo(1)
         jdbc
             .sql("UPDATE cases SET status = 'VERIFIED_RESOLVED' WHERE tenant_id = :tenant")
             .param("tenant", tenant.value)
@@ -130,9 +129,52 @@ class RequesterCaseProgressIntegrationTest(
             .perform(get(path).with(login("question-reader")))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items.length()").value(100))
+            .andExpect(jsonPath("$.items[0].response.answer").value(" <script>answer</script> 😀 "))
         mvc.perform(get(path)).andExpect(status().isUnauthorized)
         mvc.perform(get(path).with(oidcLogin())).andExpect(status().isForbidden)
         mvc.perform(post(path).with(login("question-reader"))).andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `answers with identical question identities remain tenant scoped and unavailable to other actors`() {
+        val requestId = UUID.randomUUID()
+        val targets = listOf(questionWork(), questionWork())
+        for ((index, target) in targets.withIndex()) {
+            val (graph, work, case) = target
+            recordAnsweredQuestion(graph.tenant, work, case, requestId, "Private answer $index")
+        }
+        for ((index, target) in targets.withIndex()) {
+            val (graph, work, case) = target
+            val path = "/bff/v1/tenants/${graph.tenant.value}/requester-cases/$case/information-requests"
+            val result =
+                mvc
+                    .perform(get(path).with(login("question-reader")))
+                    .andExpect(status().isOk)
+                    .andExpect(jsonPath("$.items.length()").value(1))
+                    .andExpect(jsonPath("$.items[0].response.answer").value("Private answer $index"))
+                    .andReturn()
+                    .response.contentAsString
+            assertThat(result).doesNotContain("Private answer ${1 - index}")
+            assertThat(
+                history
+                    .list(graph.tenant.value, work, graph.outgoing.value)
+                    .items
+                    .single()
+                    .response
+                    ?.answer,
+            ).isEqualTo("Private answer $index")
+            actor(graph.tenant.value, "stranger")
+            mvc
+                .perform(get(path).with(login("stranger")))
+                .andExpect(status().isNotFound)
+                .andExpect(jsonPath("$.type").value("urn:ergon:problem:requester-case-not-found"))
+            val foreignCase = targets[1 - index].third
+            mvc
+                .perform(
+                    get("/bff/v1/tenants/${graph.tenant.value}/requester-cases/$foreignCase/information-requests")
+                        .with(login("question-reader")),
+                ).andExpect(status().isNotFound)
+        }
     }
 
     @Test
@@ -308,6 +350,82 @@ class RequesterCaseProgressIntegrationTest(
             }
         }
         assertThat(current.info().pending()).isEmpty()
+    }
+
+    private fun assertRecordedAnswer(answer: JsonNode) {
+        assertThat(answer.propertyNames())
+            .containsExactlyInAnyOrder("responseId", "answer", "respondedAt", "recordedAt")
+        assertThat(answer["responseId"].asString()).isEqualTo(UUID(0, 101).toString())
+        assertThat(answer["answer"].asString()).isEqualTo(" <script>answer</script> 😀 ")
+        assertThat(Instant.parse(answer["respondedAt"].asString())).isEqualTo(clock.instant().plusSeconds(60))
+        assertThat(Instant.parse(answer["recordedAt"].asString())).isEqualTo(clock.instant().plusSeconds(60))
+    }
+
+    private fun recordBoundedQuestionHistory(
+        tenant: TenantId,
+        work: UUID,
+        case: UUID,
+    ) {
+        jdbc
+            .sql(
+                """
+                INSERT INTO requester_information_requests
+                    (tenant_id, request_id, work_item_id, case_id, ownership_revision, question, requested_at, recorded_at)
+                SELECT :tenant, LPAD(TO_HEX(n), 32, '0')::UUID, :work, :case, 1, '<script>question</script>', :at, :at
+                FROM GENERATE_SERIES(1, 101) n
+                """.trimIndent(),
+            ).param("tenant", tenant.value)
+            .param("work", work)
+            .param("case", case)
+            .param("at", clock.instant().atOffset(ZoneOffset.UTC))
+            .update()
+        // Include an omitted oldest answer: answer presence/time must not reorder or expand the question page.
+        jdbc
+            .sql(
+                """
+                INSERT INTO requester_information_responses
+                    (tenant_id, response_id, request_id, answer, responded_at, recorded_at)
+                SELECT :tenant, LPAD(TO_HEX(n), 32, '0')::UUID, LPAD(TO_HEX(n), 32, '0')::UUID,
+                    ' <script>answer</script> 😀 ', :at, :at
+                FROM GENERATE_SERIES(1, 101, 100) n
+                """.trimIndent(),
+            ).param("tenant", tenant.value)
+            .param("at", clock.instant().plusSeconds(60).atOffset(ZoneOffset.UTC))
+            .update()
+    }
+
+    private fun recordAnsweredQuestion(
+        tenant: TenantId,
+        work: UUID,
+        case: UUID,
+        requestId: UUID,
+        answer: String,
+    ) {
+        jdbc
+            .sql(
+                """
+                INSERT INTO requester_information_requests
+                    (tenant_id, request_id, work_item_id, case_id, ownership_revision, question, requested_at)
+                VALUES (:tenant, :request, :work, :case, 1, 'Shared question identity', :at)
+                """.trimIndent(),
+            ).param("tenant", tenant.value)
+            .param("request", requestId)
+            .param("work", work)
+            .param("case", case)
+            .param("at", clock.instant().atOffset(ZoneOffset.UTC))
+            .update()
+        jdbc
+            .sql(
+                """
+                INSERT INTO requester_information_responses (tenant_id, response_id, request_id, answer, responded_at)
+                VALUES (:tenant, :response, :request, :answer, :at)
+                """.trimIndent(),
+            ).param("tenant", tenant.value)
+            .param("response", requestId)
+            .param("request", requestId)
+            .param("answer", answer)
+            .param("at", clock.instant().atOffset(ZoneOffset.UTC))
+            .update()
     }
 
     private fun questionWork(): Triple<RunSupervisionDatabaseFixture, UUID, UUID> {

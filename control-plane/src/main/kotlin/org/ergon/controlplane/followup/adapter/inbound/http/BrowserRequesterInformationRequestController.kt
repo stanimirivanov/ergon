@@ -1,7 +1,9 @@
 package org.ergon.controlplane.followup.adapter.inbound.http
 
 import org.ergon.controlplane.followup.application.InvalidRequesterInformationRequestException
+import org.ergon.controlplane.followup.application.OwnedInformationRequest
 import org.ergon.controlplane.followup.application.OwnedInformationRequestsService
+import org.ergon.controlplane.followup.application.RecordedQuestionResponse
 import org.ergon.controlplane.followup.application.RequesterInformationRequestCommand
 import org.ergon.controlplane.followup.application.RequesterInformationRequestConflictException
 import org.ergon.controlplane.followup.application.RequesterInformationRequestNotFoundException
@@ -50,7 +52,7 @@ class BrowserRequesterInformationRequestController(
                     .resolve(tenantId, principal)
                     .actor.id.value,
             )
-        return BrowserOwnedInformationRequests(page.items.map { it.toReceipt() }, page.truncated)
+        return BrowserOwnedInformationRequests(page.items.map { it.toHistoryItem() }, page.truncated)
     }
 
     /** First write returns 201; exact currently authorized recovery returns the immutable 200 receipt. */
@@ -130,9 +132,35 @@ data class BrowserRequesterInformationRequestReceipt(
 )
 
 data class BrowserOwnedInformationRequests(
-    val items: List<BrowserRequesterInformationRequestReceipt>,
+    val items: List<BrowserOwnedInformationRequest>,
     val truncated: Boolean,
 )
+
+/** Additive read projection, deliberately separate from unchanged question-command receipts. */
+data class BrowserOwnedInformationRequest(
+    val requestId: UUID,
+    val caseId: UUID,
+    val claimId: UUID,
+    val ownershipRevision: Long,
+    val authorActorId: UUID,
+    val question: String,
+    val requestedAt: Instant,
+    val recordedAt: Instant,
+    val response: RecordedQuestionResponse?,
+)
+
+private fun OwnedInformationRequest.toHistoryItem(): BrowserOwnedInformationRequest =
+    BrowserOwnedInformationRequest(
+        stored.request.requestId.value,
+        stored.request.caseId.value,
+        stored.request.claimId.value,
+        stored.request.ownershipRevision.value,
+        stored.request.authorActorId.value,
+        stored.request.question.value,
+        stored.request.requestedAt,
+        stored.recordedAt,
+        response,
+    )
 
 private fun StoredRequesterInformationRequest.toReceipt(): BrowserRequesterInformationRequestReceipt =
     BrowserRequesterInformationRequestReceipt(
