@@ -2,6 +2,11 @@
 
 ## TL;DR
 
+M05-PR21a adds immutable, tenant-safe answer storage with one final response per
+question and exact whole-winner replay. No response endpoint, browser disclosure,
+case observation append or runtime/proof transition exists yet. PR21b/c command
+and reads precede PR22 UI/guide. See [response foundation](../requester-information-requests.md#response-foundation).
+
 M05-PR19c adds bounded current-owner question history and requester-safe case
 questions over PR19a/b storage and commands. UI/guide follow backend review/merge.
 Questions remain untrusted text, not delivery, evidence or approval.

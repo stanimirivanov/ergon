@@ -135,6 +135,13 @@ restart the predecessor project so it reattaches its preserved volume. See
 
 ## Interfaces and limitations
 
+M05-PR21a establishes immutable requester-answer storage only. The repository
+derives historical requester/case attribution and returns a whole winner under
+concurrent identity/question collisions; it does not authenticate or authorize.
+PR21b/c command and protected reads precede PR22 UI/guide. Deploy the additive
+V20261026102606 first and retain audit/schema on rollback; see
+[response foundation](../docs/requester-information-requests.md#response-foundation).
+
 M05-PR19c adds bounded current-owner question history and requester-safe questions
 over PR19a/b storage and commands. Resolver history requires active owned work,
 fresh authority and an OPEN bound case; requester history requires explicit case
