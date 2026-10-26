@@ -4,18 +4,29 @@ import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimRepository
 import org.ergon.controlplane.followup.application.OwnedInformationRequestsReader
 import org.ergon.controlplane.followup.application.OwnedInformationRequestsService
+import org.ergon.controlplane.followup.application.RequesterAnswerWriteGuard
 import org.ergon.controlplane.followup.application.RequesterCaseQuestionsReader
 import org.ergon.controlplane.followup.application.RequesterCaseQuestionsService
 import org.ergon.controlplane.followup.application.RequesterCaseWriteGuard
 import org.ergon.controlplane.followup.application.RequesterInformationRequestRepository
 import org.ergon.controlplane.followup.application.RequesterInformationRequestService
+import org.ergon.controlplane.followup.application.RequesterInformationResponseRepository
+import org.ergon.controlplane.followup.application.RequesterInformationResponseService
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
-/** Composes the information-request command without infrastructure in application policy. */
+/** Composes requester questions, answers and protected reads without infrastructure in application policy. */
 @Configuration(proxyBeanMethods = false)
 class RequesterInformationRequestConfiguration {
+    @Bean
+    fun requesterAnswers(
+        cases: RequesterAnswerWriteGuard,
+        responses: RequesterInformationResponseRepository,
+        transactions: TransactionRunner,
+        clock: Clock,
+    ): RequesterInformationResponseService = RequesterInformationResponseService(cases, responses, transactions, clock)
+
     @Bean
     fun ownedInformationRequests(
         claims: HumanFollowUpClaimRepository,

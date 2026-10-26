@@ -15,6 +15,7 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken
 import org.springframework.security.authentication.InsufficientAuthenticationException
 import org.springframework.security.authorization.AuthorizationDecision
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer
 import org.springframework.security.core.Authentication
 import org.springframework.security.core.AuthenticationException
 import org.springframework.security.core.context.SecurityContextHolder
@@ -102,15 +103,7 @@ class BrowserSessionSecurityConfiguration(
                     ).permitAll()
                 it.requestMatchers("/oauth2/**", "/login/oauth2/**").denyAll()
                 if (audience == BrowserSessionAudience.REQUESTER) {
-                    it
-                        .requestMatchers(
-                            HttpMethod.GET,
-                            "/bff/v1/csrf",
-                            "/bff/v1/tenants/*/session",
-                            "/bff/v1/tenants/*/requester-cases/*/progress",
-                            "/bff/v1/tenants/*/requester-cases/*/information-requests",
-                        ).access { auth, _ -> requesterSession(auth.get(), audience) }
-                    it.anyRequest().denyAll()
+                    requesterAccess(it, audience)
                 } else {
                     it.requestMatchers("/bff/v1/tenants/*/requester-cases/**").denyAll()
                     it.anyRequest().authenticated()
@@ -137,6 +130,27 @@ class BrowserSessionSecurityConfiguration(
                 login.successHandler(BrowserAuthenticationSuccessHandler())
             }
         return http.build()
+    }
+
+    /** The complete requester allowlist stays together; unspecified methods/resources fail closed. */
+    private fun requesterAccess(
+        rules: AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry,
+        audience: BrowserSessionAudience,
+    ) {
+        rules
+            .requestMatchers(
+                HttpMethod.GET,
+                "/bff/v1/csrf",
+                "/bff/v1/tenants/*/session",
+                "/bff/v1/tenants/*/requester-cases/*/progress",
+                "/bff/v1/tenants/*/requester-cases/*/information-requests",
+            ).access { auth, _ -> requesterSession(auth.get(), audience) }
+        rules
+            .requestMatchers(
+                HttpMethod.POST,
+                "/bff/v1/tenants/*/requester-cases/*/information-requests/*/responses",
+            ).access { auth, _ -> requesterSession(auth.get(), audience) }
+        rules.anyRequest().denyAll()
     }
 
     private fun requesterSession(

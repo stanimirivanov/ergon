@@ -110,7 +110,7 @@ The original plan coordinate and milestone remain unchanged.
 
 M05-PR21 is split into three backend deliveries before implementation:
 PR21a ([issue #211](https://github.com/stanimirivanov/ergon/issues/211)) supplies
-tested immutable answer storage (G6); PR21b adds authenticated requester recording
+tested immutable answer storage (G6); PR21b ([issue #213](https://github.com/stanimirivanov/ergon/issues/213)) adds authenticated requester recording
 and exact recovery (G7); PR21c adds protected audience-specific reads (G8).
 Each depends on the preceding part. Command and reads independently consume the
 storage foundation; no HTTP producer exists in PR21a. PR22 waits for all three.
