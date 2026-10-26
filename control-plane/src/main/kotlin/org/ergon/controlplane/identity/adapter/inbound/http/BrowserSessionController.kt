@@ -88,6 +88,12 @@ data class BrowserCsrfTokenResponse(
     matchIfMissing = true,
 )
 class BrowserSessionUnavailableController {
+    /** Answering cannot dispatch without browser OIDC, including in a disabled requester deployment. */
+    @PostMapping("/v1/tenants/{tenantId}/requester-cases/*/information-requests/*/responses")
+    fun answerUnavailable(
+        @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
+    ): ProblemDetail = unavailableProblem()
+
     /** Reports that the login entry point is intentionally unavailable. */
     @GetMapping("/login")
     fun loginUnavailable(): ProblemDetail = unavailableProblem()
@@ -157,17 +163,17 @@ class BrowserSessionUnavailableController {
         @Suppress("UNUSED_PARAMETER") @PathVariable workItemId: UUID,
         @Suppress("UNUSED_PARAMETER") @PathVariable claimId: UUID,
     ): ProblemDetail = unavailableProblem()
-
-    private fun unavailableProblem(): ProblemDetail =
-        ProblemDetail
-            .forStatusAndDetail(
-                HttpStatus.SERVICE_UNAVAILABLE,
-                "Browser authentication is not configured",
-            ).apply {
-                type = URI.create("urn:ergon:problem:browser-authentication-unavailable")
-                title = "Browser authentication unavailable"
-            }
 }
+
+private fun unavailableProblem(): ProblemDetail =
+    ProblemDetail
+        .forStatusAndDetail(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Browser authentication is not configured",
+        ).apply {
+            type = URI.create("urn:ergon:problem:browser-authentication-unavailable")
+            title = "Browser authentication unavailable"
+        }
 
 private fun validateReturnTo(returnTo: String): String {
     val prefix = "/tenants/"

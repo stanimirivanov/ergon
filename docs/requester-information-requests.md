@@ -4,7 +4,34 @@
 
 M05-PR19c adds protected owner history and requester-safe questions over PR19a/b
 storage and commands. Recording and reading are not delivery or evidence.
-PR20 UI and user guide follow backend review/merge.
+M05-PR21b adds authenticated requester answers and exact recovery over PR21a storage.
+PR21c reads precede PR22 UI and user guide.
+
+## Answer command and recovery
+
+POST `/bff/v1/tenants/{tenantId}/requester-cases/{caseId}/information-requests/{requestId}/responses`
+from the requester deployment with its session CSRF. Input is
+`{"responseId":"<uuid>","answer":" exact plain text "}`, never actor or timestamps.
+Only the verified explicit requester can answer an OPEN case/question; resolver
+claims and authority are irrelevant. Lock the case through insertion/recovery.
+Closure after a lock wait withdraws both creation and replay.
+
+201 creates; 200 acknowledges exact response UUID, question and text under fresh
+access. Retain original intent after uncertainty; never automatically replace
+its UUID. Receipt fields are `responseId`, `requestId`, `caseId`, `answer`,
+`respondedAt` and `recordedAt`, without actor/provider or resolver context.
+No source stream, binding, runtime, ownership or proof revision advances.
+
+Problems use `urn:ergon:problem:`: `404 requester-response-not-found` for
+unavailable/foreign/unbound/closed/wrong-question targets, including replay;
+`409 requester-response-conflict` for another answer or changed intent without
+winner disclosure; `400 invalid-requester-response` for invalid text. Existing
+session/CSRF/identity failures and no-store remain. Workbench sessions are denied;
+disabled browser authentication returns 503. See [ADR 0074](decisions/0074-authorize-requester-answer-commands.md).
+
+Deploy V20261026102606 before the command. No new migration, dependency or flag.
+Block this POST at ingress or roll back application code for behavioral rollback;
+preserve additive schema and immutable audit. Reads and UI/guide remain separate.
 
 ## Command and recovery
 
@@ -70,7 +97,7 @@ collision takes precedence when the supplied question identifies another winner.
 The caller must compare every intent coordinate and authorize before disclosure.
 No current-access or OPEN-case check is supplied by storage.
 
-PR21b adds authenticated recording/recovery; PR21c adds protected reads before
+PR21b now adds authenticated recording/recovery; PR21c adds protected reads before
 PR22's UI and user guide. Deploy V20261026102606 first. This empty-table additive
 migration briefly locks the question parent for FK DDL, without scanning or
 rewriting old rows. Preserve immutable schema/audit on rollback and budget future

@@ -135,6 +135,12 @@ restart the predecessor project so it reattaches its preserved volume. See
 
 ## Interfaces and limitations
 
+M05-PR21b adds authenticated requester answers and exact recovery, holding the
+OPEN owned case lock through persistence. Deploy V20261026102606 first; no new
+schema or flag. Block the POST or roll back application code to disable writes,
+retaining audit. PR21c reads precede PR22 UI/guide; see
+[answer command](../docs/requester-information-requests.md#answer-command-and-recovery).
+
 M05-PR21a establishes immutable requester-answer storage only. The repository
 derives historical requester/case attribution and returns a whole winner under
 concurrent identity/question collisions; it does not authenticate or authorize.

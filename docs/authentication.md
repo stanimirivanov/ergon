@@ -35,7 +35,12 @@ evidence. Its DTO has no private observations or runtime details. The separately
 allowlisted [question history](requester-information-requests.md#protected-history)
 GET uses that same binding and only requester-safe question fields.
 
-Only those GET routes are allowed. Resolver, bearer, internal, generated login,
+M05-PR21b additionally allowlists only the CSRF-protected requester
+[answer POST](requester-information-requests.md#answer-command-and-recovery).
+Its application gate independently requires explicit case ownership and an OPEN
+case/question, including exact recovery. Resolver authority grants no answer access.
+
+Only those GET routes and that POST are allowed. Resolver, bearer, internal, generated login,
 implicit logout and all unspecified routes are denied even to authenticated
 requesters. Do not route the requester origin to the workbench backend. Use
 process/container health checks; HTTP health/docs routes are not public here.

@@ -151,6 +151,16 @@ class RequesterInformationRequestIntegrationTest(
     }
 
     @Test
+    fun `workbench sessions cannot invoke requester answer commands`() {
+        val path =
+            "/bff/v1/tenants/${UUID.randomUUID()}/requester-cases/${UUID.randomUUID()}" +
+                "/information-requests/${UUID.randomUUID()}/responses"
+        mvc
+            .perform(post(path).with(RunEscalationTestFixture.session(UUID.randomUUID())).with(csrf()))
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
     fun `owner authority is rechecked after case and history waits before disclosure`() {
         for (atCase in listOf(true, false)) {
             val command = command()

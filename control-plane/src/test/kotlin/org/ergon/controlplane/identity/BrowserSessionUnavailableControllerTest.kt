@@ -35,6 +35,17 @@ class BrowserSessionUnavailableControllerTest {
     private val mockMvc = MockMvcBuilders.standaloneSetup(BrowserSessionUnavailableController()).build()
 
     @Test
+    fun `requester answers fail closed without browser authentication configuration`() {
+        mockMvc
+            .perform(
+                post(
+                    "/bff/v1/tenants/${UUID.randomUUID()}/requester-cases/${UUID.randomUUID()}" +
+                        "/information-requests/${UUID.randomUUID()}/responses",
+                ),
+            ).andExpect(status().isServiceUnavailable)
+    }
+
+    @Test
     fun `priority fails closed when browser sessions are unavailable`() {
         val path = "/bff/v1/tenants/${UUID.randomUUID()}/human-follow-ups/${UUID.randomUUID()}/priority-assignments"
         mockMvc
