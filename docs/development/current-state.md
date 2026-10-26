@@ -2,10 +2,17 @@
 
 ## TL;DR
 
+M05-PR21c adds nullable, narrow recorded answers to existing protected requester
+and resolver question histories without changing question order, bounds or access.
+Requester history survives closure; resolver disclosure requires active ownership,
+an OPEN bound case and fresh authority. POST receipts stay unchanged; no schema,
+dependency or flag is added. PR22 UI/guide follows backend review/merge. See
+[protected history](../requester-information-requests.md#protected-history).
+
 M05-PR21b adds requester-only CSRF-protected answering and exact recovery under
 explicit ownership and an OPEN case lock. Receipts contain no actor or resolver
-context; no case/run/proof state changes. Protected reads (PR21c) precede PR22
-UI/guide. See [answer command](../requester-information-requests.md#answer-command-and-recovery).
+context; no case/run/proof state changes. See
+[answer command](../requester-information-requests.md#answer-command-and-recovery).
 
 M05-PR21a supplies immutable, tenant-safe answer storage and whole-winner replay
 under the PR21b command, without observation-stream or runtime/proof changes.

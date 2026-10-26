@@ -12,8 +12,26 @@ import java.util.UUID
 
 /** Newest-first history; [truncated] means older questions exist, not that any were delivered or answered. */
 data class OwnedInformationRequestsPage(
-    val items: List<StoredRequesterInformationRequest>,
+    val items: List<OwnedInformationRequest>,
     val truncated: Boolean,
+)
+
+/** History view, not a write receipt or access grant; null [response] means no answer in this read snapshot. */
+data class OwnedInformationRequest(
+    val stored: StoredRequesterInformationRequest,
+    val response: RecordedQuestionResponse?,
+)
+
+/**
+ * Narrow immutable answer projection, preserving exact text and persisted timestamp precision.
+ * [respondedAt] is the server command time; [recordedAt] is database recording time, not delivery time.
+ * Text remains untrusted, never consent, verified evidence or proof. No private actor attribution is carried.
+ */
+data class RecordedQuestionResponse(
+    val responseId: UUID,
+    val answer: String,
+    val respondedAt: Instant,
+    val recordedAt: Instant,
 )
 
 /** A requester-safe question, deliberately excluding resolver/work/claim and provider attribution. */
@@ -22,6 +40,8 @@ data class RequesterCaseQuestion(
     val question: String,
     val requestedAt: Instant,
     val recordedAt: Instant,
+    /** Null means no answer was visible in the same snapshot as this question. */
+    val response: RecordedQuestionResponse?,
 )
 
 /** Newest-first, at most 100 questions across this case's work items; text remains untrusted. */
@@ -34,18 +54,19 @@ fun interface OwnedInformationRequestsReader {
     /**
      * Returns at most positive [limit] rows, newest (recordedAt, requestId) first, or an empty list.
      * Caller holds the active work lock in a transaction and establishes current ownership/authority.
+     * Each optional answer is joined by tenant/question in the same snapshot; answers do not affect ordering.
      * Storage failures propagate; absence never substitutes for an access decision.
      */
     fun latest(
         tenant: TenantId,
         work: HumanFollowUpWorkItemId,
         limit: Int,
-    ): List<StoredRequesterInformationRequest>
+    ): List<OwnedInformationRequest>
 }
 
 fun interface RequesterCaseQuestionsReader {
     /**
-     * Binds exact tenant/case/requester ownership and minimal columns in one database snapshot.
+     * Binds exact tenant/case/requester ownership, questions and narrow optional answers in one snapshot.
      * Returns null for every invisible case, but an empty page for a visible case without questions.
      * Lifecycle and resolver ownership do not remove requester access. Infrastructure failures propagate.
      */

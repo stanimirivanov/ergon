@@ -1,6 +1,7 @@
 package org.ergon.controlplane.followup.adapter.out.persistence
 
 import org.ergon.cases.domain.CaseId
+import org.ergon.controlplane.followup.application.OwnedInformationRequest
 import org.ergon.controlplane.followup.application.OwnedInformationRequestsReader
 import org.ergon.controlplane.followup.application.RequesterInformationRequest
 import org.ergon.controlplane.followup.application.RequesterInformationRequestRecording
@@ -27,20 +28,25 @@ class PostgresRequesterInformationRequestRepository(
     private val jdbc: JdbcClient,
 ) : RequesterInformationRequestRepository,
     OwnedInformationRequestsReader {
+    private val requestRows = DataClassRowMapper(InformationRequestRow::class.java)
+
     override fun latest(
         tenant: TenantId,
         work: HumanFollowUpWorkItemId,
         limit: Int,
-    ): List<StoredRequesterInformationRequest> =
+    ): List<OwnedInformationRequest> =
         jdbc
             .sql(
                 """
                 SELECT r.request_id, r.work_item_id, r.case_id, r.ownership_revision, r.question,
-                    r.requested_at, r.recorded_at, o.claim_id, o.resolver_actor_id
+                    r.requested_at, r.recorded_at, o.claim_id, o.resolver_actor_id,
+                    s.response_id, s.answer, s.responded_at, s.recorded_at AS response_recorded_at
                 FROM requester_information_requests r
                 JOIN human_follow_up_ownership_events o
                     ON o.tenant_id = r.tenant_id AND o.work_item_id = r.work_item_id
                     AND o.ownership_revision = r.ownership_revision
+                LEFT JOIN requester_information_responses s
+                    ON s.tenant_id = r.tenant_id AND s.request_id = r.request_id
                 WHERE r.tenant_id = :tenant AND r.work_item_id = :work
                 ORDER BY r.recorded_at DESC, r.request_id DESC
                 LIMIT :limit
@@ -48,9 +54,12 @@ class PostgresRequesterInformationRequestRepository(
             ).param("tenant", tenant.value)
             .param("work", work.value)
             .param("limit", limit)
-            .query(DataClassRowMapper(InformationRequestRow::class.java))
-            .list()
-            .map { it.toStored() }
+            .query { row, index ->
+                OwnedInformationRequest(
+                    requireNotNull(requestRows.mapRow(row, index)).toStored(),
+                    row.recordedQuestionResponse(),
+                )
+            }.list()
 
     override fun record(
         tenant: TenantId,

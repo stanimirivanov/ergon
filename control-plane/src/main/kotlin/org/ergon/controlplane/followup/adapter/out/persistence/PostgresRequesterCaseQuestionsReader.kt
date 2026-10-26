@@ -26,7 +26,8 @@ class PostgresRequesterCaseQuestionsReader(
             jdbc
                 .sql(
                     """
-                    SELECT q.request_id, q.question, q.requested_at, q.recorded_at
+                    SELECT q.request_id, q.question, q.requested_at, q.recorded_at,
+                        s.response_id, s.answer, s.responded_at, s.recorded_at AS response_recorded_at
                     FROM case_requesters owner
                     LEFT JOIN LATERAL (
                         SELECT r.request_id, r.question, r.requested_at, r.recorded_at
@@ -35,6 +36,8 @@ class PostgresRequesterCaseQuestionsReader(
                         ORDER BY r.recorded_at DESC, r.request_id DESC
                         LIMIT :limit
                     ) q ON TRUE
+                    LEFT JOIN requester_information_responses s
+                        ON s.tenant_id = owner.tenant_id AND s.request_id = q.request_id
                     WHERE owner.tenant_id = :tenant AND owner.case_id = :case AND owner.requester_actor_id = :actor
                     ORDER BY q.recorded_at DESC, q.request_id DESC
                     """.trimIndent(),
@@ -50,6 +53,7 @@ class PostgresRequesterCaseQuestionsReader(
                             row.getString("question"),
                             row.getObject("requested_at", OffsetDateTime::class.java).toInstant(),
                             row.getObject("recorded_at", OffsetDateTime::class.java).toInstant(),
+                            row.recordedQuestionResponse(),
                         )
                     }
                 }.list()

@@ -315,6 +315,13 @@ Preserve immutable lease/admission history and original uncertain intent; see
 
 ## Requester browser deployment
 
+Protected question histories now include nullable recorded answers under the
+same audience-specific access rules. Requester history survives case closure;
+resolver history remains current-owner/active-work/OPEN-case scoped. No new
+schema or flag is introduced; deploy the existing response schema before readers
+and the dependent PR22 UI/guide. See
+[protected history](../docs/requester-information-requests.md#protected-history).
+
 M05-PR16 exposes only explicitly owned case goal/status/timestamps at the progress
 resource. Deploy the additive ownership migration first; existing cases remain
 unowned. Keep bindings on rollback. Until authenticated intake, reviewed privileged
@@ -324,7 +331,8 @@ bootstrap is required; no browser ownership writer exists. See
 Requester browser hosting uses a separate process/origin, not the resolver BFF's
 authority. Set `ERGON_BROWSER_SESSION_AUDIENCE=requester` with browser sessions
 enabled and provision only its `ergon-requester` confidential registration.
-Only login/session/CSRF are allowed; resolver/internal routes fail closed.
+Only the requester login/session/CSRF, owned progress/question reads and answer
+command are allowlisted; resolver/internal routes fail closed.
 No migration is needed. See [requester deployment](../docs/authentication.md#requester-browser-deployment).
 
 ## Verify
