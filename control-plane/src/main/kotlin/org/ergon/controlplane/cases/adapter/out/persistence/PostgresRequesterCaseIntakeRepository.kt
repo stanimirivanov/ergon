@@ -46,7 +46,12 @@ class PostgresRequesterCaseIntakeRepository(
             .param("case", caseId.value)
             .param("source", INTAKE_SOURCE)
             .query { row, _ ->
-                val event = codec.decode(row.getString("event_type"), row.getInt("schema_version"), row.getString("payload"))
+                val event =
+                    codec.decode(
+                        row.getString("event_type"),
+                        row.getInt("schema_version"),
+                        row.getString("payload"),
+                    )
                 check(event is CaseOpened) { "Case stream must begin with an opening" }
                 StoredRequesterCaseOpening(
                     event,

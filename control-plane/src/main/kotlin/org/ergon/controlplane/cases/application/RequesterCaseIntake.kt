@@ -58,7 +58,10 @@ interface RequesterCaseIntakeRepository {
         caseId: CaseId,
     ): StoredRequesterCaseOpening?
 
-    /** Insert the verified creator with intake provenance after projection, in the same transaction; never adopt an old case. */
+    /**
+     * Insert the verified creator with intake provenance after projection,
+     * in the same transaction; never adopt an old case.
+     */
     fun bind(
         tenantId: TenantId,
         caseId: CaseId,
@@ -96,7 +99,9 @@ class RequesterCaseIntakeService(
             )
         require(
             listOf(goal.value, observation.content).all { text ->
-                text.codePoints().allMatch { it != 0 && it !in Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code }
+                text.codePoints().allMatch {
+                    it != 0 && it !in Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code
+                }
             },
         ) { "Requester intake text must be valid Unicode without NUL" }
         val tenant = TenantId(command.tenantId)

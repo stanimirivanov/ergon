@@ -56,7 +56,14 @@ class RequesterCaseIntakeIntegrationTest(
         val command = command()
         val original = intake.open(command).receipt
         cases.recordConnectorObservation(
-            RecordConnectorObservationCommand(command.tenantId, command.caseId, 1, "test", "ref", "Later private evidence"),
+            RecordConnectorObservationCommand(
+                command.tenantId,
+                command.caseId,
+                1,
+                "test",
+                "ref",
+                "Later private evidence",
+            ),
         )
         // Simulate only a later lifecycle projection; this fixture does not establish accepted proof.
         jdbc
@@ -64,7 +71,8 @@ class RequesterCaseIntakeIntegrationTest(
             .param("tenant", command.tenantId)
             .param("case", command.caseId)
             .update()
-        val recovered = intake.open(command.copy(goal = "Restore access", initialObservation = original.initialObservation))
+        val recovered =
+            intake.open(command.copy(goal = "Restore access", initialObservation = original.initialObservation))
         assertThat(recovered.created).isFalse()
         assertThat(recovered.receipt).isEqualTo(original)
         assertThat(count("case_events", command)).isEqualTo(2)
@@ -132,7 +140,8 @@ class RequesterCaseIntakeIntegrationTest(
                 { runCatching { intake.open(fresh.copy(initialObservation = "Competing")) } },
             )
         assertThat(competing.count { it.isSuccess }).isEqualTo(1)
-        assertThat(competing.single { it.isFailure }.exceptionOrNull()).isInstanceOf(RequesterCaseIntakeConflictException::class.java)
+        assertThat(competing.single { it.isFailure }.exceptionOrNull())
+            .isInstanceOf(RequesterCaseIntakeConflictException::class.java)
         assertThat(count("case_events", fresh)).isEqualTo(1)
         assertThat(count("case_requesters", fresh)).isEqualTo(1)
     }
@@ -157,7 +166,13 @@ class RequesterCaseIntakeIntegrationTest(
 
     private fun command(): RequesterCaseIntakeCommand {
         val tenant = UUID.randomUUID()
-        return RequesterCaseIntakeCommand(tenant, UUID.randomUUID(), actor(tenant), " Restore access ", " <script>untrusted</script> 😀 ")
+        return RequesterCaseIntakeCommand(
+            tenant,
+            UUID.randomUUID(),
+            actor(tenant),
+            " Restore access ",
+            " <script>untrusted</script> 😀 ",
+        )
     }
 
     private fun actor(tenant: UUID): UUID =
