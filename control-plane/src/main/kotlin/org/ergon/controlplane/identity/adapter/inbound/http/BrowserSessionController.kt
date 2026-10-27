@@ -88,9 +88,12 @@ data class BrowserCsrfTokenResponse(
     matchIfMissing = true,
 )
 class BrowserSessionUnavailableController {
-    /** Answering cannot dispatch without browser OIDC, including in a disabled requester deployment. */
-    @PostMapping("/v1/tenants/{tenantId}/requester-cases/*/information-requests/*/responses")
-    fun answerUnavailable(
+    /** Requester writes cannot dispatch without browser OIDC configuration. */
+    @PostMapping(
+        "/v1/tenants/{tenantId}/requester-cases",
+        "/v1/tenants/{tenantId}/requester-cases/*/information-requests/*/responses",
+    )
+    fun requesterWriteUnavailable(
         @Suppress("UNUSED_PARAMETER") @PathVariable tenantId: UUID,
     ): ProblemDetail = unavailableProblem()
 

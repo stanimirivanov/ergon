@@ -72,6 +72,11 @@ interface RequesterCaseIntakeRepository {
 /** Deliberately discloses neither an existing owner nor an opening's private input. */
 class RequesterCaseIntakeConflictException : RuntimeException("Requester intake intent conflicts")
 
+/** Only input normalization failures; infrastructure defects must never be classified as editable rejection. */
+class InvalidRequesterCaseIntakeException(
+    cause: IllegalArgumentException,
+) : IllegalArgumentException("Invalid requester case intake", cause)
+
 /** Opens an owned case atomically, without selecting a contract, starting a run or granting approval. */
 class RequesterCaseIntakeService(
     private val repository: RequesterCaseIntakeRepository,
@@ -86,24 +91,15 @@ class RequesterCaseIntakeService(
      * The tenant/case lock covers lookup, event/projection creation and binding, including concurrent recovery.
      * Exact normalized recovery returns the original opening even after case closure; it never restores access.
      * @throws RequesterCaseIntakeConflictException for different intent/actor or a non-intake opening.
-     * @throws IllegalArgumentException for invalid input. Storage failures roll back every write and propagate.
+     * @throws InvalidRequesterCaseIntakeException for invalid input; storage/codec failures propagate unchanged.
      */
     fun open(command: RequesterCaseIntakeCommand): RequesterCaseIntakeResult {
-        val goal = CaseGoal.of(command.goal)
-        val observation =
-            SourceObservation.create(
+        val (goal, observation) =
+            normalizeInput(
+                command,
                 ObservationId(identities.next()),
-                ObservationOrigin.requesterApi(),
-                command.initialObservation,
                 clock.instant().truncatedTo(ChronoUnit.MICROS),
             )
-        require(
-            listOf(goal.value, observation.content).all { text ->
-                text.codePoints().allMatch {
-                    it != 0 && it !in Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code
-                }
-            },
-        ) { "Requester intake text must be valid Unicode without NUL" }
         val tenant = TenantId(command.tenantId)
         val case = CaseId(command.caseId)
         val actor = HumanActorId(command.requesterActorId)
@@ -134,3 +130,30 @@ class RequesterCaseIntakeService(
         }
     }
 }
+
+private fun normalizeInput(
+    command: RequesterCaseIntakeCommand,
+    observationId: ObservationId,
+    observedAt: Instant,
+): Pair<CaseGoal, SourceObservation> =
+    try {
+        val goal = CaseGoal.of(command.goal)
+        val observation =
+            SourceObservation.create(
+                observationId,
+                ObservationOrigin.requesterApi(),
+                command.initialObservation,
+                observedAt,
+            )
+        require(
+            listOf(goal.value, observation.content).all { text ->
+                text.codePoints().allMatch {
+                    it != 0 && it !in Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code
+                }
+            },
+        ) { "Requester intake text must be valid Unicode without NUL" }
+        goal to observation
+    } catch (failure: IllegalArgumentException) {
+        // No clock, identity, codec or storage work belongs inside this input-only translation.
+        throw InvalidRequesterCaseIntakeException(failure)
+    }

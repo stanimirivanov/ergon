@@ -40,12 +40,17 @@ M05-PR21b additionally allowlists only the CSRF-protected requester
 Its application gate independently requires explicit case ownership and an OPEN
 case/question, including exact recovery. Resolver authority grants no answer access.
 
-Only those GET routes and that POST are allowed. Resolver, bearer, internal, generated login,
+M05-PR23b also allows [case intake](requester-case-intake.md): the collection POST
+requires the fixed requester session, tenant registration and CSRF. It atomically
+binds the verified creator; body actor hints cannot select ownership. Historical
+recovery grants no continuing access, approval, execution or proof authority.
+
+Only those GET routes and the two named POST shapes are allowed. Resolver, bearer, internal, generated login,
 implicit logout and all unspecified routes are denied even to authenticated
 requesters. Do not route the requester origin to the workbench backend. Use
 process/container health checks; HTTP health/docs routes are not public here.
-Tenant actor registration proves identity only: it grants no case ownership,
-intake or resolver authority. Later requester slices must
+Tenant actor registration proves identity only: it grants no ownership of existing
+cases or resolver authority. Only confirmed intake creates its own binding. Later requester slices must
 explicitly extend the allowlist and enforce their own application authorization.
 
 The browser boundary itself requires no migration; requester progress additionally

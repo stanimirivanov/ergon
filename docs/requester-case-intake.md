@@ -1,11 +1,35 @@
-# Requester case intake foundation
+# Requester case intake
 
 ## TL;DR
 
-M05-PR23a opens a case and binds its verified creator atomically through an
-application service. Reusing the same tenant/case UUID recovers the original
-normalized intent, not current state. No browser endpoint is exposed yet; PR23b
-adds authentication/CSRF and PR24 adds UI and the executable user guide.
+POST `/bff/v1/tenants/{tenantId}/requester-cases` in the separate requester BFF
+opens a case and binds its verified creator atomically. Reusing the same tenant/
+case UUID recovers original normalized intent, not current state. Session/CSRF
+and tenant registration are required. PR24 UI and executable guide follow backend
+review/merge.
+
+## Browser contract
+
+Send JSON `caseId` (stable UUID), `goal` and `initialObservation`. The server
+resolves the creator from the fixed requester OIDC session, never caller fields.
+Unknown members are ignored, including actor/authority hints. Creation returns
+201; same-creator normalized recovery returns 200. Both no-store receipts contain
+exactly `caseId`, `goal`, `initialObservation`, `openedAt`, `recordedAt`, with UTC
+instant timestamps. No status, stream version, actor, approval or source timeline.
+
+Problems are diagnostic-free: 409 `urn:ergon:problem:requester-case-intake-conflict`
+for conflicting/legacy intent; 400 `urn:ergon:problem:invalid-requester-case-intake`
+for malformed JSON/UUID or invalid input. Arbitrary storage/codec/identity failures
+are not input rejection. Uncertainty is not permission to replace intent: retain
+the original UUID/text, retry only explicitly and compare the historical receipt.
+Neither acknowledgement nor a successful recheck of progress creates a new intent.
+
+Missing sessions use the existing 401/sign-in contract; unregistered, wrong-tenant
+or rejected identities use existing 403 problems. Missing/foreign-session CSRF is
+403 `urn:ergon:problem:invalid-browser-csrf-token`. Workbench sessions cannot use
+intake, unsupported methods remain denied and there is no collection GET. Default
+browser-disabled mode returns authentication-unavailable 503. See
+[ADR 0077](decisions/0077-authorize-requester-case-intake.md).
 
 ## Identity and recovery
 
@@ -48,8 +72,10 @@ later lifecycle changes. Run it through the existing CI PostgreSQL stage,
 `python tools/ci/verify.py postgres`, after its compilation/unit stages; complete
 baseline remains `./mvnw -B -ntp verify`. Busy-host deferrals are recorded in the PR.
 
-PR23b must resolve the requester session/tenant actor, enforce CSRF and fail closed
-for other audiences before exposing any command. No new browser surface, discovery,
-uploads, notifications, contract selection, run start or approval authority is
-included here. See [ADR 0076](decisions/0076-open-requester-owned-cases-atomically.md)
+PR23b's HTTP/session/CSRF tests run on CI; local non-container tests distinguish
+typed input rejection from unexpected defects. Disable new intake by blocking the
+collection POST or rolling back its adapter, retaining immutable audit and reads.
+No discovery, uploads, notifications, contract selection, run start or approval
+authority. Deployment payload/rate controls and live OIDC/two-origin acceptance
+remain operational gaps. See [ADR 0076](decisions/0076-open-requester-owned-cases-atomically.md)
 and [protected progress](requester-case-progress.md).
