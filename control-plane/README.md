@@ -135,6 +135,12 @@ restart the predecessor project so it reattaches its preserved volume. See
 
 ## Interfaces and limitations
 
+M05-PR23a adds the application/storage intake foundation: opening, projection and
+verified creator binding commit together; exact normalized recovery returns the
+original opening. No new browser endpoint, migration, dependency or flag. PR23b
+adds requester authentication/CSRF before PR24 UI/guide. See
+[intake foundation](../docs/requester-case-intake.md).
+
 M05-PR21b adds authenticated requester answers and exact recovery, holding the
 OPEN owned case lock through persistence. Deploy V20261026102606 first; no new
 schema or flag. Block the POST or roll back application code to disable writes,
