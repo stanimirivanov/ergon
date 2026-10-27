@@ -37,7 +37,8 @@ index/WAL growth and a migration window. Old case writers remain compatible and
 produce unowned cases. Keep schema/bindings on rollback and stop the requester
 deployment as described in [authentication](authentication.md#requester-browser-deployment).
 
-Until M05-PR23, only a trusted database operator can provision a reviewed binding.
+Until M05-PR23b exposes authenticated intake, only a trusted database operator can
+provision a reviewed binding for a browser caller.
 No HTTP input, observation or approval attestation proves ownership. Verify the
 exact tenant, case and registered actor out of band, then execute this parameterized
 statement through the approved database tooling (placeholders are bound values):
@@ -56,7 +57,8 @@ Binding and source references remain private durable audit data, with no cascade
 deletion. Runtime SQL accounts must not be exposed to browser users; this is not
 an RLS design or a public provisioning contract.
 
-The future authenticated intake producer must create the case and bind its
-verified creator in one transaction, without minting approval authority. UI/guide
+The [PR23a intake foundation](requester-case-intake.md) creates the case and binds
+its verified creator in one transaction, without minting approval authority.
+Its authenticated browser producer follows in PR23b. UI/guide
 implementation follows backend review/merge; live IdP/two-origin acceptance remains
 unverified. See [ADR 0069](decisions/0069-disclose-requester-owned-case-progress.md).

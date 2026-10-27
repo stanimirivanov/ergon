@@ -139,3 +139,4 @@ benchmarks rather than duplicating them.
 | 0073 | [Record immutable requester answers](0073-record-immutable-requester-answers.md) |
 | 0074 | [Authorize requester answer commands](0074-authorize-requester-answer-commands.md) |
 | 0075 | [Disclose protected requester answers](0075-disclose-protected-requester-answers.md) |
+| 0076 | [Open requester-owned cases atomically](0076-open-requester-owned-cases-atomically.md) |

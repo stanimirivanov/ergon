@@ -2,6 +2,11 @@
 
 ## TL;DR
 
+M05-PR23a adds atomic application-level requester intake and historical recovery
+over existing immutable case events/bindings. No browser route is exposed; PR23b
+adds authenticated intake before PR24 UI/guide. Existing writers stay unchanged.
+See [requester intake](../requester-case-intake.md).
+
 M05-PR21c adds nullable, narrow recorded answers to existing protected requester
 and resolver question histories without changing question order, bounds or access.
 Requester history survives closure; resolver disclosure requires active ownership,
