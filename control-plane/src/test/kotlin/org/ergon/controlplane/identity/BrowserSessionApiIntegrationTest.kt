@@ -20,6 +20,7 @@ import org.springframework.security.oauth2.client.registration.InMemoryClientReg
 import org.springframework.security.oauth2.core.AuthorizationGrantType
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod
 import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -49,12 +50,16 @@ class BrowserSessionApiIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
 ) {
     @Test
-    fun `workbench sessions cannot read requester progress`() {
+    fun `workbench sessions cannot read requester progress or create requester cases`() {
         val path = "/bff/v1/tenants/{tenantId}/requester-cases/{caseId}/progress"
         mockMvc
             .perform(
                 get(path, UUID.randomUUID(), UUID.randomUUID())
                     .with(oidcLogin()),
+            ).andExpect(status().isForbidden)
+        mockMvc
+            .perform(
+                post("/bff/v1/tenants/${UUID.randomUUID()}/requester-cases").with(oidcLogin()).with(csrf()),
             ).andExpect(status().isForbidden)
     }
 

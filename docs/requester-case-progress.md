@@ -19,7 +19,9 @@ No source observations, connector references, internal notes, owner IDs, contrac
 run, approval or proof payload is returned. Reads do not mutate or acquire anything.
 There is no collection/list endpoint: callers need an explicitly supplied case
 link. [Question history](requester-information-requests.md#protected-history) is a
-separate narrow read, not part of progress. Intake, responses and discovery are deferred.
+separate narrow read, not part of progress. [Intake](requester-case-intake.md) and
+[answers](requester-information-requests.md#answer-command-and-recovery) are
+separate authenticated commands; discovery remains deferred.
 
 Missing, unbound, foreign-owned and cross-tenant cases return the same
 `404 urn:ergon:problem:requester-case-not-found` type/title/detail. Standard
@@ -37,8 +39,9 @@ index/WAL growth and a migration window. Old case writers remain compatible and
 produce unowned cases. Keep schema/bindings on rollback and stop the requester
 deployment as described in [authentication](authentication.md#requester-browser-deployment).
 
-Until M05-PR23b exposes authenticated intake, only a trusted database operator can
-provision a reviewed binding for a browser caller.
+[Authenticated intake](requester-case-intake.md) now binds new cases atomically.
+For legacy cases, only a trusted database operator can provision a reviewed binding
+for a browser caller; intake never adopts or reassigns those cases.
 No HTTP input, observation or approval attestation proves ownership. Verify the
 exact tenant, case and registered actor out of band, then execute this parameterized
 statement through the approved database tooling (placeholders are bound values):
@@ -59,6 +62,6 @@ an RLS design or a public provisioning contract.
 
 The [PR23a intake foundation](requester-case-intake.md) creates the case and binds
 its verified creator in one transaction, without minting approval authority.
-Its authenticated browser producer follows in PR23b. UI/guide
+Its authenticated browser producer is PR23b. UI/guide
 implementation follows backend review/merge; live IdP/two-origin acceptance remains
 unverified. See [ADR 0069](decisions/0069-disclose-requester-owned-case-progress.md).

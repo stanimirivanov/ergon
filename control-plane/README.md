@@ -135,10 +135,16 @@ restart the predecessor project so it reattaches its preserved volume. See
 
 ## Interfaces and limitations
 
+M05-PR23b exposes the requester collection POST for authenticated intake/recovery,
+using the fixed requester client, tenant actor and session CSRF. A 201/200 receipt
+contains only original normalized input/opening times; no authority or current
+state. No schema/dependency/flag. PR24 UI/guide follows backend review/merge;
+see [intake contract](../docs/requester-case-intake.md#browser-contract).
+
 M05-PR23a adds the application/storage intake foundation: opening, projection and
 verified creator binding commit together; exact normalized recovery returns the
-original opening. No new browser endpoint, migration, dependency or flag. PR23b
-adds requester authentication/CSRF before PR24 UI/guide. See
+original opening. That foundation introduced no browser endpoint, migration,
+dependency or flag; PR23b supplies its requester authentication/CSRF. See
 [intake foundation](../docs/requester-case-intake.md).
 
 M05-PR21b adds authenticated requester answers and exact recovery, holding the
@@ -330,15 +336,15 @@ and the dependent PR22 UI/guide. See
 
 M05-PR16 exposes only explicitly owned case goal/status/timestamps at the progress
 resource. Deploy the additive ownership migration first; existing cases remain
-unowned. Keep bindings on rollback. Until authenticated intake, reviewed privileged
-bootstrap is required; no browser ownership writer exists. See
+unowned. Keep bindings on rollback. Authenticated intake binds new cases; legacy
+cases require reviewed privileged bootstrap and cannot be adopted by intake. See
 [requester progress](../docs/requester-case-progress.md).
 
 Requester browser hosting uses a separate process/origin, not the resolver BFF's
 authority. Set `ERGON_BROWSER_SESSION_AUDIENCE=requester` with browser sessions
 enabled and provision only its `ergon-requester` confidential registration.
-Only the requester login/session/CSRF, owned progress/question reads and answer
-command are allowlisted; resolver/internal routes fail closed.
+Only the requester login/session/CSRF, owned progress/question reads, intake and
+answer commands are allowlisted; resolver/internal routes fail closed.
 No migration is needed. See [requester deployment](../docs/authentication.md#requester-browser-deployment).
 
 ## Verify

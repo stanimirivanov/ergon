@@ -126,7 +126,8 @@ history (PR #223) and final-answer submission/recovery (PR #225).
 M05-PR23 is split before implementation: PR23a
 ([issue #217](https://github.com/stanimirivanov/ergon/issues/217), G3) establishes
 atomic application/storage intake and historical recovery, immediately consumed
-by existing protected progress; PR23b (G4) adds the authenticated requester command
+by existing protected progress; PR23b
+([issue #219](https://github.com/stanimirivanov/ergon/issues/219), G4) adds the authenticated requester command
 and HTTP/session/CSRF tests. No unused table or browser endpoint is added by PR23a.
 PR23b depends on PR23a; PR24 UI/guide follows both backend reviews/merges (G5).
 The existing case and requester schema is reused; no new migration is planned.

@@ -2,9 +2,13 @@
 
 ## TL;DR
 
-M05-PR23a adds atomic application-level requester intake and historical recovery
-over existing immutable case events/bindings. No browser route is exposed; PR23b
-adds authenticated intake before PR24 UI/guide. Existing writers stay unchanged.
+M05-PR23b exposes requester-only CSRF-protected case intake and historical recovery.
+The session chooses the creator; narrow receipts never assert current state.
+Input rejection is distinct from unexpected defects. No migration/dependency/flag;
+PR24 UI/guide follows backend review/merge. See [intake](../requester-case-intake.md).
+
+The PR23a atomic intake foundation uses existing immutable case events/bindings,
+now consumed by PR23b's browser command. Existing legacy writers stay unchanged.
 See [requester intake](../requester-case-intake.md).
 
 M05-PR21c adds nullable, narrow recorded answers to existing protected requester
@@ -30,7 +34,8 @@ See [requester information requests](../requester-information-requests.md).
 
 M05-PR16 adds requester-owned case progress with explicit immutable ownership,
 not approval authority. Legacy cases remain unowned/hidden; trusted bootstrap is
-required until authenticated intake. No source or runtime evidence is disclosed.
+required for legacy cases; new intake binds its verified creator. No source or
+runtime evidence is disclosed by progress.
 See [requester case progress](../requester-case-progress.md).
 
 M05-PR15 (M03 prerequisite) adds an opt-in, separately deployed requester browser

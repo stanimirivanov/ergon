@@ -11,6 +11,14 @@ import java.util.UUID
 
 class BrowserSessionUnavailableControllerTest {
     @Test
+    fun `requester intake fails closed without browser authentication configuration`() {
+        mockMvc
+            .perform(post("/bff/v1/tenants/${UUID.randomUUID()}/requester-cases"))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:browser-authentication-unavailable"))
+    }
+
+    @Test
     fun `information requests fail closed without browser sessions`() {
         val path = "/bff/v1/tenants/${UUID.randomUUID()}/human-follow-ups/${UUID.randomUUID()}/information-requests"
         mockMvc

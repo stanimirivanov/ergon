@@ -105,7 +105,11 @@ class BrowserSessionSecurityConfiguration(
                 if (audience == BrowserSessionAudience.REQUESTER) {
                     requesterAccess(it, audience)
                 } else {
-                    it.requestMatchers("/bff/v1/tenants/*/requester-cases/**").denyAll()
+                    it
+                        .requestMatchers(
+                            "/bff/v1/tenants/*/requester-cases",
+                            "/bff/v1/tenants/*/requester-cases/**",
+                        ).denyAll()
                     it.anyRequest().authenticated()
                 }
             }.requestCache {
@@ -148,6 +152,7 @@ class BrowserSessionSecurityConfiguration(
         rules
             .requestMatchers(
                 HttpMethod.POST,
+                "/bff/v1/tenants/*/requester-cases",
                 "/bff/v1/tenants/*/requester-cases/*/information-requests/*/responses",
             ).access { auth, _ -> requesterSession(auth.get(), audience) }
         rules.anyRequest().denyAll()
