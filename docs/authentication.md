@@ -2,6 +2,11 @@
 
 ## TL;DR
 
+POST `/bff/logout` retires only this deployment's authenticated local session,
+with matching CSRF, empty no-store 204 and cookie expiration. Provider sessions,
+accepted work and other browser sessions are unaffected. See
+[ADR 0081](decisions/0081-retire-local-browser-sessions.md).
+
 Notification GETs use the configured deployment's fixed OIDC client and registered
 actor, never caller-supplied recipient/audience hints. Workbench feeds additionally
 recheck resolver authority; historical metadata never grants target access. See
@@ -50,7 +55,7 @@ requires the fixed requester session, tenant registration and CSRF. It atomicall
 binds the verified creator; body actor hints cannot select ownership. Historical
 recovery grants no continuing access, approval, execution or proof authority.
 
-Only those GET routes and the two named POST shapes are allowed. Resolver, bearer, internal, generated login,
+Only those GET routes, the two named POST shapes and the guarded local logout filter are allowed. Resolver, bearer, internal, generated login,
 implicit logout and all unspecified routes are denied even to authenticated
 requesters. Do not route the requester origin to the workbench backend. Use
 process/container health checks; HTTP health/docs routes are not public here.
@@ -60,8 +65,8 @@ explicitly extend the allowlist and enforce their own application authorization.
 
 The browser boundary itself requires no migration; requester progress additionally
 requires the ownership migration described in its guide. Roll back by stopping the requester deployment and
-retiring its origin's cookie, leaving the workbench unchanged. Logout remains
-M05-PR27. Mock OIDC tests plus a real embedded-server cookie check do not replace
+retiring its origin's cookie, leaving the workbench unchanged. Local logout is
+M05-PR27; UI controls follow in PR28. Mock OIDC tests plus a real embedded-server cookie check do not replace
 live two-origin/IdP acceptance. See [ADR 0068](decisions/0068-isolate-requester-browser-deployments.md).
 
 ## Bearer API authentication
@@ -162,7 +167,8 @@ When browser sessions are disabled, the login, session, CSRF, browser inbox,
 assigned-run reads, both browser claim routes, and browser release return a
 stable `503`. The
 initial session store is process-local, so restarts sign users out and
-multi-instance deployment is not supported yet. Logout, provider revocation,
-and other mutating BFF routes are deferred. See
+multi-instance deployment is not supported yet. Local logout is specified above;
+provider revocation remains deferred. Other browser commands have their own
+explicit contracts and are not enabled by authentication alone. See
 [ADR 0036](decisions/0036-establish-confidential-browser-session-boundary.md)
 and [ADR 0037](decisions/0037-expose-resolver-inbox-through-browser-session.md).

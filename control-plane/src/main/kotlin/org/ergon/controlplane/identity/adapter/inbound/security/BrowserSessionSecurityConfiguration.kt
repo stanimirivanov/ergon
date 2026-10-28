@@ -2,6 +2,7 @@ package org.ergon.controlplane.identity.adapter.inbound.security
 
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.web.server.WebServerFactoryCustomizer
 import org.springframework.boot.web.server.servlet.ConfigurableServletWebServerFactory
@@ -23,6 +24,7 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.client.registration.ClientRegistration
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizedClientRepository
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestCustomizers
 import org.springframework.security.oauth2.core.AuthorizationGrantType
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod
@@ -56,7 +58,7 @@ class BrowserSessionSecurityConfiguration(
     fun cookieRules(audience: BrowserSessionAudience): WebServerFactoryCustomizer<ConfigurableServletWebServerFactory> =
         WebServerFactoryCustomizer { factory ->
             if (audience == BrowserSessionAudience.REQUESTER) {
-                factory.settings.session.cookie.name = "__Host-Http-Ergon-Requester-Session"
+                factory.settings.session.cookie.name = audience.sessionCookieName
             }
         }
 
@@ -76,6 +78,7 @@ class BrowserSessionSecurityConfiguration(
         audience: BrowserSessionAudience,
         authenticationEntryPoint: BrowserSessionAuthenticationEntryPoint,
         accessDeniedHandler: BrowserSessionAccessDeniedHandler,
+        @Value("\${server.servlet.session.cookie.name:__Host-Http-Ergon-Session}") workbenchCookieName: String,
     ): SecurityFilterChain {
         requiredBrowserRegistration(registrations, trust, audience)
 
@@ -87,10 +90,9 @@ class BrowserSessionSecurityConfiguration(
 
         // A requester deployment must not fall through to the legacy internal API chain.
         if (audience == BrowserSessionAudience.WORKBENCH) {
-            http.securityMatcher("/bff/**", "/oauth2/**", "/login/oauth2/**")
-        } else {
-            // Local logout is a separately planned contract, not an implicit filter endpoint.
-            http.logout { it.disable() }
+            // Keep the legacy endpoint inside this chain so the stateless API
+            // chain cannot accidentally offer an unprotected logout shortcut.
+            http.securityMatcher("/bff/**", "/oauth2/**", "/login/oauth2/**", "/logout")
         }
         http
             .authorizeHttpRequests {
@@ -102,6 +104,8 @@ class BrowserSessionSecurityConfiguration(
                         "/login/oauth2/code/${audience.registrationId}",
                     ).permitAll()
                 it.requestMatchers("/oauth2/**", "/login/oauth2/**").denyAll()
+                // Only the authenticated POST matcher in LogoutFilter may retire a session.
+                it.requestMatchers(BROWSER_LOGOUT_PATH, "/logout").denyAll()
                 if (audience == BrowserSessionAudience.REQUESTER) {
                     requesterAccess(it, audience)
                 } else {
@@ -118,7 +122,15 @@ class BrowserSessionSecurityConfiguration(
             }.exceptionHandling {
                 it.authenticationEntryPoint(authenticationEntryPoint)
                 it.accessDeniedHandler(accessDeniedHandler)
+            }.logout { logout ->
+                logout.logoutUrl(BROWSER_LOGOUT_PATH)
+                logout.logoutRequestMatcher(BrowserLocalLogoutMatcher(audience))
+                logout.addLogoutHandler(browserLogoutCookie(audience, workbenchCookieName))
+                logout.logoutSuccessHandler { _, response, _ -> browserLogoutSucceeded(response) }
             }.oauth2Login { login ->
+                // Provider material must share the HTTP session's retirement boundary,
+                // rather than a principal-wide authorized-client service.
+                login.authorizedClientRepository(HttpSessionOAuth2AuthorizedClientRepository())
                 if (audience == BrowserSessionAudience.REQUESTER) {
                     login.loginPage("/bff/login")
                     login.failureHandler { request, response, exception ->

@@ -169,6 +169,21 @@ class BrowserSessionUnavailableController {
     ): ProblemDetail = unavailableProblem()
 }
 
+/** Keeps disabled-session retirement separate from the growing capability fallback routes. */
+@RestController
+@RequestMapping("/bff")
+@ConditionalOnProperty(
+    prefix = "ergon.security.browser-session",
+    name = ["enabled"],
+    havingValue = "false",
+    matchIfMissing = true,
+)
+class BrowserLogoutUnavailableController {
+    /** No session can be retired through an unconfigured browser boundary. */
+    @PostMapping("/logout")
+    fun logoutUnavailable(): ProblemDetail = unavailableProblem()
+}
+
 private fun unavailableProblem(): ProblemDetail =
     ProblemDetail
         .forStatusAndDetail(

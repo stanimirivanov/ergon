@@ -20,9 +20,10 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequ
  */
 enum class BrowserSessionAudience(
     val registrationId: String,
+    val sessionCookieName: String,
 ) {
-    WORKBENCH(BROWSER_REGISTRATION_ID),
-    REQUESTER("ergon-requester"),
+    WORKBENCH(BROWSER_REGISTRATION_ID, "__Host-Http-Ergon-Session"),
+    REQUESTER("ergon-requester", "__Host-Http-Ergon-Requester-Session"),
 }
 
 /** Validates topology even when browser sessions are disabled, preventing legacy API fallback. */

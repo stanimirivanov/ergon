@@ -2,11 +2,17 @@
 
 ## TL;DR
 
+M05-PR27 adds CSRF-protected local browser logout as an M03 prerequisite. Only
+the configured client's authenticated POST `/bff/logout` retires its HTTP session,
+security context, CSRF, local authorized clients and cookie. No provider revocation,
+ownership change or accepted-work cancellation. PR28 UI/guide waits for backend
+merge. See [ADR 0081](../decisions/0081-retire-local-browser-sessions.md).
+
 M05-PR25c adds fixed-client, tenant/recipient-scoped notification feeds capped at
 50 deliveries with explicit truncation. The deployment selects requester questions
 or resolver handover/answer metadata. Resolver authority is checked before/after
 the read; alerts contain no private text and never restore target access.
-Protected targets must be fetched anew. PR26 UI/guide follows backend merge; see
+Protected targets must be fetched anew. PR26 UI/guide is merged in ergon-ui PR #229; see
 [ADR 0080](../decisions/0080-protect-bounded-notification-feeds.md).
 
 M05-PR25b prospectively delivers requester questions to their immutable case
