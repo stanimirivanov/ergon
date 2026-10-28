@@ -25,6 +25,7 @@ import org.ergon.controlplane.resolution.RunEscalationTestFixture
 import org.ergon.controlplane.resolution.RunSupervisionDatabaseFixture
 import org.ergon.followup.domain.HumanFollowUpWorkItemId
 import org.ergon.identity.domain.TenantId
+import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -51,6 +52,9 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import java.sql.DriverManager
+import java.sql.SQLException
+import java.sql.Statement
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -130,6 +134,8 @@ class HumanFollowUpHandoverIntegrationTest(
                 .response.contentAsString,
         ).isEqualTo(first)
         assertThat(eventCount(command)).isEqualTo(2)
+        assertThat(notificationCount(command)).isEqualTo(1)
+        assertThat(notificationCount(command.copy(recipientActorId = command.actorId))).isZero()
     }
 
     @Test
@@ -447,7 +453,144 @@ class HumanFollowUpHandoverIntegrationTest(
             assertThat(results[0].receipt).isEqualTo(results[1].receipt)
         }
         assertThat(eventCount(command)).isEqualTo(2)
+        assertThat(notificationCount(command)).isEqualTo(1)
     }
+
+    @Test
+    fun `delivery and source disappear together on transaction rollback`() {
+        val command = fixture()
+        transactions.executeWithoutResult { transaction ->
+            handovers.handOver(command)
+            assertThat(notificationCount(command)).isEqualTo(1)
+            transaction.setRollbackOnly()
+        }
+        assertThat(notificationCount(command)).isZero()
+        assertThat(handoverRepository.find(command)).isNull()
+        assertThat(eventCount(command)).isEqualTo(1)
+        assertThat(claims.listOwned(command.tenantId, command.actorId, 50, null, null).items)
+            .hasSize(1)
+    }
+
+    @Test
+    fun `deliveries reject mutation including truncate and survive later ownership changes`() {
+        val command = fixture()
+        val receipt = handovers.handOver(command).receipt
+        releases.release(
+            HumanFollowUpReleaseCommand(
+                command.tenantId,
+                command.workItemId,
+                receipt.successorClaimId.value,
+                command.recipientActorId,
+                receipt.ownershipRevision.value,
+            ),
+        )
+        assertThat(notificationCount(command)).isEqualTo(1)
+        for (sql in listOf(
+            "UPDATE human_follow_up_handover_notifications SET delivered_at = delivered_at WHERE tenant_id = :tenant",
+            "DELETE FROM human_follow_up_handover_notifications WHERE tenant_id = :tenant",
+        )) {
+            assertThatThrownBy { jdbc.sql(sql).param("tenant", command.tenantId).update() }
+                .isInstanceOf(DataAccessException::class.java)
+        }
+        assertThatThrownBy { jdbc.sql("TRUNCATE human_follow_up_handover_notifications").update() }
+            .isInstanceOf(DataAccessException::class.java)
+        assertThat(notificationCount(command)).isEqualTo(1)
+    }
+
+    @Test
+    fun `upgrade preserves old receipts without alerts and pins recipient and tenant to the source`() {
+        val command = fixture()
+        handovers.handOver(command)
+        val schema = "notification_upgrade_" + UUID.randomUUID().toString().replace("-", "")
+
+        fun flyway() =
+            Flyway
+                .configure()
+                .dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
+                .schemas(schema)
+                .defaultSchema(schema)
+        flyway().target("20261026102606").load().migrate()
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.autoCommit = false
+            connection.createStatement().use { statement ->
+                // Copy a genuinely authorized old-format receipt, isolating only its earlier source graph.
+                // Notification constraints/triggers do not exist yet; they are never bypassed by this test.
+                statement.execute("SET LOCAL session_replication_role = replica")
+                val columns =
+                    "tenant_id, work_item_id, command_id, sender_actor_id, sender_authority_evidence_id, " +
+                        "original_claim_id, expected_ownership_revision, recipient_actor_id, successor_claim_id, " +
+                        "ownership_revision, handed_over_at, recorded_at"
+                statement.executeUpdate(
+                    "INSERT INTO $schema.human_follow_up_handovers ($columns) " +
+                        "SELECT $columns FROM public.human_follow_up_handovers " +
+                        "WHERE tenant_id = '${command.tenantId}' AND work_item_id = '${command.workItemId}'",
+                )
+                statement.execute("SET LOCAL session_replication_role = origin")
+            }
+            connection.commit()
+        }
+        flyway().load().migrate()
+        flyway().load().validate()
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.schema = schema
+            connection.createStatement().use { statement ->
+                assertUpgradedNotificationSource(statement, command)
+            }
+        }
+    }
+
+    private fun assertUpgradedNotificationSource(
+        statement: Statement,
+        command: HumanFollowUpHandoverCommand,
+    ) {
+        val counts = listOf("human_follow_up_handovers" to 1, "human_follow_up_handover_notifications" to 0)
+        for ((table, count) in counts) {
+            statement.executeQuery("SELECT COUNT(*) FROM $table").use { rows ->
+                assertThat(rows.next()).isTrue()
+                assertThat(rows.getInt(1)).isEqualTo(count)
+            }
+        }
+        for ((tenant, recipient) in listOf(
+            command.tenantId to command.actorId,
+            UUID.randomUUID() to command.recipientActorId,
+        )) {
+            assertNotificationSourceConstraint(statement, command, tenant, recipient)
+        }
+    }
+
+    private fun assertNotificationSourceConstraint(
+        statement: Statement,
+        command: HumanFollowUpHandoverCommand,
+        tenant: UUID,
+        recipient: UUID,
+    ) {
+        val failure =
+            runCatching {
+                statement.executeUpdate(
+                    """
+                    INSERT INTO human_follow_up_handover_notifications (
+                        tenant_id, work_item_id, command_id, recipient_actor_id
+                    ) VALUES ('$tenant', '${command.workItemId}', '${command.commandId}', '$recipient')
+                    """.trimIndent(),
+                )
+            }.exceptionOrNull()
+        assertThat((failure as? SQLException)?.sqlState).isEqualTo("23503")
+    }
+
+    private fun notificationCount(command: HumanFollowUpHandoverCommand): Long =
+        jdbc
+            .sql(
+                """
+                SELECT COUNT(*) FROM human_follow_up_handover_notifications
+                WHERE tenant_id = :tenant AND work_item_id = :work
+                    AND command_id = :command AND recipient_actor_id = :recipient
+                """.trimIndent(),
+            ).param("tenant", command.tenantId)
+            .param("work", command.workItemId)
+            .param("command", command.commandId)
+            .param("recipient", command.recipientActorId)
+            .query(Long::class.java)
+            .single()
 
     @Test
     fun `disabled rollout leaves ownership unchanged`() {

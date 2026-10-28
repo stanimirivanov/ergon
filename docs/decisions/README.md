@@ -141,3 +141,4 @@ benchmarks rather than duplicating them.
 | 0075 | [Disclose protected requester answers](0075-disclose-protected-requester-answers.md) |
 | 0076 | [Open requester-owned cases atomically](0076-open-requester-owned-cases-atomically.md) |
 | 0077 | [Authorize requester case intake](0077-authorize-requester-case-intake.md) |
+| 0078 | [Deliver atomic handover notifications](0078-deliver-atomic-handover-notifications.md) |
