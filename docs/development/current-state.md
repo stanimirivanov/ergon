@@ -2,6 +2,13 @@
 
 ## TL;DR
 
+M05-PR25b prospectively delivers requester questions to their immutable case
+requester and answers to the active owner visible at delivery selection. A
+captured CLAIMED epoch is historical, not current target access; released or
+completed work produces no resolver alert. No text is copied and replay never
+backfills or retargets delivery. Protected reads follow in PR25c; see
+[ADR 0079](../decisions/0079-deliver-requester-information-notifications.md).
+
 M05-PR25a prospectively delivers one immutable in-app notification in the same
 transaction as a follow-up handover. Source replay cannot duplicate delivery;
 recipient/tenant integrity and mutation guards live in PostgreSQL. No browser

@@ -61,6 +61,14 @@ and inbound/outbound adapters while `domain-kernel` remains framework-free.
 
 ## Runtime
 
+M05-PR25b extends prospective delivery to requester questions and answers.
+Question recipients derive from immutable case bindings; answers capture the
+active ownership epoch visible at selection, without new work locks or a promise
+of current-at-commit ownership. Released/completed work yields no resolver alert.
+Replays never backfill or retarget; rollback retains additive schema/triggers.
+There is still no browser notification endpoint; see
+[ADR 0079](../docs/decisions/0079-deliver-requester-information-notifications.md).
+
 M05-PR25a adds prospective, immutable follow-up handover notifications through
 a transaction-local source trigger. Every new committed handover produces one
 recipient-pinned delivery, including from compatible older writers; old receipt
