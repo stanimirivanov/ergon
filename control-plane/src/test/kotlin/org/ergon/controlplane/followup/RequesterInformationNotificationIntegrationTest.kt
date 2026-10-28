@@ -13,20 +13,31 @@ import org.ergon.controlplane.followup.application.RequesterInformationRequest
 import org.ergon.controlplane.followup.application.RequesterInformationRequestRepository
 import org.ergon.controlplane.followup.application.RequesterInformationResponse
 import org.ergon.controlplane.followup.application.RequesterInformationResponseRepository
+import org.ergon.controlplane.followup.application.StoredHumanFollowUpHandover
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
+import org.ergon.controlplane.resolution.RunEscalationTestFixture
 import org.ergon.followup.domain.RequesterInformationAnswer
 import org.ergon.followup.domain.RequesterInformationResponseId
 import org.ergon.identity.domain.TenantId
 import org.flywaydb.core.Flyway
+import org.hamcrest.Matchers.containsInAnyOrder
+import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
 import org.springframework.dao.DataAccessException
 import org.springframework.jdbc.core.simple.JdbcClient
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
 import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import org.testcontainers.junit.jupiter.Container
@@ -42,7 +53,7 @@ import java.util.concurrent.TimeUnit
 @SpringBootTest(
     properties = [
         "ergon.security.browser-session.enabled=true",
-        "ergon.security.browser-session.audience=requester",
+        "ergon.security.browser-session.audience=workbench",
         "ergon.follow-up.release-enabled=true",
         "ergon.follow-up.handover-enabled=true",
         "ergon.follow-up.completion-enabled=true",
@@ -51,11 +62,13 @@ import java.util.concurrent.TimeUnit
     ],
 )
 @Testcontainers(disabledWithoutDocker = true)
+@AutoConfigureMockMvc
 @Import(InformationResponseClockConfiguration::class, BrowserSessionTestClientConfiguration::class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 // Delivery and transaction evidence is separate from the HTTP/answer protocol suite.
 @Suppress("LongParameterList")
 class RequesterInformationNotificationIntegrationTest(
+    @Autowired private val mvc: MockMvc,
     @Autowired private val jdbc: JdbcClient,
     @Autowired private val claims: HumanFollowUpClaimService,
     @Autowired private val questions: RequesterInformationRequestRepository,
@@ -67,6 +80,107 @@ class RequesterInformationNotificationIntegrationTest(
 ) {
     private val transactions = TransactionTemplate(manager)
     private val informationFixture = RequesterInformationDatabaseFixture(jdbc, claims, questions, transactions, NOW)
+
+    @Test
+    fun `workbench feed scopes recipient while historical alerts never restore target access`() {
+        val (tenant, question) = question()
+        val transferred = handoverToRequester(tenant, question)
+        val recipient = transferred.command.recipientActorId
+        record(tenant, response(question))
+        val url = "/bff/v1/tenants/${tenant.value}/notifications"
+        mvc
+            .perform(get(url).with(notificationSession(question.authorActorId.value)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items").isEmpty)
+        val kinds = containsInAnyOrder("INFORMATION_ANSWERED", "FOLLOW_UP_HANDED_OVER")
+        mvc
+            .perform(
+                get(url)
+                    .with(notificationSession(recipient))
+                    .param("actorId", question.authorActorId.value.toString()),
+            ).andExpect(status().isOk)
+            .andExpect(header().string("Cache-Control", containsString("no-store")))
+            .andExpect(jsonPath("$.items.length()").value(2))
+            .andExpect(jsonPath("$.items[*].kind").value(kinds))
+            .andExpect(jsonPath("$.items[0].target.kind").value("OWNED_HUMAN_FOLLOW_UP"))
+            .andExpect(jsonPath("$.items[0].target.id").value(question.workItemId.value.toString()))
+            .andExpect(jsonPath("$.items[0].answer").doesNotExist())
+            .andExpect(jsonPath("$.items[0].recipientActorId").doesNotExist())
+        releases.release(
+            HumanFollowUpReleaseCommand(
+                tenant.value,
+                question.workItemId.value,
+                transferred.successorClaimId.value,
+                recipient,
+                transferred.ownershipRevision.value,
+            ),
+        )
+        mvc
+            .perform(get(url).with(notificationSession(recipient)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(2))
+        mvc
+            .perform(
+                get("/bff/v1/tenants/${tenant.value}/human-follow-ups/${question.workItemId.value}/case-summary")
+                    .with(notificationSession(recipient)),
+            ).andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `workbench feed rejects unknown actors foreign tenants bearer and other browser clients`() {
+        val (tenant, question) = question()
+        val actor = question.authorActorId.value
+        val url = "/bff/v1/tenants/${tenant.value}/notifications"
+        mvc.perform(get(url)).andExpect(status().isUnauthorized)
+        mvc.perform(get(url).with(jwt())).andExpect(status().isForbidden)
+        mvc.perform(get(url).with(notificationSession(UUID.randomUUID()))).andExpect(status().isForbidden)
+        mvc
+            .perform(get("/bff/v1/tenants/${UUID.randomUUID()}/notifications").with(notificationSession(actor)))
+            .andExpect(status().isForbidden)
+        val requesterClient =
+            BrowserSessionTestClientConfiguration()
+                .browserClientRegistrationRepository("requester")
+                .findByRegistrationId("ergon-requester")
+        val wrongSession =
+            RunEscalationTestFixture.session(actor).clientRegistration(requireNotNull(requesterClient))
+        mvc
+            .perform(get(url).with(wrongSession))
+            .andExpect(status().isForbidden)
+    }
+
+    /** This synthetic bound requester also has resolver authority, testing both audience roles on one actor. */
+    private fun handoverToRequester(
+        tenant: TenantId,
+        question: RequesterInformationRequest,
+    ): StoredHumanFollowUpHandover {
+        val recipient =
+            jdbc
+                .sql("SELECT requester_actor_id FROM case_requesters WHERE tenant_id = :tenant")
+                .param("tenant", tenant.value)
+                .query(UUID::class.java)
+                .single()
+        return handovers
+            .handOver(
+                HumanFollowUpHandoverCommand(
+                    tenant.value,
+                    question.workItemId.value,
+                    question.authorActorId.value,
+                    UUID.randomUUID(),
+                    question.claimId.value,
+                    question.ownershipRevision.value,
+                    recipient,
+                ),
+            ).receipt
+    }
+
+    private fun notificationSession(actor: UUID) =
+        RunEscalationTestFixture.session(actor).clientRegistration(
+            requireNotNull(
+                BrowserSessionTestClientConfiguration()
+                    .browserClientRegistrationRepository("workbench")
+                    .findByRegistrationId("ergon-workbench"),
+            ),
+        )
 
     @Test
     fun `question and answer deliveries roll back with their sources`() {

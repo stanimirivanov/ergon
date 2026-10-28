@@ -61,18 +61,27 @@ and inbound/outbound adapters while `domain-kernel` remains framework-free.
 
 ## Runtime
 
+M05-PR25c exposes GET `/bff/v1/tenants/{tenantId}/notifications` for this deployment's
+fixed OIDC client and registered actor. Returns at most 50 recent safe metadata
+items plus `truncated`, never unread counts or source text. Requester feeds target
+owned cases; workbench feeds require fresh resolver authority and target follow-up
+work. An alert is historical; open its target through independently fresh protected
+reads. Apply the recipient-parent indexes after PR25a/b schema and assess their
+scan/write-lock window. Rollback removes the read route and retains indexes/audit.
+See [ADR 0080](../docs/decisions/0080-protect-bounded-notification-feeds.md).
+
 M05-PR25b extends prospective delivery to requester questions and answers.
 Question recipients derive from immutable case bindings; answers capture the
 active ownership epoch visible at selection, without new work locks or a promise
 of current-at-commit ownership. Released/completed work yields no resolver alert.
 Replays never backfill or retarget; rollback retains additive schema/triggers.
-There is still no browser notification endpoint; see
+The protected feeds above consume these deliveries; see
 [ADR 0079](../docs/decisions/0079-deliver-requester-information-notifications.md).
 
 M05-PR25a adds prospective, immutable follow-up handover notifications through
 a transaction-local source trigger. Every new committed handover produces one
 recipient-pinned delivery, including from compatible older writers; old receipt
-replay produces none. There is no browser notification endpoint yet. Apply the
+replay produces none. The protected feed now consumes these records. Apply the
 additive migration first and assess the source index's lock/scan window. An
 application rollback leaves delivery active; use the existing handover flag to
 stop new transfers and recover forward. See [ADR 0078](../docs/decisions/0078-deliver-atomic-handover-notifications.md).

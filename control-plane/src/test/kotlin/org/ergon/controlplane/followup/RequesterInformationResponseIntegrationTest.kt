@@ -17,6 +17,7 @@ import org.ergon.controlplane.followup.application.RequesterInformationResponseS
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
 import org.ergon.controlplane.resolution.RunEscalationTestFixture
 import org.ergon.followup.domain.RequesterInformationAnswer
+import org.ergon.followup.domain.RequesterInformationQuestion
 import org.ergon.followup.domain.RequesterInformationRequestId
 import org.ergon.followup.domain.RequesterInformationResponseId
 import org.ergon.identity.domain.TenantId
@@ -39,8 +40,10 @@ import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
@@ -86,6 +89,84 @@ class RequesterInformationResponseIntegrationTest(
     private val transactions = TransactionTemplate(manager)
     private val informationFixture = RequesterInformationDatabaseFixture(jdbc, claims, questions, transactions, NOW)
     private val mapper = JsonMapper.builder().build()
+
+    @Test
+    fun `requester feed is bounded ordered safe and ignores actor or audience hints`() {
+        val command = command()
+        val tenant = TenantId(command.tenantId)
+        val original =
+            jdbc
+                .sql("SELECT work_item_id FROM requester_information_requests WHERE tenant_id = :tenant")
+                .param("tenant", tenant.value)
+                .query(UUID::class.java)
+                .single()
+        // Reuse the same real parent graph; every new question still passes its source constraints and trigger.
+        val stored = informationFixture.question(tenant, true).second
+        repeat(50) {
+            transactions.executeWithoutResult {
+                questions.record(
+                    tenant,
+                    stored.copy(
+                        requestId = RequesterInformationRequestId(UUID.randomUUID()),
+                        question = RequesterInformationQuestion("private question $it"),
+                    ),
+                )
+            }
+        }
+        val requester =
+            jdbc
+                .sql("SELECT requester_actor_id FROM case_requesters WHERE tenant_id = :tenant AND case_id = :case")
+                .param("tenant", tenant.value)
+                .param("case", stored.caseId.value)
+                .query(UUID::class.java)
+                .single()
+        val url = "/bff/v1/tenants/${tenant.value}/notifications"
+        val first =
+            mvc
+                .perform(
+                    get(url)
+                        .with(login(requester))
+                        .param("actorId", command.actorId.toString())
+                        .param("audience", "resolver")
+                        .param("limit", "100000"),
+                ).andExpect(status().isOk)
+                .andExpect(jsonPath("$.items.length()").value(50))
+                .andExpect(jsonPath("$.truncated").value(true))
+                .andReturn()
+                .response.contentAsString
+        assertSafeRequesterFeed(first, stored.caseId.value, original)
+        val second =
+            mvc
+                .perform(get(url).with(login(requester)))
+                .andExpect(status().isOk)
+                .andReturn()
+                .response.contentAsString
+        assertThat(second).isEqualTo(first)
+        mvc
+            .perform(get(url).with(login(command.actorId)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.truncated").value(false))
+        mvc.perform(get(url).with(RunEscalationTestFixture.session(requester))).andExpect(status().isForbidden)
+    }
+
+    private fun assertSafeRequesterFeed(
+        json: String,
+        caseId: UUID,
+        excludedWorkId: UUID,
+    ) {
+        val body = mapper.readTree(json)
+        val items = (0 until body["items"].size()).map { body["items"][it] }
+        assertThat(body["items"][0].properties().map { it.key })
+            .containsExactlyInAnyOrder("kind", "sourceId", "target", "deliveredAt")
+        assertThat(items.map { it["kind"].asString() }.distinct()).containsExactly("INFORMATION_REQUESTED")
+        val order = items.map { Instant.parse(it["deliveredAt"].asString()) to it["sourceId"].asString() }
+        val newest = compareByDescending<Pair<Instant, String>> { it.first }.thenByDescending { it.second }
+        assertThat(order).isSortedAccordingTo(newest)
+        val targets = items.map { it["target"]["id"].asString() }.distinct()
+        assertThat(targets).containsExactly(caseId.toString())
+        assertThat(json).doesNotContain("private question", "ActorId", "provider", excludedWorkId.toString())
+    }
 
     @Test
     fun `requester CSRF and exact replay protect a narrow immutable receipt without resolver authority`() {

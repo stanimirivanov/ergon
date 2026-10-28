@@ -136,7 +136,7 @@ PR24 was delivered in [ergon-ui PR #227](https://github.com/stanimirivanov/ergon
 PR25 is split before implementation: PR25a ([issue #221](https://github.com/stanimirivanov/ergon/issues/221), G7)
 adds source-pinned prospective handover delivery, immediately consumed by every
 committed handover writer (merged Ergon PR #222); PR25b ([issue #223](https://github.com/stanimirivanov/ergon/issues/223), G8) adds question/answer delivery with explicit
-recipient/source policies; PR25c (G9) adds authenticated bounded notification
+recipient/source policies (merged Ergon PR #224); PR25c ([issue #225](https://github.com/stanimirivanov/ergon/issues/225), G9) adds authenticated bounded notification
 reads without granting target access. Each depends on the previous part. PR26
 UI/guide waits for all three backend reviews/merges. No standalone unused
 notification framework, browser endpoint or historical backfill is added by PR25a.

@@ -2,6 +2,7 @@ package org.ergon.controlplane.identity.adapter.inbound.http
 
 import org.ergon.controlplane.cases.adapter.inbound.http.RequesterCaseIntakeController
 import org.ergon.controlplane.cases.adapter.inbound.http.RequesterCaseProgressController
+import org.ergon.controlplane.followup.adapter.inbound.http.BrowserHumanNotificationController
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidAuthenticatedHumanIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.InvalidBrowserOidcIdentityException
 import org.ergon.controlplane.identity.adapter.inbound.security.UntrustedHumanIdentityIssuerException
@@ -18,6 +19,7 @@ import java.net.URI
         BrowserSessionController::class,
         RequesterCaseProgressController::class,
         RequesterCaseIntakeController::class,
+        BrowserHumanNotificationController::class,
     ],
 )
 class BrowserSessionExceptionHandler {

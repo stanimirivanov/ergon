@@ -101,9 +101,10 @@ class BrowserSessionUnavailableController {
     @GetMapping("/login")
     fun loginUnavailable(): ProblemDetail = unavailableProblem()
 
-    /** Reports that no tenant session can be resolved without browser OIDC configuration. */
+    /** Fails session-protected reads closed without browser OIDC configuration. */
     @GetMapping(
         "/v1/tenants/{tenantId}/session",
+        "/v1/tenants/{tenantId}/notifications",
         "/v1/tenants/{tenantId}/requester-cases/*/progress",
         "/v1/tenants/{tenantId}/requester-cases/*/information-requests",
     )
