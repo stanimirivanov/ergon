@@ -142,3 +142,4 @@ benchmarks rather than duplicating them.
 | 0076 | [Open requester-owned cases atomically](0076-open-requester-owned-cases-atomically.md) |
 | 0077 | [Authorize requester case intake](0077-authorize-requester-case-intake.md) |
 | 0078 | [Deliver atomic handover notifications](0078-deliver-atomic-handover-notifications.md) |
+| 0079 | [Deliver requester information notifications](0079-deliver-requester-information-notifications.md) |

@@ -3,7 +3,6 @@ package org.ergon.controlplane.followup
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.awaitility.Awaitility.await
-import org.ergon.cases.domain.CaseId
 import org.ergon.controlplane.followup.application.HumanFollowUpClaimService
 import org.ergon.controlplane.followup.application.HumanFollowUpReleaseCommand
 import org.ergon.controlplane.followup.application.HumanFollowUpReleaseService
@@ -17,11 +16,7 @@ import org.ergon.controlplane.followup.application.RequesterInformationResponseR
 import org.ergon.controlplane.followup.application.RequesterInformationResponseService
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
 import org.ergon.controlplane.resolution.RunEscalationTestFixture
-import org.ergon.controlplane.resolution.RunSupervisionDatabaseFixture
-import org.ergon.followup.domain.HumanFollowUpOwnershipRevision
-import org.ergon.followup.domain.HumanFollowUpWorkItemId
 import org.ergon.followup.domain.RequesterInformationAnswer
-import org.ergon.followup.domain.RequesterInformationQuestion
 import org.ergon.followup.domain.RequesterInformationRequestId
 import org.ergon.followup.domain.RequesterInformationResponseId
 import org.ergon.identity.domain.TenantId
@@ -89,6 +84,7 @@ class RequesterInformationResponseIntegrationTest(
     @Autowired manager: PlatformTransactionManager,
 ) {
     private val transactions = TransactionTemplate(manager)
+    private val informationFixture = RequesterInformationDatabaseFixture(jdbc, claims, questions, transactions, NOW)
     private val mapper = JsonMapper.builder().build()
 
     @Test
@@ -178,6 +174,8 @@ class RequesterInformationResponseIntegrationTest(
         val results = RunEscalationTestFixture.together({ service.record(command) }, { service.record(command) })
         assertThat(results.count { it.created }).isEqualTo(1)
         assertThat(results.map { it.stored }.distinct()).hasSize(1)
+        assertThat(deliveryCount("requester_information_response_notifications", TenantId(command.tenantId)))
+            .isEqualTo(1)
         val fresh = command(TenantId(command.tenantId)).copy(responseId = command.responseId)
         assertThatThrownBy { service.record(fresh) }
             .isInstanceOf(RequesterInformationResponseConflictException::class.java)
@@ -215,6 +213,7 @@ class RequesterInformationResponseIntegrationTest(
                 ),
             )
         assertThat(result.created).isTrue()
+        assertThat(deliveryCount("requester_information_response_notifications", tenant)).isZero()
     }
 
     @Test
@@ -387,6 +386,7 @@ class RequesterInformationResponseIntegrationTest(
             assertThat(outcomes.count { it.created }).isEqualTo(1)
             assertThat(outcomes.map { it.stored }.distinct()).hasSize(1)
             assertThat(outcomes.first().stored.response).isIn(intent, other)
+            assertThat(deliveryCount("requester_information_response_notifications", tenant)).isEqualTo(1)
         }
     }
 
@@ -438,6 +438,16 @@ class RequesterInformationResponseIntegrationTest(
         }
     }
 
+    private fun deliveryCount(
+        table: String,
+        tenant: TenantId,
+    ): Long =
+        jdbc
+            .sql("SELECT COUNT(*) FROM $table WHERE tenant_id = :tenant")
+            .param("tenant", tenant.value)
+            .query(Long::class.java)
+            .single()
+
     private fun insertRaw(
         tenant: TenantId,
         response: RequesterInformationResponse,
@@ -473,80 +483,10 @@ class RequesterInformationResponseIntegrationTest(
     private fun question(
         tenant: TenantId = TenantId(UUID.randomUUID()),
         requesterWithoutAuthority: Boolean = false,
-    ): Pair<TenantId, RequesterInformationRequest> =
-        requireNotNull(
-            transactions.execute {
-                val graph = RunSupervisionDatabaseFixture.seed(jdbc, NOW, tenant = tenant)
-                val requester = if (requesterWithoutAuthority) registerRequester(tenant) else graph.incoming.value
-                val work = UUID.randomUUID()
-                // Only earlier escalation construction is synthetic; question/response constraints stay enabled.
-                jdbc.sql("SET LOCAL session_replication_role = replica").update()
-                jdbc
-                    .sql(
-                        """
-                        INSERT INTO human_follow_up_work_items
-                            (tenant_id, work_item_id, run_id, escalation_event_id, reason, status, opened_at)
-                        VALUES (:tenant, :work, :run, :event, 'RETRY_ATTEMPT_LIMIT_REACHED', 'OPEN', :at)
-                        """.trimIndent(),
-                    ).param("tenant", tenant.value)
-                    .param("work", work)
-                    .param("run", graph.run.value)
-                    .param("event", UUID.randomUUID())
-                    .param("at", NOW.atOffset(ZoneOffset.UTC))
-                    .update()
-                jdbc.sql("SET LOCAL session_replication_role = origin").update()
-                val caseId =
-                    jdbc
-                        .sql("SELECT case_id FROM resolution_runs WHERE tenant_id = :tenant AND run_id = :run")
-                        .param("tenant", tenant.value)
-                        .param("run", graph.run.value)
-                        .query(UUID::class.java)
-                        .single()
-                jdbc
-                    .sql(
-                        """
-                        INSERT INTO case_requesters (tenant_id, case_id, requester_actor_id, source_reference)
-                        VALUES (:tenant, :case, :actor, 'synthetic reviewed requester binding')
-                        """.trimIndent(),
-                    ).param("tenant", tenant.value)
-                    .param("case", caseId)
-                    .param("actor", requester)
-                    .update()
-                val claim = claims.claim(tenant.value, work, graph.outgoing.value).storedClaim.claim
-                val request =
-                    RequesterInformationRequest(
-                        RequesterInformationRequestId(UUID.randomUUID()),
-                        HumanFollowUpWorkItemId(work),
-                        CaseId(caseId),
-                        claim.id,
-                        HumanFollowUpOwnershipRevision(1),
-                        claim.resolverActorId,
-                        RequesterInformationQuestion("Which workspace?"),
-                        NOW,
-                    )
-                tenant to questions.record(tenant, request).stored.request
-            },
-        )
-
-    /** Registers identity only; no resolver or approval attestation exists for this actor. */
-    private fun registerRequester(tenant: TenantId): UUID {
-        val actor = UUID.randomUUID()
-        jdbc
-            .sql(
-                """
-                INSERT INTO human_actors (tenant_id, actor_id, identity_provider, identity_subject, registered_at)
-                VALUES (:tenant, :actor, 'workforce-sso', :subject, :at)
-                """.trimIndent(),
-            ).param("tenant", tenant.value)
-            .param("actor", actor)
-            .param("subject", "resolver-$actor")
-            .param("at", NOW.atOffset(ZoneOffset.UTC))
-            .update()
-        return actor
-    }
+    ): Pair<TenantId, RequesterInformationRequest> = informationFixture.question(tenant, requesterWithoutAuthority)
 
     companion object {
-        val NOW: Instant = Instant.parse("2026-10-26T10:00:00Z")
+        val NOW: Instant = RequesterInformationDatabaseFixture.NOW
 
         @Container @JvmStatic
         val postgres = PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"))
@@ -563,5 +503,5 @@ class RequesterInformationResponseIntegrationTest(
 @TestConfiguration(proxyBeanMethods = false)
 class InformationResponseClockConfiguration {
     @Bean @Primary
-    fun responseClock(): Clock = Clock.fixed(RequesterInformationResponseIntegrationTest.NOW, ZoneOffset.UTC)
+    fun responseClock(): Clock = Clock.fixed(RequesterInformationDatabaseFixture.NOW, ZoneOffset.UTC)
 }

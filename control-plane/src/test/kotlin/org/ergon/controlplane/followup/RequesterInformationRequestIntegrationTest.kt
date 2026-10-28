@@ -445,6 +445,19 @@ class RequesterInformationRequestIntegrationTest(
         assertThat(different.single { it.isFailure }.exceptionOrNull())
             .isInstanceOf(RequesterInformationRequestConflictException::class.java)
         assertThat(count(command)).isEqualTo(2)
+        assertThat(
+            jdbc
+                .sql(
+                    """
+                    SELECT COUNT(*) FROM requester_information_request_notifications n
+                    JOIN requester_information_requests q USING (tenant_id, request_id)
+                    WHERE q.tenant_id = :tenant AND q.work_item_id = :work
+                    """.trimIndent(),
+                ).param("tenant", command.tenantId)
+                .param("work", command.workItemId)
+                .query(Long::class.java)
+                .single(),
+        ).isEqualTo(2)
     }
 
     @Test
