@@ -70,7 +70,7 @@ refactors remain separate from new business behavior.
 | M05-PR24 | ergon-ui | Intake submission and uncertain recovery | PR17, PR23b | G5 |
 | [M05-PR25](https://github.com/stanimirivanov/ergon/issues/221) | Ergon | Durable deduplicated in-app notifications (PR25a/b/c) | PR9, PR19, PR21 | G7–G9 |
 | M05-PR26 | ergon-ui | Notification surfaces with fresh target access | PR10, PR22, PR25 | G10 |
-| M05-PR27 | Ergon | Safe local browser logout (M03 prerequisite) | PR15 | G2 |
+| [M05-PR27](https://github.com/stanimirivanov/ergon/issues/227) | Ergon | Safe local browser logout (M03 prerequisite) | PR15 | G2 |
 | M05-PR28 | ergon-ui | Sign-out and private-state retirement (M03 prerequisite) | PR17, PR27 | G4 |
 
 M05-PR11 is delivered in two backend PRs to retain its sizing boundary:
@@ -140,6 +140,9 @@ recipient/source policies (merged Ergon PR #224); PR25c ([issue #225](https://gi
 reads without granting target access. Each depends on the previous part. PR26
 UI/guide waits for all three backend reviews/merges. No standalone unused
 notification framework, browser endpoint or historical backfill is added by PR25a.
+
+PR26 was delivered in ergon-ui PR #229 after backend PR #226. PR27's local
+session contract is implemented next; PR28 UI/guide waits for its review/merge.
 
 The accepted bounded scope excludes attachments/scanning/retention, requester
 capability approvals or contractual consent, arbitrary schema-driven forms,

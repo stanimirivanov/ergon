@@ -61,6 +61,14 @@ and inbound/outbound adapters while `domain-kernel` remains framework-free.
 
 ## Runtime
 
+POST `/bff/logout` supports explicit local sign-out for the selected browser
+client, with session-bound CSRF and no tenant/actor hints. It returns empty
+no-store 204, invalidates session-local security/CSRF/provider material and expires
+only that deployment's cookie. No redirect, IdP logout, command cancellation or
+claim/lease release occurs. GET and legacy logout are denied; disabled BFF returns
+503. Deploy before M05-PR28 UI controls. See
+[authentication](../docs/authentication.md) and [ADR 0081](../docs/decisions/0081-retire-local-browser-sessions.md).
+
 M05-PR25c exposes GET `/bff/v1/tenants/{tenantId}/notifications` for this deployment's
 fixed OIDC client and registered actor. Returns at most 50 recent safe metadata
 items plus `truncated`, never unread counts or source text. Requester feeds target

@@ -1,5 +1,6 @@
 package org.ergon.controlplane.identity
 
+import org.ergon.controlplane.identity.adapter.inbound.http.BrowserLogoutUnavailableController
 import org.ergon.controlplane.identity.adapter.inbound.http.BrowserSessionUnavailableController
 import org.junit.jupiter.api.Test
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -10,6 +11,14 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import java.util.UUID
 
 class BrowserSessionUnavailableControllerTest {
+    @Test
+    fun `local logout fails closed without browser authentication configuration`() {
+        mockMvc
+            .perform(post("/bff/logout"))
+            .andExpect(status().isServiceUnavailable)
+            .andExpect(jsonPath("$.type").value("urn:ergon:problem:browser-authentication-unavailable"))
+    }
+
     @Test
     fun `notifications fail closed without browser authentication configuration`() {
         mockMvc
@@ -48,7 +57,12 @@ class BrowserSessionUnavailableControllerTest {
             .andExpect(status().isServiceUnavailable)
     }
 
-    private val mockMvc = MockMvcBuilders.standaloneSetup(BrowserSessionUnavailableController()).build()
+    private val mockMvc =
+        MockMvcBuilders
+            .standaloneSetup(
+                BrowserSessionUnavailableController(),
+                BrowserLogoutUnavailableController(),
+            ).build()
 
     @Test
     fun `requester answers fail closed without browser authentication configuration`() {
