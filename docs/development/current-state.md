@@ -2,6 +2,11 @@
 
 ## TL;DR
 
+M05-PR25a prospectively delivers one immutable in-app notification in the same
+transaction as a follow-up handover. Source replay cannot duplicate delivery;
+recipient/tenant integrity and mutation guards live in PostgreSQL. No browser
+notification API exists yet. See [ADR 0078](../decisions/0078-deliver-atomic-handover-notifications.md).
+
 M05-PR23b exposes requester-only CSRF-protected case intake and historical recovery.
 The session chooses the creator; narrow receipts never assert current state.
 Input rejection is distinct from unexpected defects. No migration/dependency/flag;

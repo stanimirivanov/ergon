@@ -8,7 +8,7 @@
 
 Finish the resolver experience and deliver a separately authenticated requester
 canvas over the existing case/runtime boundaries. The 28 plan coordinates below
-deliver 39 PRs: 20 Ergon (PR11, PR13, PR19, PR21 and PR23 are split) and 19 ergon-ui (PR20 and PR22 are split); GitHub owns their live
+deliver 41 PRs: 22 Ergon (PR11, PR13, PR19, PR21, PR23 and PR25 are split) and 19 ergon-ui (PR20 and PR22 are split); GitHub owns their live
 state. Each backend contract
 is reviewed and merged before its dependent UI, which includes its user-guide
 update. This plan does not implement or authorize a new runtime protocol.
@@ -68,8 +68,8 @@ refactors remain separate from new business behavior.
 | M05-PR22 | ergon-ui | Adaptive response forms | PR18, PR21 | G7 |
 | [M05-PR23](https://github.com/stanimirivanov/ergon/issues/217) | Ergon | Authenticated, requester-owned case intake (PR23a/b) | PR16 | G3–G4 |
 | M05-PR24 | ergon-ui | Intake submission and uncertain recovery | PR17, PR23b | G5 |
-| M05-PR25 | Ergon | Durable deduplicated in-app notifications | PR9, PR19, PR21 | G7 |
-| M05-PR26 | ergon-ui | Notification surfaces with fresh target access | PR10, PR22, PR25 | G8 |
+| [M05-PR25](https://github.com/stanimirivanov/ergon/issues/221) | Ergon | Durable deduplicated in-app notifications (PR25a/b/c) | PR9, PR19, PR21 | G7–G9 |
+| M05-PR26 | ergon-ui | Notification surfaces with fresh target access | PR10, PR22, PR25 | G10 |
 | M05-PR27 | Ergon | Safe local browser logout (M03 prerequisite) | PR15 | G2 |
 | M05-PR28 | ergon-ui | Sign-out and private-state retirement (M03 prerequisite) | PR17, PR27 | G4 |
 
@@ -117,7 +117,7 @@ storage foundation; no HTTP producer exists in PR21a. PR22 waits for all three.
 PR20 was delivered as history inspection (ergon-ui PR #217) and confirmed
 composition/recovery (ergon-ui PR #219). Accounting for that split and PR21's
 three deliveries, PR22's three UI deliveries and PR23's two backend deliveries,
-the plan now delivers 39 PRs: 20 Ergon and 19 ergon-ui.
+the plan now delivers 41 PRs: 22 Ergon and 19 ergon-ui, including PR25's split below.
 Stable plan coordinates are unchanged.
 
 M05-PR22 was delivered as resolver answer inspection (ergon-ui PR #221), requester
@@ -132,6 +132,15 @@ and HTTP/session/CSRF tests. No unused table or browser endpoint is added by PR2
 PR23b depends on PR23a; PR24 UI/guide follows both backend reviews/merges (G5).
 The existing case and requester schema is reused; no new migration is planned.
 
+PR24 was delivered in [ergon-ui PR #227](https://github.com/stanimirivanov/ergon-ui/pull/227).
+PR25 is split before implementation: PR25a ([issue #221](https://github.com/stanimirivanov/ergon/issues/221), G7)
+adds source-pinned prospective handover delivery, immediately consumed by every
+committed handover writer; PR25b (G8) adds question/answer delivery with explicit
+recipient/source policies; PR25c (G9) adds authenticated bounded notification
+reads without granting target access. Each depends on the previous part. PR26
+UI/guide waits for all three backend reviews/merges. No standalone unused
+notification framework, browser endpoint or historical backfill is added by PR25a.
+
 The accepted bounded scope excludes attachments/scanning/retention, requester
 capability approvals or contractual consent, arbitrary schema-driven forms,
 automatic contract selection/run start, queue administration, SLA/due dates and
@@ -144,7 +153,7 @@ deliverable. The seven concept views span these boundaries, not seven M05 pages.
 
 PR15, PR27 and PR28 are the only cross-milestone prerequisites: M03 gains a
 separate requester client and local logout, not a new authority algebra or global
-provider revocation. They retain M03 issue ownership (3/39 PRs, about 8%).
+provider revocation. They retain M03 issue ownership (3/41 PRs, about 7%).
 There are no interface stubs to retire and no new third-party runtime dependency
 is justified. Reuse Spring Security, RTK Query/Effect, React Hook Form, ui-web
 modality and Playwright; borrow interaction patterns without importing a help-desk,

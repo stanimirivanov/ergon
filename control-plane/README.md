@@ -61,6 +61,14 @@ and inbound/outbound adapters while `domain-kernel` remains framework-free.
 
 ## Runtime
 
+M05-PR25a adds prospective, immutable follow-up handover notifications through
+a transaction-local source trigger. Every new committed handover produces one
+recipient-pinned delivery, including from compatible older writers; old receipt
+replay produces none. There is no browser notification endpoint yet. Apply the
+additive migration first and assess the source index's lock/scan window. An
+application rollback leaves delivery active; use the existing handover flag to
+stop new transfers and recover forward. See [ADR 0078](../docs/decisions/0078-deliver-atomic-handover-notifications.md).
+
 M05-PR13c adds current `priority`/`priorityRevision` to browser shared/owned work
 and owned case summaries, including while commands are disabled. No assignment
 means NORMAL/0; immutable opening/internal retrieval payloads and oldest-first
