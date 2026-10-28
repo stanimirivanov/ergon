@@ -146,6 +146,7 @@ class BrowserSessionSecurityConfiguration(
                 HttpMethod.GET,
                 "/bff/v1/csrf",
                 "/bff/v1/tenants/*/session",
+                "/bff/v1/tenants/*/notifications",
                 "/bff/v1/tenants/*/requester-cases/*/progress",
                 "/bff/v1/tenants/*/requester-cases/*/information-requests",
             ).access { auth, _ -> requesterSession(auth.get(), audience) }

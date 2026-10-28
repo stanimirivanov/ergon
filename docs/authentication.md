@@ -2,6 +2,11 @@
 
 ## TL;DR
 
+Notification GETs use the configured deployment's fixed OIDC client and registered
+actor, never caller-supplied recipient/audience hints. Workbench feeds additionally
+recheck resolver authority; historical metadata never grants target access. See
+[ADR 0080](decisions/0080-protect-bounded-notification-feeds.md).
+
 API callers can resolve a human actor from a verified bearer JWT. An optional
 confidential OIDC BFF gives each separately deployed browser application an opaque
 server session instead of provider tokens. Both paths map the exact trusted issuer

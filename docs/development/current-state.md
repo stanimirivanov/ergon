@@ -2,17 +2,24 @@
 
 ## TL;DR
 
+M05-PR25c adds fixed-client, tenant/recipient-scoped notification feeds capped at
+50 deliveries with explicit truncation. The deployment selects requester questions
+or resolver handover/answer metadata. Resolver authority is checked before/after
+the read; alerts contain no private text and never restore target access.
+Protected targets must be fetched anew. PR26 UI/guide follows backend merge; see
+[ADR 0080](../decisions/0080-protect-bounded-notification-feeds.md).
+
 M05-PR25b prospectively delivers requester questions to their immutable case
 requester and answers to the active owner visible at delivery selection. A
 captured CLAIMED epoch is historical, not current target access; released or
 completed work produces no resolver alert. No text is copied and replay never
-backfills or retargets delivery. Protected reads follow in PR25c; see
+backfills or retargets delivery. PR25c's protected feeds consume these records; see
 [ADR 0079](../decisions/0079-deliver-requester-information-notifications.md).
 
 M05-PR25a prospectively delivers one immutable in-app notification in the same
 transaction as a follow-up handover. Source replay cannot duplicate delivery;
-recipient/tenant integrity and mutation guards live in PostgreSQL. No browser
-notification API exists yet. See [ADR 0078](../decisions/0078-deliver-atomic-handover-notifications.md).
+recipient/tenant integrity and mutation guards live in PostgreSQL. PR25c now
+exposes the protected feed. See [ADR 0078](../decisions/0078-deliver-atomic-handover-notifications.md).
 
 M05-PR23b exposes requester-only CSRF-protected case intake and historical recovery.
 The session chooses the creator; narrow receipts never assert current state.
