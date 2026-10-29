@@ -6,9 +6,9 @@
 - Each work item should fit one independently reviewable pull request.
 - M01–M04 are delivered for the bounded deterministic access-restoration slice;
   this is not general execution or production readiness.
-- M05 continues the resolver experience and adds a separate requester canvas;
-  its approved [delivery plan](m05-adaptive-resolution-experience.md) owns the
-  remaining PR sequence, dependencies, acceptance and exclusions.
+- M05's approved bounded resolver/requester implementation is delivered through
+  42 merged PRs; its [acceptance record](m05-acceptance.md) distinguishes CI-backed
+  delivery from the unverified live two-app deployment gate.
 - GitHub owns live issue state; this file owns intended sequence and boundaries.
 - M09 is the published high-water mark; published milestone numbers are never
   removed, reused, or renumbered.
@@ -73,6 +73,11 @@ routes.
 Broader identity providers, role administration, and production route
 provisioning remain separate security capabilities.
 
+M05's M03 prerequisites now deliver a separate requester browser client and
+CSRF-protected local logout, including requester/workbench private-state retirement.
+They do not add global identity-provider revocation or a new authority algebra;
+see [M05 acceptance](m05-acceptance.md).
+
 ## M04 - Safe Execution and Outcome Proof
 
 **Message:** Execute the access-restoration contract idempotently and close the case only after independent proof.
@@ -88,9 +93,13 @@ completion with outcome proof.
 
 ## M05 - Adaptive Resolution Experience
 
+**Status:** Approved bounded implementation delivered as of 2026-10-29; live
+two-app deployment acceptance is unverified. See the
+[acceptance evidence and remaining limits](m05-acceptance.md).
+
 **Message:** Deliver the requester canvas and resolver console over the shared case APIs.
 
-Delivered outcomes and planned boundaries:
+Delivered outcomes and retained boundaries:
 
 - Delivered: create and retrieve one durable human follow-up work item from an
   escalated run.
@@ -123,9 +132,9 @@ Delivered outcomes and planned boundaries:
   session control, distinct from follow-up ownership and capability authority.
 - Delivered: responsive Consoles over recorded facts, with executable guides;
   visual refinement continues without inventing execution spans.
-- Planned: owner-attributed notes, direct handover, administrative work completion,
+- Delivered: owner-attributed notes, direct handover, administrative work completion,
   revisioned priority and durable in-app notifications.
-- Planned: separately authenticated requester intake, progress and bounded
+- Delivered: separately authenticated requester intake, progress and bounded
   information requests/responses, plus explicit sign-out in both applications.
 
 Completion means the resolver and requester acceptance criteria in the
@@ -138,8 +147,9 @@ requester approvals, general graphs and simulation are explicit exclusions.
 
 The bounded capabilities below are merged, except where a broader outcome is
 explicitly deferred. This is historical context, not the next issue sequence;
-use the approved M05 plan for remaining work. Backend and UI changes are reviewed
-in separate repositories, backend first, with an executable guide in each UI slice.
+use the approved M05 plan's delivery ledger and acceptance record. Backend and UI
+changes are reviewed in separate repositories, backend first, with an executable
+guide in each UI slice.
 
 1. **M05 - Adaptive Resolution Experience:** Assign resolution-run
    supervisors and expose assigned-only active-run browser reads. Use a
@@ -335,7 +345,8 @@ not capabilities established by predecessor cleanup.
   the checker remains offline and does not query GitHub.
 - M01–M04 delivery assessments apply to the bounded first slice, not every future
   extension. An empty issue list or a completed prerequisite does not complete a
-  milestone. M05–M09 still have undelivered outcomes.
+  milestone. M06–M09 still have undelivered outcomes; M05's bounded implementation
+  delivery does not close its reported deployment-acceptance gap.
 - This file owns intended sequencing until an issue is created.
 - Every issue names exactly one milestone using its exact title.
 - Move an issue only when its outcome dependency changes; update this roadmap

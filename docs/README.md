@@ -63,6 +63,8 @@ links from those documents only when the task crosses another boundary.
 
 ## Planning and decisions
 
+- [M05 acceptance record](roadmap/m05-acceptance.md) — merged delivery and final
+  CI evidence, with the unverified live two-app deployment boundary kept explicit.
 - [Milestones](roadmap/milestones.md) — outcome-oriented implementation plan.
 - [M05 delivery plan](roadmap/m05-adaptive-resolution-experience.md) — agreed
   resolver/requester scope, PR dependencies, exclusions and completion criteria.
