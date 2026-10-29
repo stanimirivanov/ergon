@@ -8,10 +8,6 @@ templates. It has no dependency edge to deployable product modules.
 
 Run the focused deterministic check from the repository root:
 
-```powershell
-.\mvnw.cmd -B -ntp -pl :repository-policy verify
-```
-
 ```bash
 ./mvnw -B -ntp -pl :repository-policy verify
 ```

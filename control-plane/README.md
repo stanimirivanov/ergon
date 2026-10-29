@@ -129,11 +129,11 @@ Spring OAuth client registration `ergon-workbench`, including a secret supplied
 by deployment configuration. See [authentication](../docs/authentication.md)
 for the exact registration contract. The server listens on port `8090`.
 
-```powershell
-$env:ERGON_DATABASE_URL = "jdbc:postgresql://localhost:5432/ergon"
-$env:ERGON_DATABASE_USERNAME = "ergon"
-$env:ERGON_DATABASE_PASSWORD = "ergon"
-.\mvnw.cmd -pl control-plane -am spring-boot:run
+```bash
+export ERGON_DATABASE_URL="jdbc:postgresql://localhost:5432/ergon"
+export ERGON_DATABASE_USERNAME="ergon"
+export ERGON_DATABASE_PASSWORD="ergon"
+./mvnw -pl control-plane -am spring-boot:run
 ```
 
 The credentials above match the development-only root `docker-compose.yml`.
@@ -155,7 +155,7 @@ Before the first start after this change, stop a predecessor Compose project
 without deleting its volumes. Replace the project name when it was overridden
 locally:
 
-```powershell
+```bash
 docker compose -p rag-help-center down
 docker compose up -d postgres
 ```
@@ -384,8 +384,8 @@ No migration is needed. See [requester deployment](../docs/authentication.md#req
 
 Docker must be running so Testcontainers executes PostgreSQL tests.
 
-```powershell
-.\mvnw.cmd -B -ntp -pl control-plane -am verify
+```bash
+./mvnw -B -ntp -pl control-plane -am verify
 ```
 
 Run the root reactor verification before merge.

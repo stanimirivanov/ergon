@@ -17,9 +17,9 @@ authority, capability execution, retries, proof, and escalation.
 
 ## Verify
 
-```powershell
-.\mvnw.cmd -B -ntp -pl domain-kernel test
+```bash
+./mvnw -B -ntp -pl domain-kernel test
 ```
 
-From Bash, use `./mvnw`. The full repository `verify` remains required before
+The full repository `verify` remains required before
 merge. See [engineering standards](../docs/development/engineering-standards.md).

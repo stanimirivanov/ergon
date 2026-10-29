@@ -172,7 +172,7 @@ ADRs belong with the implementing slice, not this planning record.
 ## Verification and rollout limits
 
 Ergon slices run `./mvnw -B -ntp -pl :repository-policy verify` and
-`./mvnw -B -ntp verify` (the `.cmd` wrappers on Windows). SQL changes include
+`./mvnw -B -ntp verify`. SQL changes include
 actual PostgreSQL empty/upgrade, tenant and concurrency evidence under the
 [migration criteria](../development/sql-migrations.md).
 
