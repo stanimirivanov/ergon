@@ -31,6 +31,8 @@ pick one. Correct an obvious local error or propose a superseding ADR.
 
 - One task and pull request delivers one coherent, independently reviewable
   capability.
+- Size PRs by coherence and independent verification, never by line counts. Keep
+  one coherent capability in one PR, including its tests, migration and docs.
 - Prefer a thin end-to-end slice over an unused layer or speculative framework.
 - Keep unrelated refactoring, dependency updates, generated churn, and broad
   formatting out of behavioral changes.

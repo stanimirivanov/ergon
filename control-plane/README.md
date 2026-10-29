@@ -493,3 +493,35 @@ No acceptance, account state, capability grant or outcome proof is created.
 Apply the additive claim-proposal migration before enabling these endpoints.
 Application rollback retains immutable proposals and their source/proposer foreign
 keys; do not reverse shared migrations. OpenAPI binding and review are later slices.
+
+### Ordered procedure proposals
+
+POST `/bff/v1/tenants/{tenantId}/sources/{sourceId}/revisions/{digest}/procedure-proposals/{id}`
+with a Markdown `extractionId`, ORDERED_LIST `observationIndex` and `title`. Optional
+`operations` entries contain one-based `position`, OpenAPI `sourceId`, `digest`,
+`extractionId` and API_OPERATION `observationIndex`, all within the URI's tenant.
+Omitted/null operations means no links. Bindings are explicit; nothing is matched
+or invoked automatically. Existing workbench sessions, CSRF and current resolver
+authority apply before private source reads. Strict JSON is limited to 16 KiB.
+
+Only flat ordered lists with one paragraph per item are supported. Nested, mixed,
+empty, code-block and multi-paragraph items return 422 without partial results.
+Step positions follow source order; quotes retain original markers, Unicode,
+indentation and CRLF. Inline markup/links remain inert source text. Titles are
+trimmed, nonblank, valid Unicode without control characters, up to 256 UTF-16 units.
+Limits are 20 steps/bindings and 256 KiB aggregate UTF-8 quotations; NUL quotations
+are rejected by this version's JSONB storage boundary. Existing compiler limits
+still apply. Referenced API observations retain exact pointers and source citations.
+
+201 creates a PROPOSED record; 200 recovers an exact same-actor retry. Changed
+same-ID commands return 409; stale selections/unsupported inputs 422, oversized
+commands 413, and missing/foreign sources or records 404. GET at the same URI
+reauthorizes and verifies stored list, step and operation quotations against their
+original sources. Responses use no-store and include compiler/binding provenance.
+An operation link is documentation, not a capability grant or executable step.
+
+Apply V20261029190000 before the API. Definitions and operation-source foreign keys
+commit atomically; deferred checks prevent incomplete or later-added links and
+mutation triggers reject UPDATE/DELETE. Application rollback retains source-linked
+audit rows. No new dependency, worker, review transition or contract change is added.
+See [ADR 0084](../docs/decisions/0084-propose-cited-ordered-procedures.md).
