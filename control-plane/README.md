@@ -466,10 +466,30 @@ core/models/annotations 2.2.53; non-Jakarta duplicates are excluded. Source
 coordinates come from strict Jackson token
 locations. Existing Markdown parser selection stays pinned to its versioned route.
 
-### Documentary claim storage
+### Documentary claim proposals
 
-The additive claim-proposal migration stores immutable documentary assertions,
-source/compiler citations, proposer identity and database recording time. Source
-and proposer foreign keys retain tenant scope. The repository recovers exact
-same-actor retries and rejects changed commands; no browser producer exists yet.
-Application rollback retains audit rows; do not reverse a shared migration.
+POST `/bff/v1/tenants/{tenantId}/sources/{sourceId}/revisions/{digest}/claim-proposals/{id}`
+with an `extractionId`, zero-based `observationIndex`, registered `property`, `subject`,
+`scope` and exactly one of `booleanValue` or `textValue`. The existing workbench
+session/CSRF and current tenant-wide resolver authority apply. Commands are bounded
+to 8 KiB; unknown fields and scalar type coercion are rejected. The source must be Markdown: selection is checked against its exact current compiler projection,
+and the quotation is obtained and verified server-side, never supplied by callers.
+
+Properties are `documentation.access.restoration.supported` (boolean) and
+`documentation.access.restoration.requirement` (nonblank single-line text, at most
+1,000 UTF-16 units). Subject and scope are exact trimmed labels of at most 256
+UTF-16 units, without control characters. They confer no tenant or capability rights.
+Optional `validFrom`/`validUntil` must both be absent (unknown validity), or form a
+half-open increasing interval at microsecond precision, within years 0001–9999. No validity is inferred.
+
+201 creates a proposal; 200 recovers the same command by the same proposer with
+original recording time. Reusing its tenant-wide UUID with changed meaning or actor
+returns 409. Unknown properties, wrong types, intervals and stale selections return
+422. GET at the same path reads only that source's exact proposal after fresh access
+checks; missing/foreign identities return 404. Responses use `no-store` and include
+PROPOSED status, selected citation, compiler revision and `manual-claim-v1` binding rule.
+No acceptance, account state, capability grant or outcome proof is created.
+
+Apply the additive claim-proposal migration before enabling these endpoints.
+Application rollback retains immutable proposals and their source/proposer foreign
+keys; do not reverse shared migrations. OpenAPI binding and review are later slices.
