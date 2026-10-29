@@ -145,3 +145,4 @@ benchmarks rather than duplicating them.
 | 0079 | [Deliver requester information notifications](0079-deliver-requester-information-notifications.md) |
 | 0080 | [Protect bounded notification feeds](0080-protect-bounded-notification-feeds.md) |
 | 0081 | [Retire local browser sessions](0081-retire-local-browser-sessions.md) |
+| 0082 | [Define documentary evidence boundaries](0082-define-documentary-evidence-boundaries.md) |
