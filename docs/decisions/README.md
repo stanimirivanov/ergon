@@ -150,3 +150,4 @@ benchmarks rather than duplicating them.
 | 0084 | [Propose cited ordered procedures](0084-propose-cited-ordered-procedures.md) |
 | 0085 | [Record terminal documentary review](0085-record-terminal-documentary-review.md) |
 | 0086 | [Adjudicate bounded documentary contradictions](0086-adjudicate-bounded-documentary-contradictions.md) |
+| 0087 | [Publish review-qualified evidence bundles](0087-publish-review-qualified-evidence-bundles.md) |
