@@ -434,3 +434,34 @@ list. Bounded input and traversal constrain synchronous work; this is not a hard
 wall-clock timeout. No worker, cache, schema change, or semantic binding is added.
 The BSD-2-Clause CommonMark runtime dependency uses the existing managed version;
 its parser types remain inside the document adapter, separate from domain values.
+
+### OpenAPI JSON compilation
+
+GET the exact source path with `/compilations/openapi-3.0-v1` appended for the
+OpenAPI 3.0 JSON projection. Current resolver authorization and `no-store` responses
+match Markdown compilation. Compiler `openapi-3.0-swagger-2.1.48-v1` emits
+API_OPERATION, API_PARAMETER, API_RESPONSE and API_DESCRIPTION observations in
+original source order. JSON observations add `jsonPointer` (RFC 6901); Markdown
+observations retain their meaning with `jsonPointer=null`. Quotes include the raw
+JSON value syntax, including string quotes/escapes, never normalized model text.
+Reference observations cite the reference declaration; target definitions keep
+separate original pointers. Neither implies that an operation was invoked.
+
+Strict preflight rejects duplicate keys, trailing JSON values, non-3.0 versions,
+external/file/relative references, missing targets and cyclic local references
+before Swagger parsing. Supported references use literal `#/...` pointers with
+`~0`/`~1` escapes; percent-encoded fragments and root-only `#` are not supported.
+Even references inside extensions/examples are checked. Local schema recursion is
+rejected in this bounded first release. Swagger resolution and flattening remain
+disabled; no client, credentials or URL resolver is exposed.
+
+Limits are 64 KiB input, JSON depth 32, 4,096 indexed values/reference visits,
+128 references, reference-chain depth 16, 256 observations and 131,072 quoted code
+points. Invalid descriptions or exceeded limits return 422 without partial output.
+Swagger warnings are rejected; this is a deliberately conservative supported subset,
+not a promise to accept every legal OpenAPI document. No new persistence or hard
+wall-clock deadline is introduced. The Apache-2.0 Swagger Parser dependency is
+isolated in the document adapter. Parser and Springdoc share Jakarta Swagger
+core/models/annotations 2.2.53; non-Jakarta duplicates are excluded. Source
+coordinates come from strict Jackson token
+locations. Existing Markdown parser selection stays pinned to its versioned route.

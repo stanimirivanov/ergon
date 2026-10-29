@@ -14,6 +14,7 @@ import org.ergon.evidence.domain.SourceDigest
 import org.ergon.evidence.domain.SourceId
 import org.ergon.evidence.domain.SourceRevision
 import org.ergon.identity.domain.TenantId
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.CacheControl
 import org.springframework.http.HttpStatus
@@ -36,7 +37,8 @@ import java.util.UUID
 class BrowserSourceController(
     private val actors: AuthenticatedHumanActorResolver,
     private val sources: SourceRevisionService,
-    private val compilation: SourceCompilationService,
+    @Qualifier("sourceCompilationService") private val compilation: SourceCompilationService,
+    @Qualifier("openApiCompilationService") private val openApi: SourceCompilationService,
 ) {
     @PostMapping(consumes = ["text/markdown", "application/vnd.oai.openapi+json"])
     fun register(
@@ -79,9 +81,25 @@ class BrowserSourceController(
         @PathVariable sourceId: UUID,
         @PathVariable digest: String,
         @AuthenticationPrincipal principal: OidcUser,
+    ): ResponseEntity<BrowserSourceCompilation> = compileWith(tenantId, sourceId, digest, principal, compilation)
+
+    @GetMapping("/compilations/openapi-3.0-v1")
+    fun compileOpenApi(
+        @PathVariable tenantId: UUID,
+        @PathVariable sourceId: UUID,
+        @PathVariable digest: String,
+        @AuthenticationPrincipal principal: OidcUser,
+    ): ResponseEntity<BrowserSourceCompilation> = compileWith(tenantId, sourceId, digest, principal, openApi)
+
+    private fun compileWith(
+        tenantId: UUID,
+        sourceId: UUID,
+        digest: String,
+        principal: OidcUser,
+        compiler: SourceCompilationService,
     ): ResponseEntity<BrowserSourceCompilation> {
         val actor = actors.resolve(tenantId, principal).actor.id
-        val result = compilation.compile(revision(tenantId, sourceId, digest), actor)
+        val result = compiler.compile(revision(tenantId, sourceId, digest), actor)
         val response =
             BrowserSourceCompilation(
                 result.extraction.id,
@@ -94,6 +112,7 @@ class BrowserSourceController(
                         it.citation.span.start,
                         it.citation.span.endExclusive,
                         it.citation.quote,
+                        it.jsonPointer,
                     )
                 },
             )
@@ -160,4 +179,5 @@ data class BrowserSourceObservation(
     val start: Int,
     val endExclusive: Int,
     val quote: String,
+    val jsonPointer: String? = null,
 )

@@ -1,0 +1,14 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Example 😀", "version": "1", "description": "Keep é exact"},
+  "paths": {
+    "/accounts/{id}": {
+      "get": {
+        "description": "Read <b>only</b>",
+        "parameters": [{"$ref": "#/components/parameters/Id"}],
+        "responses": {"200": {"description": "Found"}}
+      }
+    }
+  },
+  "components": {"parameters": {"Id": {"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}}}
+}

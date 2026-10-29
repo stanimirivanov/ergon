@@ -5,6 +5,10 @@ enum class SourceObservationKind {
     HEADING,
     PARAGRAPH,
     ORDERED_LIST,
+    API_OPERATION,
+    API_PARAMETER,
+    API_RESPONSE,
+    API_DESCRIPTION,
 }
 
 /**
@@ -15,4 +19,6 @@ enum class SourceObservationKind {
 data class SourceObservation(
     val kind: SourceObservationKind,
     val citation: SourceCitation,
+    /** RFC 6901 pointer for JSON observations; null for non-JSON sources. */
+    val jsonPointer: String? = null,
 )
