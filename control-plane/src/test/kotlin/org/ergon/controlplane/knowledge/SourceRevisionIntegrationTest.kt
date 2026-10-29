@@ -2,8 +2,15 @@ package org.ergon.controlplane.knowledge
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.ergon.controlplane.evidence.adapter.out.persistence.PostgresClaimProposalRepository
+import org.ergon.controlplane.evidence.application.ClaimConflict
+import org.ergon.controlplane.knowledge.adapter.inbound.document.CommonMarkSourceParser
 import org.ergon.controlplane.knowledge.adapter.out.persistence.PostgresSourceRevisionRepository
 import org.ergon.controlplane.knowledge.application.SourceConflict
+import org.ergon.evidence.domain.ClaimProposal
+import org.ergon.evidence.domain.DocumentaryClaim
+import org.ergon.evidence.domain.DocumentaryProperty
+import org.ergon.evidence.domain.DocumentaryValue
 import org.ergon.evidence.domain.EvidenceSource
 import org.ergon.evidence.domain.EvidenceSourceFormat
 import org.ergon.evidence.domain.SourceId
@@ -70,6 +77,7 @@ class SourceRevisionIntegrationTest {
                 "# 😀\r\n".toByteArray(),
             )
         val created = repository.register(source, actor)
+        proposals(jdbc, data, source, actor)
         assertThat(created.created).isTrue()
         concurrentReplay(repository, source, actor)
         val replay = repository.register(source, actor)
@@ -86,6 +94,14 @@ class SourceRevisionIntegrationTest {
             )
         assertThatThrownBy { repository.register(otherFormat, actor) }.isInstanceOf(SourceConflict::class.java)
         rejectMutation(jdbc)
+        rejectForeignSubmitter(repository, source, actor)
+    }
+
+    private fun rejectForeignSubmitter(
+        repository: PostgresSourceRevisionRepository,
+        source: EvidenceSource,
+        actor: HumanActorId,
+    ) {
         val foreign =
             EvidenceSource.fromUtf8(
                 TenantId(UUID.randomUUID()),
@@ -94,6 +110,49 @@ class SourceRevisionIntegrationTest {
                 byteArrayOf(),
             )
         assertThatThrownBy { repository.register(foreign, actor) }.isInstanceOf(DataAccessException::class.java)
+    }
+
+    private fun proposals(
+        jdbc: JdbcClient,
+        data: DriverManagerDataSource,
+        source: EvidenceSource,
+        actor: HumanActorId,
+    ) {
+        val repository = PostgresClaimProposalRepository(jdbc, TransactionTemplate(DataSourceTransactionManager(data)))
+        val compiled = CommonMarkSourceParser().parse(source)
+        val claim = DocumentaryClaim(DocumentaryProperty.SUPPORT, DocumentaryValue.Support(true), "sso", "employees")
+        val proposal =
+            ClaimProposal(
+                UUID.randomUUID(),
+                compiled.extraction,
+                0,
+                compiled.observations.first().citation,
+                claim,
+            )
+        val first = repository.register(proposal, actor)
+        assertThat(first.created).isTrue()
+        val start = java.time.Instant.parse("2026-10-29T00:00:00Z")
+        val requirement =
+            DocumentaryClaim(
+                DocumentaryProperty.REQUIREMENT,
+                DocumentaryValue.Requirement("Use MFA"),
+                "sso",
+                "employees",
+                start,
+                start.plusSeconds(60),
+            )
+        val textProposal = proposal.copy(id = UUID.randomUUID(), claim = requirement)
+        repository.register(textProposal, actor)
+        assertThat(repository.find(source.revision.tenantId, textProposal.id)?.proposal).isEqualTo(textProposal)
+        assertThat(repository.register(proposal, actor).stored).isEqualTo(first.stored)
+        assertThat(repository.register(proposal, actor).created).isFalse()
+        assertThat(repository.find(TenantId(UUID.randomUUID()), proposal.id)).isNull()
+        assertThatThrownBy { repository.register(proposal.copy(claim = claim.copy(scope = "others")), actor) }
+            .isInstanceOf(ClaimConflict::class.java)
+        assertThatThrownBy { jdbc.sql("DELETE FROM evidence_claim_proposals").update() }
+            .isInstanceOf(DataAccessException::class.java)
+        assertThatThrownBy { jdbc.sql("UPDATE evidence_claim_proposals SET scope = 'changed'").update() }
+            .isInstanceOf(DataAccessException::class.java)
     }
 
     private fun rejectMutation(jdbc: JdbcClient) {
