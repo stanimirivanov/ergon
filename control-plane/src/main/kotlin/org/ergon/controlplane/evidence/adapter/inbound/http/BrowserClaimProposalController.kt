@@ -182,7 +182,7 @@ data class ClaimProposalResponse(
     val bindingRule: String = ClaimProposal.BINDING_RULE,
 )
 
-private fun StoredClaimProposal.response(): ClaimProposalResponse {
+internal fun StoredClaimProposal.response(): ClaimProposalResponse {
     val p = proposal
     val c = p.claim
     val input =

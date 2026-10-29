@@ -225,7 +225,7 @@ private fun DocumentedOperation.response(): BrowserProcedureOperation =
         citation.response(),
     )
 
-private fun StoredProcedureProposal.response(): BrowserProcedureProposal =
+internal fun StoredProcedureProposal.response(): BrowserProcedureProposal =
     BrowserProcedureProposal(
         proposal.id,
         proposal.content.title,

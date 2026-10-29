@@ -525,3 +525,41 @@ commit atomically; deferred checks prevent incomplete or later-added links and
 mutation triggers reject UPDATE/DELETE. Application rollback retains source-linked
 audit rows. No new dependency, worker, review transition or contract change is added.
 See [ADR 0084](../docs/decisions/0084-propose-cited-ordered-procedures.md).
+
+### Human documentary review
+
+Apply additive V20261029200000 before enabling the review API. All routes below
+use the existing workbench OIDC session, CSRF on POST, path-tenant actor lookup,
+current tenant-wide RESOLVER authority, and no-store responses. Requester sessions
+cannot access them. Self-review is permitted. Acceptance records a human decision;
+it does not promote operational facts, register capabilities or authorize execution.
+
+- GET `/bff/v1/tenants/{tenantId}/evidence-proposals/pending` lists pending
+  claim/procedure metadata. Optional `limit` defaults to 20 and must be 1–50.
+  `next` supplies `beforeRecordedAt`, `beforeKind`, `beforeId`; pass all
+  three verbatim to continue. Ordering is recording time, kind (PROCEDURE before
+  CLAIM), UUID, descending. Timestamps must retain exact microseconds. There is
+  no snapshot or total-count guarantee; refresh the first page for new proposals.
+- GET `/bff/v1/tenants/{tenantId}/evidence-proposals/{kind}/{id}/review`
+  returns the exact verified cited `claim` or `procedure`, current `status`,
+  `version`, and optional `review` receipt. Kinds are CLAIM and PROCEDURE.
+- POST `/bff/v1/tenants/{tenantId}/evidence-proposals/{kind}/{id}/reviews/{commandId}`
+  accepts exactly `extractionId`, `expectedVersion`, `decision`, `rationale`.
+  Select the inspection's extraction ID and version 0. Decision is ACCEPTED or
+  REJECTED; rationale is trimmed, nonblank, valid Unicode, at most 2000 UTF-16
+  units (tab/line breaks permitted; other controls rejected). Strict JSON is
+  bounded to 16 KiB. Clients cannot supply identity, proof or decision time.
+
+201 records the single immutable terminal decision at version 1. 200 recovers an
+exact same-actor command retry, preserving original proof/time even after renewed
+authorization. Command IDs are tenant-wide across both kinds. Altered intent,
+stale extraction/version or competing commands return 409; invalid input 422,
+oversized input 413, missing/foreign/unauthorized target 404. Infrastructure
+failures remain errors. Authority is rechecked with database time after lock waits,
+including retries; expiry does not rewrite stored history.
+
+Existing claim/procedure creation and GET envelopes retain PROPOSED as their
+original creation state. Use review inspection for authoritative current status.
+No edit, undo, repeated review or replacement linking is supplied. Reverting API
+code retains immutable audit rows; never reverse a shared migration. No new
+dependency or worker is required. See [ADR 0085](../docs/decisions/0085-record-terminal-documentary-review.md).
