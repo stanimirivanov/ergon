@@ -2,11 +2,18 @@
 
 ## TL;DR
 
+M05's 28 approved implementation coordinates are delivered through 42 merged PRs
+(22 Ergon, 20 ergon-ui), ending with UI PR #233. The
+[acceptance record](../roadmap/m05-acceptance.md) maps criteria to source/tests,
+guides and successful final backend/UI CI runs. Real two-app/OIDC deployment
+acceptance remains unverified; this is bounded implementation, not production
+readiness or a general compiler/runtime claim.
+
 M05-PR27 adds CSRF-protected local browser logout as an M03 prerequisite. Only
 the configured client's authenticated POST `/bff/logout` retires its HTTP session,
 security context, CSRF, local authorized clients and cookie. No provider revocation,
-ownership change or accepted-work cancellation. PR28 UI/guide waits for backend
-merge. See [ADR 0081](../decisions/0081-retire-local-browser-sessions.md).
+ownership change or accepted-work cancellation. PR28a/b UI and guides merged in
+ergon-ui PRs #231/#233. See [ADR 0081](../decisions/0081-retire-local-browser-sessions.md).
 
 M05-PR25c adds fixed-client, tenant/recipient-scoped notification feeds capped at
 50 deliveries with explicit truncation. The deployment selects requester questions
