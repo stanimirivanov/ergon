@@ -465,3 +465,11 @@ isolated in the document adapter. Parser and Springdoc share Jakarta Swagger
 core/models/annotations 2.2.53; non-Jakarta duplicates are excluded. Source
 coordinates come from strict Jackson token
 locations. Existing Markdown parser selection stays pinned to its versioned route.
+
+### Documentary claim storage
+
+The additive claim-proposal migration stores immutable documentary assertions,
+source/compiler citations, proposer identity and database recording time. Source
+and proposer foreign keys retain tenant scope. The repository recovers exact
+same-actor retries and rejects changed commands; no browser producer exists yet.
+Application rollback retains audit rows; do not reverse a shared migration.
