@@ -389,3 +389,25 @@ Docker must be running so Testcontainers executes PostgreSQL tests.
 ```
 
 Run the root reactor verification before merge.
+
+## Documentary source revisions
+
+With browser sessions enabled, current tenant-wide resolvers may POST raw UTF-8
+bytes to `/bff/v1/tenants/{tenantId}/sources/{sourceId}/revisions/{digest}` using
+`text/markdown` or `application/vnd.oai.openapi+json`. The existing workbench
+session and CSRF token are required. The digest is lowercase SHA-256 of the exact
+body, limited to 65,536 bytes, with no newline or Unicode normalization.
+This endpoint stores untrusted material; it does not validate OpenAPI or compile it.
+
+Registration returns 201 for a new identity or 200 for an exact retry, preserving
+original submitter and database recording time. Changed content/digest or format
+conflicts return 409, malformed UTF-8/identity 422 and oversize content 413.
+GET at the same path returns the exact source text, media type and attribution.
+Missing revisions and absent current resolver authority both return 404. Every
+source response uses `Cache-Control: no-store`; references are never fetched.
+
+The additive `knowledge_source_revisions` migration enforces immutable rows and
+same-tenant submitter references. Deploy migrations before application code.
+Application rollback retains stored source revisions; do not reverse the migration
+or delete audit records. Confidential sources require deployment-level retention
+and access controls; this slice adds no deletion API or rendering UI.
