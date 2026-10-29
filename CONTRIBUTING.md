@@ -126,6 +126,11 @@ A pull request MUST solve one problem or deliver one coherent vertical
 capability, keep the repository buildable, and include the implementation,
 tests, documentation, contract changes, and migration needed to prove it.
 
+Size PRs by coherence, ownership and independent verification, not changed-line
+counts. Do not split one coherent capability into multiple PRs merely to satisfy
+a numeric size target or because it crosses layers. Keep its tests, migration
+and documentation together. Split only independently useful or unrelated work.
+
 Split independent behavior, broad cleanup, dependency upgrades, schema
 redesign, unrelated formatting, and separate architecture decisions. A thin
 vertical slice may legitimately touch domain, application, adapters, storage,

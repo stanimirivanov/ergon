@@ -147,3 +147,4 @@ benchmarks rather than duplicating them.
 | 0081 | [Retire local browser sessions](0081-retire-local-browser-sessions.md) |
 | 0082 | [Define documentary evidence boundaries](0082-define-documentary-evidence-boundaries.md) |
 | 0083 | [Propose cited documentary claims](0083-propose-cited-documentary-claims.md) |
+| 0084 | [Propose cited ordered procedures](0084-propose-cited-ordered-procedures.md) |
