@@ -132,6 +132,10 @@ class RequesterBrowserSessionIntegrationTest(
                 "/bff/v1/tenants/$tenantId/human-follow-ups",
                 "/bff/v1/tenants/$tenantId/human-follow-ups/${UUID.randomUUID()}/information-requests",
                 "/internal/v1/tenants/$tenantId/human-actors",
+                "/bff/v1/tenants/$tenantId/evidence-proposals/pending",
+                "/bff/v1/tenants/$tenantId/evidence-proposals/CLAIM/${UUID.randomUUID()}/review",
+                "/bff/v1/tenants/$tenantId/evidence-proposals/PROCEDURE/${UUID.randomUUID()}" +
+                    "/reviews/${UUID.randomUUID()}",
             )
         for (path in paths) {
             mockMvc.perform(get(path).with(requester())).andExpect(status().isForbidden)
