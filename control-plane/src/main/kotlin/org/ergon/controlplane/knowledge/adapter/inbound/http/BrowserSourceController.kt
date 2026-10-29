@@ -3,6 +3,7 @@ package org.ergon.controlplane.knowledge.adapter.inbound.http
 import jakarta.servlet.http.HttpServletRequest
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.knowledge.application.InvalidSource
+import org.ergon.controlplane.knowledge.application.SourceCompilationService
 import org.ergon.controlplane.knowledge.application.SourceConflict
 import org.ergon.controlplane.knowledge.application.SourceRevisionService
 import org.ergon.controlplane.knowledge.application.SourceTooLarge
@@ -35,6 +36,7 @@ import java.util.UUID
 class BrowserSourceController(
     private val actors: AuthenticatedHumanActorResolver,
     private val sources: SourceRevisionService,
+    private val compilation: SourceCompilationService,
 ) {
     @PostMapping(consumes = ["text/markdown", "application/vnd.oai.openapi+json"])
     fun register(
@@ -69,6 +71,33 @@ class BrowserSourceController(
         val actor = actors.resolve(tenantId, principal).actor.id
         val stored = sources.get(revision(tenantId, sourceId, digest), actor)
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(stored.toResponse())
+    }
+
+    @GetMapping("/compilations/commonmark-v1")
+    fun compile(
+        @PathVariable tenantId: UUID,
+        @PathVariable sourceId: UUID,
+        @PathVariable digest: String,
+        @AuthenticationPrincipal principal: OidcUser,
+    ): ResponseEntity<BrowserSourceCompilation> {
+        val actor = actors.resolve(tenantId, principal).actor.id
+        val result = compilation.compile(revision(tenantId, sourceId, digest), actor)
+        val response =
+            BrowserSourceCompilation(
+                result.extraction.id,
+                result.extraction.extractorRevision,
+                sourceId,
+                digest,
+                result.observations.map {
+                    BrowserSourceObservation(
+                        it.kind.name,
+                        it.citation.span.start,
+                        it.citation.span.endExclusive,
+                        it.citation.quote,
+                    )
+                },
+            )
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(response)
     }
 
     @ExceptionHandler(SourceUnavailable::class, SourceConflict::class, InvalidSource::class, SourceTooLarge::class)
@@ -115,3 +144,20 @@ private fun StoredSourceRevision.toResponse(): BrowserSourceRevision =
         submittedBy.value,
         recordedAt,
     )
+
+/** Version-one compilation projection. Observations retain original syntax and carry no semantic acceptance. */
+data class BrowserSourceCompilation(
+    val extractionId: UUID,
+    val extractorRevision: String,
+    val sourceId: UUID,
+    val digest: String,
+    val observations: List<BrowserSourceObservation>,
+)
+
+/** Half-open Unicode code-point positions into the exact source text, never HTML output. */
+data class BrowserSourceObservation(
+    val kind: String,
+    val start: Int,
+    val endExclusive: Int,
+    val quote: String,
+)

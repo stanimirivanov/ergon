@@ -15,6 +15,10 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.ergon</groupId>
             <artifactId>domain-kernel</artifactId>
         </dependency>

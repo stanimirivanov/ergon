@@ -3,7 +3,9 @@ package org.ergon.controlplane.knowledge
 import org.assertj.core.api.Assertions.assertThat
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.identity.application.StoredHumanActor
+import org.ergon.controlplane.knowledge.adapter.inbound.document.CommonMarkSourceParser
 import org.ergon.controlplane.knowledge.adapter.inbound.http.BrowserSourceController
+import org.ergon.controlplane.knowledge.application.SourceCompilationService
 import org.ergon.controlplane.knowledge.application.SourceRegistration
 import org.ergon.controlplane.knowledge.application.SourceRevisionService
 import org.ergon.controlplane.knowledge.application.StoredSourceRevision
@@ -30,12 +32,14 @@ class BrowserSourceControllerTest {
                 tenant,
                 SourceId(UUID(0, 3)),
                 EvidenceSourceFormat.COMMONMARK,
-                byteArrayOf(),
+                "# Heading".toByteArray(),
             )
         val now = Instant.parse("2026-10-29T12:00:00Z")
         val actors = Mockito.mock(AuthenticatedHumanActorResolver::class.java)
         val service = Mockito.mock(SourceRevisionService::class.java)
         val principal = Mockito.mock(OidcUser::class.java)
+        val compilation = Mockito.mock(SourceCompilationService::class.java)
+        val controller = BrowserSourceController(actors, service, compilation)
         Mockito
             .`when`(actors.resolve(tenant.value, principal))
             .thenReturn(StoredHumanActor(HumanActor.create(actor, "test", "subject"), now, now))
@@ -47,7 +51,7 @@ class BrowserSourceControllerTest {
         request.contentType = "text/markdown"
         request.setContent(ByteArray(SourceRevisionService.MAX_BYTES + 100))
         val response =
-            BrowserSourceController(actors, service).register(
+            controller.register(
                 tenant.value,
                 source.revision.sourceId.value,
                 source.revision.digest.value,
@@ -60,5 +64,21 @@ class BrowserSourceControllerTest {
         assertThat(response.body?.recordedAt).isEqualTo(now)
         assertThat(request.inputStream.available()).isEqualTo(99)
         Mockito.verify(service).requireAccess(source.revision, actor)
+        Mockito.`when`(compilation.compile(source.revision, actor)).thenReturn(CommonMarkSourceParser().parse(source))
+        val compiled =
+            controller.compile(
+                tenant.value,
+                source.revision.sourceId.value,
+                source.revision.digest.value,
+                principal,
+            )
+        assertThat(compiled.headers.cacheControl).isEqualTo("no-store")
+        assertThat(compiled.body?.sourceId).isEqualTo(source.revision.sourceId.value)
+        assertThat(
+            compiled.body
+                ?.observations
+                ?.single()
+                ?.quote,
+        ).isEqualTo("# Heading")
     }
 }
