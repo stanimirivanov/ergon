@@ -39,13 +39,15 @@ class SourceRevisionIntegrationTest {
                 .target(target)
                 .load()
         flyway("20261028111302").migrate()
+        val separator = if (postgres.jdbcUrl.contains('?')) "&" else "?"
         val data =
             DriverManagerDataSource(
-                postgres.jdbcUrl + "?currentSchema=$schema",
+                "${postgres.jdbcUrl}${separator}currentSchema=$schema",
                 postgres.username,
                 postgres.password,
             )
         val jdbc = JdbcClient.create(data)
+        assertThat(jdbc.sql("SELECT current_schema()").query(String::class.java).single()).isEqualTo(schema)
         val tenant = TenantId(UUID.randomUUID())
         val actor = HumanActorId(UUID.randomUUID())
         jdbc
