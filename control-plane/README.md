@@ -411,3 +411,26 @@ same-tenant submitter references. Deploy migrations before application code.
 Application rollback retains stored source revisions; do not reverse the migration
 or delete audit records. Confidential sources require deployment-level retention
 and access controls; this slice adds no deletion API or rendering UI.
+
+### Markdown source compilation
+
+GET the same source revision path with `/compilations/commonmark-v1` appended to
+inspect its CommonMark syntax. The existing workbench session and current resolver
+authority are required, and responses use `no-store`. The read computes a projection;
+it does not persist or accept evidence. Identical source identity and compiler
+revision produce the same extraction UUID and ordered observations.
+
+Compiler `commonmark-0.24.0-v1` emits HEADING, PARAGRAPH and ORDERED_LIST blocks in
+document preorder. Each observation quotes original syntax with half-open Unicode
+code-point offsets. Multi-line quotes preserve CRLF and indentation between the
+first and last block spans; parent list quotes overlap child paragraph quotes.
+Code blocks and HTML blocks are not observations. Inline HTML, links and image
+references remain quoted text; nothing is fetched or rendered.
+
+Limits are 64 KiB of source bytes, tree depth 32, 4,096 visited syntax nodes, 256
+observations and 131,072 total quoted code points. Unsupported formats or exceeded
+limits return 422 without partial results. Empty supported sources return an empty
+list. Bounded input and traversal constrain synchronous work; this is not a hard
+wall-clock timeout. No worker, cache, schema change, or semantic binding is added.
+The BSD-2-Clause CommonMark runtime dependency uses the existing managed version;
+its parser types remain inside the document adapter, separate from domain values.

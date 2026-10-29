@@ -1,6 +1,8 @@
 package org.ergon.controlplane.knowledge
 
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
+import org.ergon.controlplane.knowledge.application.SourceCompilationService
+import org.ergon.controlplane.knowledge.application.SourceObservationParser
 import org.ergon.controlplane.knowledge.application.SourceRevisionRepository
 import org.ergon.controlplane.knowledge.application.SourceRevisionService
 import org.springframework.context.annotation.Bean
@@ -9,6 +11,12 @@ import java.time.Clock
 
 @Configuration(proxyBeanMethods = false)
 class SourceConfiguration {
+    @Bean
+    fun sourceCompilationService(
+        sources: SourceRevisionService,
+        parser: SourceObservationParser,
+    ) = SourceCompilationService(sources, parser)
+
     @Bean
     fun sourceRevisionService(
         repository: SourceRevisionRepository,
