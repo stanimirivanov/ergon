@@ -563,3 +563,51 @@ original creation state. Use review inspection for authoritative current status.
 No edit, undo, repeated review or replacement linking is supplied. Reverting API
 code retains immutable audit rows; never reverse a shared migration. No new
 dependency or worker is required. See [ADR 0085](../docs/decisions/0085-record-terminal-documentary-review.md).
+
+### Bounded documentary contradictions
+
+Apply V20261029210000 before these workbench session endpoints. Current tenant-wide
+resolver authority is required on every call, CSRF on POST, and responses use
+no-store. Requester sessions cannot access them.
+
+GET `/bff/v1/tenants/{tenantId}/documentary-contradictions/claims/{anchorId}`
+assesses all accepted claims with the accepted anchor's exact property, subject and
+scope. It returns algorithm, revision, accepted candidate/review identities, original
+verified citations, and pair findings. Candidate UUID order is canonical; preserve
+it verbatim for adjudication. The bound is 20 candidates; larger sets return 422
+without partial results. Pending/rejected proposals and procedures are excluded.
+
+Known overlapping validity and opposing SUPPORT booleans produce CONFLICT.
+Touching half-open intervals are DISJOINT_VALIDITY. Equal known-overlap values are
+COMPATIBLE. Unknown validity and differing textual requirements are UNDETERMINED;
+text inequality cannot prove incompatibility. Different labels are NOT_COMPARABLE,
+not proof of disjoint real-world scope. There is no inferred or wildcard scope.
+The response state prioritizes CONFLICT, then UNDETERMINED, then
+INSUFFICIENT_CANDIDATES or NO_DETECTED_CONFLICT; hasUndetermined stays visible even
+when another pair conflicts. A result never establishes general consistency.
+
+POST `/bff/v1/tenants/{tenantId}/documentary-contradictions/adjudications/{id}`
+accepts strict JSON (16 KiB maximum): anchorId, expectedRevision, candidateIds,
+choice, rationale and optional selectedClaimId. Use the complete ordered assessment
+IDs and revision. Choice is PREFER_CLAIM (selectedClaimId must be a candidate) or
+DEFER (selection absent/null). Rationale is trimmed, nonblank valid Unicode, at
+most 2000 UTF-16 units; line breaks/tab are permitted, other controls rejected.
+At least one conflicting or undetermined pair is required. Preference records
+human judgment without changing accepted claims or resolving unknown validity.
+
+201 records one terminal adjudication per exact group/revision; 200 recovers an
+exact same-actor retry. Changed intent, another decision for that snapshot or new
+accepted candidates return 409. Reassess and use a new command ID after stale
+inputs. Invalid/oversized candidate sets return 422, body over 16 KiB returns 413,
+and missing/foreign/unauthorized identities return 404. Infrastructure errors are
+not translated into missing evidence.
+
+GET `/bff/v1/tenants/{tenantId}/documentary-contradictions/adjudications/{id}`
+retrieves original candidates, verified quotations, findings, decision, reviewer,
+proof/time and a snapshot current flag. Later acceptance marks old decisions
+historical; exact retries retain original attribution. Unsaved assessments are read
+snapshots; saved decisions are immutable. Acceptance and adjudication serialize
+on the group revision, with database-time authority rechecks after lock waits.
+Deploy the additive migration before the API; rollback retains audit records.
+No UI, bundles, new dependency or execution authority is introduced.
+See [ADR 0086](../docs/decisions/0086-adjudicate-bounded-documentary-contradictions.md).
