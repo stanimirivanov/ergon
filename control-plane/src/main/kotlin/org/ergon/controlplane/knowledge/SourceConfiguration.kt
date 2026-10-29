@@ -5,6 +5,7 @@ import org.ergon.controlplane.knowledge.application.SourceCompilationService
 import org.ergon.controlplane.knowledge.application.SourceObservationParser
 import org.ergon.controlplane.knowledge.application.SourceRevisionRepository
 import org.ergon.controlplane.knowledge.application.SourceRevisionService
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
@@ -14,7 +15,13 @@ class SourceConfiguration {
     @Bean
     fun sourceCompilationService(
         sources: SourceRevisionService,
-        parser: SourceObservationParser,
+        @Qualifier("commonMarkSourceParser") parser: SourceObservationParser,
+    ) = SourceCompilationService(sources, parser)
+
+    @Bean
+    fun openApiCompilationService(
+        sources: SourceRevisionService,
+        @Qualifier("openApiSourceParser") parser: SourceObservationParser,
     ) = SourceCompilationService(sources, parser)
 
     @Bean

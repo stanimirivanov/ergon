@@ -39,7 +39,8 @@ class BrowserSourceControllerTest {
         val service = Mockito.mock(SourceRevisionService::class.java)
         val principal = Mockito.mock(OidcUser::class.java)
         val compilation = Mockito.mock(SourceCompilationService::class.java)
-        val controller = BrowserSourceController(actors, service, compilation)
+        val openApi = Mockito.mock(SourceCompilationService::class.java)
+        val controller = BrowserSourceController(actors, service, compilation, openApi)
         Mockito
             .`when`(actors.resolve(tenant.value, principal))
             .thenReturn(StoredHumanActor(HumanActor.create(actor, "test", "subject"), now, now))
