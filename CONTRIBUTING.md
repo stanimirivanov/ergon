@@ -155,10 +155,6 @@ is deterministic.
 
 Run the deterministic repository-policy check early for every change:
 
-```powershell
-.\mvnw.cmd -B -ntp -pl :repository-policy verify
-```
-
 ```bash
 ./mvnw -B -ntp -pl :repository-policy verify
 ```
@@ -169,10 +165,6 @@ empty local dependency cache. The checker owns the enforced contract shapes;
 do not weaken prose and templates together to evade a failing rule.
 
 The required full baseline is:
-
-```powershell
-.\mvnw.cmd -B -ntp verify
-```
 
 ```bash
 ./mvnw -B -ntp verify

@@ -49,19 +49,11 @@ Requirements:
 Run the fast repository-policy feedback while changing documentation,
 decisions, milestones, templates, or harness configuration:
 
-```powershell
-.\mvnw.cmd -B -ntp -pl :repository-policy verify
-```
-
 ```bash
 ./mvnw -B -ntp -pl :repository-policy verify
 ```
 
 Run the required full repository verification before completion:
-
-```powershell
-.\mvnw.cmd -B -ntp verify
-```
 
 ```bash
 ./mvnw -B -ntp verify
@@ -69,8 +61,8 @@ Run the required full repository verification before completion:
 
 Format Kotlin before committing:
 
-```powershell
-.\mvnw.cmd -B -ntp ktlint:format
+```bash
+./mvnw -B -ntp ktlint:format
 ```
 
 The root [`Makefile`](Makefile) provides equivalent convenience targets on

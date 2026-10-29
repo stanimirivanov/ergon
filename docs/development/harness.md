@@ -38,13 +38,6 @@ one, and a focused pass does not replace the required completion baseline.
 | T2 — full reactor | Compile, run static analysis and tests, and exercise the complete supported Maven build. | Before completion of every coding task and after final edits. | `./mvnw -B -ntp verify` passes with Docker available for Testcontainers-backed tests. |
 | T3 — boundary-specific validation | Prove behavior that the aggregate build cannot establish by itself, such as supported migration upgrades, rendered Compose configuration, deployment/security configuration, recovery, or a manual operational path. | Whenever the task-routing row, issue acceptance criteria, module README, SQL criteria, or ADR requires it. | Record the exact command or inspection, environment, outcome, and residual limitation. |
 
-On Windows, use the equivalent wrapper commands:
-
-```powershell
-.\mvnw.cmd -B -ntp -pl :repository-policy verify
-.\mvnw.cmd -B -ntp verify
-```
-
 The Makefile exposes `make repository-policy` and `make verify` as convenience
 targets on systems with `make`; Maven Wrapper commands remain canonical.
 
@@ -65,17 +58,17 @@ assertions and timeouts are unchanged.
 
 Run a stage locally with Python 3.11+ (standard library only):
 
-```powershell
-python tools/ci/verify.py policy
-python tools/ci/verify.py formatting
-python tools/ci/verify.py static
-python tools/ci/verify.py compile
-python tools/ci/verify.py unit
-python tools/ci/verify.py postgres
-python tools/ci/verify.py package
+```bash
+python3 tools/ci/verify.py policy
+python3 tools/ci/verify.py formatting
+python3 tools/ci/verify.py static
+python3 tools/ci/verify.py compile
+python3 tools/ci/verify.py unit
+python3 tools/ci/verify.py postgres
+python3 tools/ci/verify.py package
 ```
 
-Use `python3` on Ubuntu. Compilation prepares fresh flattened parent/domain
+Compilation prepares fresh flattened parent/domain
 artifacts in the local Maven repository; direct test goals otherwise cannot
 resolve the internal dependency across invocations. Later steps reuse compiled
 classes instead of repeating Maven lifecycle phases. Packaging produces the
@@ -105,7 +98,7 @@ both the check matrix and reactor job must report success. Failed, cancelled,
 skipped or missing prerequisites fail the gate. No branch-protection rename is
 needed where `build` is already required; repository administrators must ensure
 that status is actually required. The workflow cannot configure protection itself.
-Regression checks: `python -m unittest discover -s tools/ci -v`.
+Regression checks: `python3 -m unittest discover -s tools/ci -v`.
 
 ## Repository policy
 

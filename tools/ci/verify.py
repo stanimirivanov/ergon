@@ -135,7 +135,7 @@ def run_stage(root, stage):
                     [sys.executable, "-m", "unittest", "discover", "-s", "tools/ci", "-v"],
                     cwd=root, stdout=log, stderr=subprocess.STDOUT, check=False,
                 ).returncode
-            wrapper = root / ("mvnw.cmd" if os.name == "nt" else "mvnw")
+            wrapper = root / "mvnw"
             for arguments in COMMANDS[stage]:
                 if code:
                     break
