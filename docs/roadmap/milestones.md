@@ -291,7 +291,9 @@ derived assertion/budget results, tenant isolation and exact retry. Promotion re
 a later slice. M07-PR9 registers immutable gate policies and required suites, then
 assesses exact complete report evidence against the published contract revision.
 M07-PR10 records authorized atomic promotions under a dedicated CONTRACT_PROMOTER
-entitlement and a versioned required-suite binding. Runtime admission remains PR11.
+entitlement and a versioned required-suite binding. M07-PR11 enforces current
+promotion for initial runs and fresh retry successors in explicitly configured
+tenants; existing execution context and historical retry recovery remain intact.
 
 **Message:** Replay resolution contracts against deterministic scenarios and gate their promotion.
 

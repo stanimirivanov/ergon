@@ -20,6 +20,7 @@ import org.ergon.controlplane.resolution.application.ResolutionReadinessService
 import org.ergon.controlplane.resolution.application.ResolutionRunIdentityGenerator
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunService
+import org.ergon.controlplane.resolution.application.RunPromotionAdmission
 import org.ergon.resolution.domain.ApprovalDecisionId
 import org.ergon.resolution.domain.ApprovalRequestId
 import org.ergon.resolution.domain.CapabilityPolicyRule
@@ -76,7 +77,8 @@ class ResolutionConfiguration {
         repository: ResolutionRunRepository,
         identities: ResolutionRunIdentityGenerator,
         transactionRunner: TransactionRunner,
-    ) = ResolutionRunService(planningService, repository, identities, transactionRunner)
+        promotionAdmission: RunPromotionAdmission,
+    ) = ResolutionRunService(planningService, repository, identities, transactionRunner, promotionAdmission)
 
     @Bean
     fun approvalRequestIdentityGenerator() = ApprovalRequestIdentityGenerator { ApprovalRequestId(UUID.randomUUID()) }

@@ -21,6 +21,7 @@ import org.ergon.controlplane.resolution.application.ResolutionRunRetryRecords
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryService
 import org.ergon.controlplane.resolution.application.ResolutionRunTransitionRepository
+import org.ergon.controlplane.resolution.application.RunPromotionAdmission
 import org.ergon.resolution.domain.ResolutionRetryPolicy
 import org.ergon.resolution.domain.ResolutionRetryPolicyRevision
 import org.ergon.resolution.domain.ResolutionRunEventId
@@ -50,7 +51,16 @@ class ResolutionRunTransitionConfiguration {
         retryPolicy: ResolutionRetryPolicy,
         transactionRunner: TransactionRunner,
         clock: Clock,
-    ) = ResolutionRunRetryService(records, runIdentities, eventIdentities, retryPolicy, transactionRunner, clock)
+        promotionAdmission: RunPromotionAdmission,
+    ) = ResolutionRunRetryService(
+        records,
+        runIdentities,
+        eventIdentities,
+        retryPolicy,
+        transactionRunner,
+        clock,
+        promotionAdmission,
+    )
 
     /**
      * Limits the initial recovery slice to one explicit retry.

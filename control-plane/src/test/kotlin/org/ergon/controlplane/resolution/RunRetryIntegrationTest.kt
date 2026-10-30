@@ -8,6 +8,7 @@ import org.ergon.controlplane.cases.application.CaseCommandService
 import org.ergon.controlplane.cases.application.CaseTimelineRepository
 import org.ergon.controlplane.cases.application.RecordConnectorObservationCommand
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.contracts.adapter.out.persistence.PostgresCurrentContractPromotion
 import org.ergon.controlplane.identity.BrowserSessionTestClientConfiguration
 import org.ergon.controlplane.resolution.application.AssignedRunConsoleService
 import org.ergon.controlplane.resolution.application.AssignedRunNotFoundException
@@ -16,11 +17,13 @@ import org.ergon.controlplane.resolution.application.ResolutionPlanner
 import org.ergon.controlplane.resolution.application.ResolutionRunCapabilityResultService
 import org.ergon.controlplane.resolution.application.ResolutionRunEventIdentityGenerator
 import org.ergon.controlplane.resolution.application.ResolutionRunIdentityGenerator
+import org.ergon.controlplane.resolution.application.ResolutionRunPromotionRequiredException
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryRecords
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryReviewChangedException
 import org.ergon.controlplane.resolution.application.ResolutionRunRetryService
 import org.ergon.controlplane.resolution.application.RetrySupervisedRunCommand
+import org.ergon.controlplane.resolution.application.RunPromotionAdmission
 import org.ergon.controlplane.resolution.application.RunRetryCommandRepository
 import org.ergon.controlplane.resolution.application.RunRetryConflictException
 import org.ergon.controlplane.resolution.application.RunRetryDisabledException
@@ -474,9 +477,36 @@ class RunRetryIntegrationTest(
                 policy(),
                 transactions,
                 clock(),
+                promotionAdmission = RunPromotionAdmission { _, _ -> },
             )
         assertThatThrownBy { serviceAt(runtime = runtime).retry(command) }
             .isInstanceOf(ResolutionRunRetryReviewChangedException::class.java)
+        assertUnchanged(fixture)
+    }
+
+    @Test
+    fun `promotion enforcement refuses internal and supervised successors without writing retry history`() {
+        val fixture = fixtures.seed()
+        val gate =
+            RunPromotionConfiguration().runPromotionAdmission(
+                PostgresCurrentContractPromotion(jdbc),
+                fixture.tenant.value.toString(),
+            )
+        val runtime =
+            ResolutionRunRetryService(
+                records,
+                ResolutionRunIdentityGenerator { error("promotion refusal must not allocate") },
+                ResolutionRunEventIdentityGenerator { error("promotion refusal must not allocate") },
+                policy(),
+                transactions,
+                clock(),
+                gate,
+            )
+        assertThatThrownBy { runtime.retry(fixture.tenant.value, fixture.run.value, 4, fixture.outgoing.value) }
+            .isInstanceOf(ResolutionRunPromotionRequiredException::class.java)
+        assertUnchanged(fixture)
+        assertThatThrownBy { serviceAt(runtime = runtime).retry(command(fixture)) }
+            .isInstanceOf(ResolutionRunPromotionRequiredException::class.java)
         assertUnchanged(fixture)
     }
 
@@ -505,6 +535,7 @@ class RunRetryIntegrationTest(
                 policy(),
                 transactions,
                 time,
+                promotionAdmission = RunPromotionAdmission { _, _ -> },
             )
         assertThatThrownBy { serviceAt(runtime = runtime, executionClock = time).retry(command) }
             .isInstanceOf(AssignedRunNotFoundException::class.java)

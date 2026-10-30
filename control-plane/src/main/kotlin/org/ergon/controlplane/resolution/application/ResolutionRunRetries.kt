@@ -99,6 +99,7 @@ class CurrentResolutionRecoveryAuthorityNotFoundException :
     RuntimeException("authenticated actor lacks current resolver authority for resolution recovery")
 
 /** Starts explicit successor attempts without reusing or executing previous authorization. */
+@Suppress("LongParameterList") // Mandatory admission port keeps fresh retries inside the existing transaction.
 class ResolutionRunRetryService(
     private val records: ResolutionRunRetryRecords,
     private val runIdentities: ResolutionRunIdentityGenerator,
@@ -106,6 +107,7 @@ class ResolutionRunRetryService(
     private val retryPolicy: ResolutionRetryPolicy,
     private val transactionRunner: TransactionRunner,
     private val clock: Clock,
+    private val promotionAdmission: RunPromotionAdmission,
 ) {
     /**
      * Supersedes one failed run and starts its sole direct successor atomically.
@@ -167,6 +169,7 @@ class ResolutionRunRetryService(
             val plan = records.planning.plan(tenantId, failedRun.caseId.value).toRunPlan(expectedCaseVersion)
             plan.requireSameOperation(failedRun)
             plan.requireReviewed(expectedPlan)
+            promotionAdmission.requireCurrent(tenantId, plan.contract)
             val (replacement, event) =
                 try {
                     val replacement = ResolutionRunStart.retry(runIdentities.next(), failedRun, plan)

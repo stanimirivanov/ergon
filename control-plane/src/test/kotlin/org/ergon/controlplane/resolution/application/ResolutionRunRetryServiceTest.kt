@@ -13,6 +13,7 @@ import org.ergon.contracts.domain.StepRisk
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.identity.application.HumanAuthorityRepository
 import org.ergon.controlplane.identity.application.StoredApprovalAuthorityEvidence
+import org.ergon.controlplane.resolution.application.RunPromotionAdmission
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthority
@@ -132,6 +133,7 @@ class ResolutionRunRetryServiceTest {
                 override fun <T : Any> required(block: () -> T): T = block()
             },
             Clock.fixed(NOW, ZoneOffset.UTC),
+            promotionAdmission = RunPromotionAdmission { _, _ -> error("denial and replay must not re-admit") },
         )
 
     private fun state(

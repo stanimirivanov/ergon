@@ -2,10 +2,14 @@
 
 ## TL;DR
 
+M07-PR11 adds [opt-in current-promotion admission](../operations/contract-promotion.md)
+for initial starts and fresh retry successors. The configured tenant allowlist
+requires the current required-suite binding version; existing runs and historical
+retry recovery retain their original context.
+
 M07-PR10 adds [authorized atomic contract promotion](../contracts.md#explicit-contract-promotion),
 with dedicated CONTRACT_PROMOTER attestations and confirmed versioned required-suite
-bindings. Receipts preserve exact evidence and attribution. Runtime enforcement
-remains PR11.
+bindings. Receipts preserve exact evidence and attribution. Runtime enforcement is supplied by PR11.
 
 M07-PR9 adds [required suites and exact promotion eligibility](../simulation.md#required-suites-and-promotion-eligibility).
 Immutable suite/policy revisions bind published contract meaning and complete

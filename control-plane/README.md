@@ -28,7 +28,11 @@ V20261030153650 first; retain audit rows on rollback. M07-PR9 adds
 [required suites and eligibility](../docs/simulation.md#required-suites-and-promotion-eligibility)
 with additive V20261030171119. M07-PR10 adds [authorized contract promotion](../docs/contracts.md#explicit-contract-promotion)
 and confirmed required-suite bindings with additive V20261030180229. Dedicated
-CONTRACT_PROMOTER attestations never inherit resolver authority. Runtime enforcement remains PR11.
+CONTRACT_PROMOTER attestations never inherit resolver authority. M07-PR11 adds
+[opt-in admission enforcement](../docs/operations/contract-promotion.md) through
+`ERGON_CONTRACT_PROMOTION_ENFORCED_TENANTS`. Empty configuration preserves legacy
+admission; configured tenants require a current-binding promotion for each fresh
+start or retry successor. Existing runs and exact retry recovery remain unchanged.
 
 ## Purpose
 

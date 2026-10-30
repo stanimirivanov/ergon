@@ -31,6 +31,7 @@ import org.ergon.controlplane.resolution.application.ResolutionPlanningService
 import org.ergon.controlplane.resolution.application.ResolutionReadinessService
 import org.ergon.controlplane.resolution.application.ResolutionRunIdentityGenerator
 import org.ergon.controlplane.resolution.application.ResolutionRunService
+import org.ergon.controlplane.resolution.application.RunPromotionAdmission
 import org.ergon.resolution.domain.CapabilityPolicyRule
 import org.ergon.resolution.domain.ResolutionPolicy
 import org.ergon.resolution.domain.ResolutionPolicyRevision
@@ -85,6 +86,7 @@ internal class CaseDocumentaryDatabase(
             runs,
             ResolutionRunIdentityGenerator { ResolutionRunId(UUID.randomUUID()) },
             transactions,
+            promotionAdmission = RunPromotionAdmission { _, _ -> },
         )
 
     fun openPreparedCase(): UUID {
