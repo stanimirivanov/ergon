@@ -26,7 +26,9 @@ as composable APIs. Internal [evaluation execution](../docs/simulation.md#evalua
 now composes these into immutable reports from registered fixtures. Deploy additive
 V20261030153650 first; retain audit rows on rollback. M07-PR9 adds
 [required suites and eligibility](../docs/simulation.md#required-suites-and-promotion-eligibility)
-with additive V20261030171119. Promotion recording and runtime enforcement remain separate.
+with additive V20261030171119. M07-PR10 adds [authorized contract promotion](../docs/contracts.md#explicit-contract-promotion)
+and confirmed required-suite bindings with additive V20261030180229. Dedicated
+CONTRACT_PROMOTER attestations never inherit resolver authority. Runtime enforcement remains PR11.
 
 ## Purpose
 

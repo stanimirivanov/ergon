@@ -200,3 +200,54 @@ references, then independently checks case version, contract pin, prefix members
 and attachment-time suitability on documentary run admission. App rollback must
 retain compatible readers or roll forward; do not delete history or reverse shared
 migrations. See [ADR 0089](decisions/0089-consume-case-pinned-documentary-evidence.md).
+
+## Explicit contract promotion
+
+M07-PR10 adds a separate promotion ledger; publication, case pinning and run
+admission keep their existing behavior. See [ADR 0099](decisions/0099-record-authorized-contract-promotions.md).
+A trusted machine first attests a registered actor's dedicated tenant-wide
+CONTRACT_PROMOTER entitlement. RESOLVER does not inherit it. Attestations record
+source provenance, server time and an explicit expiry up to 24 hours later, at
+microsecond precision. There is no revocation command; renewal records new evidence.
+
+All routes below are under
+`/internal/v1/tenants/{tenant}/contract-promotions` and remain trusted internal
+machine APIs, not browser authentication boundaries:
+
+| Method/path | Request / result |
+|:--|:--|
+| POST `/authorities/{id}` | `ergon.contract-promotion/authority/v1`: actorId, sourceProvider, sourceReference, expiresAt (ISO instant string) |
+| GET `/authorities/{id}` | Recorded immutable authority evidence |
+| POST `/requirements/{key}/commands/{id}` | `ergon.contract-promotion/required-suite/v1`: expectedVersion, suite, rationale |
+| GET `/requirements/{key}` | Highest binding version and its original attribution |
+| POST `/commands/{id}` | `ergon.contract-promotion/command/v1`: expectedVersion, suite, contract, policy, reports, rationale |
+| GET `/commands/{id}` | Original immutable promotion receipt |
+
+Every POST body includes `schemaVersion`. Binding and promotion commands require
+`X-Ergon-Actor-Id`, whose current dedicated authority is checked after acquiring
+transaction locks. Attestation routes must be restricted to the trusted authority
+issuer; source strings themselves are not verified credentials.
+
+Artifact references contain `key`, `revision` and `sha256`. Each selected report
+contains `fixture` (artifact reference), `reportId` and `reportDigest`, matching
+[PR9 eligibility](simulation.md#required-suites-and-promotion-eligibility).
+Rationale is explicit, trimmed, nonblank and at most 2,000 characters. Bodies are
+strict UTF-8 JSON up to 128 KiB. Unknown fields and caller-supplied pass claims fail.
+
+Bind a suite separately before promoting. First binding uses expectedVersion 0;
+subsequent commands require the current version and increment it, including an
+explicit reconfirmation of the same suite. The suite must belong to that published
+contract key. Promotion requires the binding's current version and exact suite,
+then independently checks all selected reports against its immutable policy.
+The database serializes binding and promotion, rechecks authority and qualification,
+and commits the receipt and complete report links atomically.
+
+New commands return 201; exact same-actor retries return 200 with original time and
+authority proof. A retry requires current entitlement but can recover historical
+receipts after a binding change. It is not fresh admission. Changed intent or actor
+and stale versions return 409; unavailable authority/references return 404;
+ineligible or malformed commands return 422; oversized bodies return 413. Responses
+use `Cache-Control: no-store`. GETs retrieve recorded facts, not current authority.
+
+Apply V20261030180229 before these writers. Roll back application code with command
+writers disabled and preserve immutable history. Runtime enforcement remains PR11.

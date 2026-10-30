@@ -640,6 +640,7 @@ in this slice; evaluator compatibility comes from the explicitly selected policy
 
 Apply V20261030171119 before API deployment. The additive tables need no historical
 backfill or rewrite; retain definitions and fixture links on rollback. Promotion
-recording, authority, policy activation and run-admission enforcement remain PR10/11.
+recording, dedicated authority and versioned required-suite binding are supplied by
+[PR10](contracts.md#explicit-contract-promotion). Run-admission enforcement remains PR11.
 `PromotionEligibilityTest`, `EvaluationSuiteTest` and `EvaluationSuiteIntegrationTest`
 cover these boundaries; the integration suite requires Docker.

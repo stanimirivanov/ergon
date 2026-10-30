@@ -290,7 +290,8 @@ M07-PR8 executes registered fixtures and persists canonical immutable reports wi
 derived assertion/budget results, tenant isolation and exact retry. Promotion remains
 a later slice. M07-PR9 registers immutable gate policies and required suites, then
 assesses exact complete report evidence against the published contract revision.
-Promotion recording and runtime admission remain separate.
+M07-PR10 records authorized atomic promotions under a dedicated CONTRACT_PROMOTER
+entitlement and a versioned required-suite binding. Runtime admission remains PR11.
 
 **Message:** Replay resolution contracts against deterministic scenarios and gate their promotion.
 
