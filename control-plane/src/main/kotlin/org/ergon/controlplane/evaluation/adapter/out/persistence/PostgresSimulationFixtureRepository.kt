@@ -39,13 +39,15 @@ class PostgresSimulationFixtureRepository(
                         .query(Boolean::class.java)
                         .single()
                 if (!actorExists) throw SimulationFixtureUnavailable()
+                // Both the identity PK and report-reference digest index can conflict during a concurrent insert.
+                // Arbitrate all unique constraints, then compare the full stored definition below.
                 val created =
                     identity(
                         """
                         INSERT INTO simulation_fixture_revisions
                             (tenant_id, fixture_key, revision, digest, canonical, definition, submitted_by)
                         VALUES (:tenant, :key, :revision, :digest, :canonical, :definition, :actor)
-                        ON CONFLICT (tenant_id, fixture_key, revision) DO NOTHING
+                        ON CONFLICT DO NOTHING
                         """.trimIndent(),
                         identity,
                     ).param("digest", prepared.fixture.semanticDigest())
