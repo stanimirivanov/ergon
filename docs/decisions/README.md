@@ -161,3 +161,4 @@ benchmarks rather than duplicating them.
 | 0095 | [Assess explicit scenario observations](0095-assess-explicit-scenario-observations.md) |
 | 0096 | [Account for explicit simulation usage](0096-account-for-explicit-simulation-usage.md) |
 | 0097 | [Record reproducible evaluation reports](0097-record-reproducible-evaluation-reports.md) |
+| 0098 | [Gate exact evaluation suites](0098-gate-exact-evaluation-suites.md) |

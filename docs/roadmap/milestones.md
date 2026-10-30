@@ -288,7 +288,9 @@ explicit observations, including missing/unsupported handling. M07-PR7 adds exac
 cost and simulated-duration budgets over explicit usage and pinned pricing.
 M07-PR8 executes registered fixtures and persists canonical immutable reports with
 derived assertion/budget results, tenant isolation and exact retry. Promotion remains
-a later slice.
+a later slice. M07-PR9 registers immutable gate policies and required suites, then
+assesses exact complete report evidence against the published contract revision.
+Promotion recording and runtime admission remain separate.
 
 **Message:** Replay resolution contracts against deterministic scenarios and gate their promotion.
 

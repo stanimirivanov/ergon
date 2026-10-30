@@ -183,7 +183,7 @@ class DocumentaryContractIntegrationTest {
                 .current()
                 .version
                 .toString(),
-        ).isEqualTo("20261030153650")
+        ).isEqualTo("20261030171119")
     }
 
     private fun migrations(schema: String): Flyway =

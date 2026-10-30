@@ -557,3 +557,89 @@ No new dependency, background worker, runtime mutation or promotion is introduce
 mandatory outcomes, actual capability/model replay, strict input rejection and HTTP
 behavior. `EvaluationReportIntegrationTest` requires Docker and covers upgrade,
 concurrency, tenant isolation, immutable storage and the full migration chain.
+
+## Required suites and promotion eligibility
+
+M07-PR9 adds immutable required suites, gate policies and read-only eligibility.
+See [ADR 0098](decisions/0098-gate-exact-evaluation-suites.md). Passing this gate is
+not a recorded promotion or runtime admission authority. No active/latest policy is
+selected: callers name exact revisions, and later promotion must revalidate them.
+
+The trusted internal base is `/internal/v1/tenants/{tenant}/evaluation-gates`.
+POST `/{kind}/{key}/revisions/{revision}` registers `POLICY` or `SUITE` (uppercase)
+with `X-Ergon-Actor-Id`; GET at that path retrieves its definition, digest and
+original attribution. 201 creates, 200 returns an exact normalized retry (including
+another registered tenant actor), 409 rejects changed intent, 404 hides unavailable
+references, 422 rejects invalid input, and 413 rejects bodies over 128 KiB. Responses
+are no-store. These routes are not browser-authorized public endpoints.
+
+A policy definition uses `ergon.simulation/gate-policy/v1`:
+
+```json
+{
+  "schemaVersion": "ergon.simulation/gate-policy/v1",
+  "evaluators": [{"key":"planning","revision":"1","sha256":"<exact evaluator SHA-256>"}],
+  "requireCostBudget": false,
+  "requireLatencyBudget": false
+}
+```
+
+`evaluators` is a nonempty set of at most 20 exact artifacts, not version ranges.
+A suite definition uses `ergon.simulation/suite/v1`:
+
+```json
+{
+  "schemaVersion": "ergon.simulation/suite/v1",
+  "contract": {"key":"restore-access","revision":"1","sha256":"<contract material SHA-256>"},
+  "policy": {"key":"required","revision":"1","sha256":"<registered policy digest>"},
+  "scenarios": [
+    {"fixture":{"key":"sample","revision":"1","sha256":"<registered fixture digest>"},
+     "requiredAssertions":["not-ready"]}
+  ]
+}
+```
+
+Replace placeholder digests with actual lowercase 64-character hashes. Supply
+1–50 distinct fixture key/revision pairs, each with 1–100 unique assertion IDs.
+Registration verifies exact tenant policy and fixture references, assertion IDs,
+contract material identity and decoded equality with the published contract
+revision. It does not require a passing report yet. The suite pins every fixture
+input, including runtime policy, ordered scripts, model configuration, assertion
+expectations and budget/pricing content. Changing any input needs a new fixture
+and suite revision. Raw contract artifact hashes are distinct from normalized
+published meaning: both checks must hold.
+
+Unknown fields, duplicate JSON keys, scalar coercion, malformed UTF-8, unsupported
+schemas and trailing JSON are rejected. Policy evaluator sets, suite scenarios and
+required assertion sets are normalized in lexical order. SHA-256 covers the
+normalized UTF-8 definition, excluding tenant storage key, submitter and time.
+Tenant ownership is checked independently through reference resolution and keys.
+
+POST `/SUITE/{key}/revisions/{revision}/eligibility` assesses existing reports. Its
+strict body uses schemaVersion `ergon.simulation/eligibility-request/v1`, exact
+`contract` and `policy` artifacts, and `reports` containing explicit
+`{fixture, reportId, reportDigest}` entries. Every fixture uses the same exact
+artifact shape as the suite. An empty or partial report list returns ineligible;
+duplicated selections are invalid. No report is chosen automatically.
+
+The response contains exact `suite`, requested `contract`/`policy`, selected report
+coordinates and `result` with `eligible`, global `reasons` and per-scenario reasons.
+A valid request returns 200 even when ineligible. Refusal reasons distinguish:
+
+- Wrong contract/policy and unexpected report selections.
+- Missing reports or mismatched report/fixture identities and digests.
+- Evaluators absent from the exact compatibility list.
+- Failed reports or missing/non-PASS gate-required assertions.
+- Required cost/latency dimensions that are absent, unconfigured or non-PASS.
+
+All authored report requirements still apply. A gate cannot bypass a failing
+mandatory outcome or report assertion. A suite can additionally require a report
+check originally marked optional. UNKNOWN, ERROR and UNSUPPORTED cannot satisfy
+required checks or budgets. Historical immutable evidence has no clock-based expiry
+in this slice; evaluator compatibility comes from the explicitly selected policy.
+
+Apply V20261030171119 before API deployment. The additive tables need no historical
+backfill or rewrite; retain definitions and fixture links on rollback. Promotion
+recording, authority, policy activation and run-admission enforcement remain PR10/11.
+`PromotionEligibilityTest`, `EvaluationSuiteTest` and `EvaluationSuiteIntegrationTest`
+cover these boundaries; the integration suite requires Docker.
