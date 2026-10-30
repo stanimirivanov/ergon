@@ -63,6 +63,8 @@ links from those documents only when the task crosses another boundary.
 
 - [Evidence compiler operations](operations/evidence-compiler.md) — exact source-to-contract sequence, trust boundaries, recovery and verification.
 
+- [Simulation fixtures](simulation.md) — bounded replay manifests and canonical identity; no execution or promotion yet.
+
 ## Planning and decisions
 
 - [M06 bounded acceptance](roadmap/m06-acceptance.md) — real-source provenance, composed acceptance and separate simulated UI/live-deployment boundaries.
