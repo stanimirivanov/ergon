@@ -277,3 +277,56 @@ trace. There is no live connector, production write, automatic retry policy,
 HTTP execution endpoint, assertion scoring, budget enforcement or promotion.
 `CapabilityScenarioReplayTest` covers these gates alongside the existing planning
 suite; full Maven verification remains required.
+
+## Scripted model proposals
+
+M07-PR5 adds `ModelProposalScenario.replay(bytes)` using the separate evaluator
+`ergon.simulation/model-proposal/v1` (exact UTF-8, no newline). Earlier evaluators
+keep their existing meaning. This evaluator accepts 1–100 `MODEL` scripts only,
+with one exact `modelConfiguration` artifact. Mixed connector/model programs are
+unsupported. See [ADR 0094](decisions/0094-replay-untrusted-model-proposals.md).
+
+Configuration material has schema `ergon.simulation/model-configuration/v1` and
+required fields `modelId` (nonblank, at most 128 characters), `prompt` (nonblank,
+at most 16,384 UTF-8 bytes) and `maxResponseBytes` (1–16,384). Model identity and
+prompt are descriptive, inert fixture data. Nothing loads a provider, interprets
+prompt instructions or makes a network request.
+
+Each script material has schema `ergon.simulation/model-response/v1`, an exact
+`configuration` artifact reference and a `response` string. Every script must
+reference the manifest's configuration, including its digest. The manifest's
+ordered script list selects the complete response sequence; material storage order
+has no effect. All responses are checked independently against the same prefix,
+without a shared cursor, prior-response state or automatic retry.
+
+The supported response is strict JSON with schema
+`ergon.simulation/next-step-proposal/v1` and these required fields:
+
+- `kind`: `NEXT_STEP`.
+- `stepId` and `capability`: existing runtime identifiers.
+- `factIds`: at most 20 distinct UUIDs. For the supported account-state runtime,
+  this must cite exactly the latest bound account-state fact in the pinned prefix.
+- `documentary`: at most 20 distinct bundle references, each with `bundleId` and
+  lowercase `sha256`. These must equal the pinned contract's requirements exactly.
+
+JSON rejects extra/missing fields, duplicate keys, coercion, trailing content and
+null collection entries. Approval, authority, new evidence, instructions and proof
+are not proposal fields. Malformed or oversized response text yields
+`MALFORMED_OUTPUT`; unsupported response schemas or well-formed unknown kinds yield
+`UNSUPPORTED_OUTPUT`. Invalid configuration, script bindings or package integrity
+fail fixture decoding instead. Unsupported envelope/material versions remain explicit.
+
+The production planner supplies readiness, the next step and policy safeguards.
+A valid-shaped proposal cannot overcome missing/stale documentary evidence or policy
+denial. Wrong step/capability and fabricated, stale or incomplete references are
+separate observations. `CONSISTENT_PROPOSAL` means only that the suggestion matches
+that plan and its required references. It neither authorizes execution nor counts
+as a passing evaluation, and it does not create or append evidence.
+
+Results retain fixture/configuration/script identities, SHA-256 of each exact
+UTF-8 response, normalized supported suggestions and the production plan. They
+omit raw prompts and response text. Assertion scoring, token/cost accounting,
+provider quality certification, execution and promotion remain separate work.
+`ModelProposalScenarioTest` covers deterministic selection and digest provenance,
+malformed/adversarial output, invented capabilities/references, policy safeguards
+and documentary attachment validity alongside both earlier replay suites.

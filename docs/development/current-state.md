@@ -2,6 +2,10 @@
 
 ## TL;DR
 
+M07-PR5 adds [scripted model proposal replay](../simulation.md#scripted-model-proposals).
+Pinned responses are untrusted suggestions checked against production planning
+and existing evidence; they cannot create authority, facts or proof.
+
 M07-PR4 adds [capability and proof replay](../simulation.md#capability-and-proof-replay)
 with simulated approval, production invocation rules, deterministic connector
 outcomes and independent proof assessment. It adds no live execution or closure.
