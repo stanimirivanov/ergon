@@ -279,7 +279,8 @@ coverage must not be read as a passing runtime or promotion gate.
 ## M07 - Simulation and Promotion
 
 M07-PR1 supplies the [bounded fixture identity foundation](../simulation.md).
-Registration, replay, reports and promotion remain subsequent slices.
+M07-PR2 adds bounded internal package registration and retrieval. Replay, reports
+and promotion remain subsequent slices.
 
 **Message:** Replay resolution contracts against deterministic scenarios and gate their promotion.
 

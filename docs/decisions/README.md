@@ -154,3 +154,4 @@ benchmarks rather than duplicating them.
 | 0088 | [Declare exact documentary contract requirements](0088-declare-exact-documentary-contract-requirements.md) |
 | 0089 | [Consume case-pinned documentary evidence](0089-consume-case-pinned-documentary-evidence.md) |
 | 0090 | [Pin simulation fixture identity](0090-pin-simulation-fixture-identity.md) |
+| 0091 | [Register curated simulation fixtures](0091-register-curated-simulation-fixtures.md) |
