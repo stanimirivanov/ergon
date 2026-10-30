@@ -77,7 +77,10 @@ class SimulationFixtureIntegrationTest {
         assertThatThrownBy { repository.register(identity, changed, otherActor) }
             .isInstanceOf(SimulationFixtureConflict::class.java)
         assertThat(repository.find(identity)).isEqualTo(created.stored)
-        concurrentRetry(repository, identity.copy(key = "concurrent"), prepared, actor)
+        // Fresh keys exercise simultaneous insert arbitration across both unique indexes, not sequential replay.
+        repeat(CONCURRENT_KEYS) { attempt ->
+            concurrentRetry(repository, identity.copy(key = "concurrent-$attempt"), prepared, actor)
+        }
         rejectDirectWrites(jdbc, tenant, foreignActor)
     }
 
@@ -113,7 +116,7 @@ class SimulationFixtureIntegrationTest {
                 .update()
         }.isInstanceOf(DataAccessException::class.java)
         val count = jdbc.sql("SELECT COUNT(*) FROM simulation_fixture_revisions").query(Long::class.java).single()
-        assertThat(count).isEqualTo(2)
+        assertThat(count).isEqualTo(1L + CONCURRENT_KEYS)
     }
 
     private fun concurrentRetry(
@@ -152,7 +155,7 @@ class SimulationFixtureIntegrationTest {
                 .current()
                 .version
                 .toString(),
-        ).isEqualTo("20261030130000")
+        ).isEqualTo("20261030153650")
     }
 
     private fun actor(
@@ -186,6 +189,8 @@ class SimulationFixtureIntegrationTest {
             .load()
 
     companion object {
+        private const val CONCURRENT_KEYS = 8
+
         @Container @JvmStatic
         val postgres = PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"))
     }

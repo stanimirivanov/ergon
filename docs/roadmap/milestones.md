@@ -286,7 +286,9 @@ adapters. M07-PR5 checks pinned scripted model suggestions as untrusted inputs
 against runtime planning and evidence. M07-PR6 adds typed domain assertions over
 explicit observations, including missing/unsupported handling. M07-PR7 adds exact
 cost and simulated-duration budgets over explicit usage and pinned pricing.
-Execution/report orchestration and promotion remain later slices.
+M07-PR8 executes registered fixtures and persists canonical immutable reports with
+derived assertion/budget results, tenant isolation and exact retry. Promotion remains
+a later slice.
 
 **Message:** Replay resolution contracts against deterministic scenarios and gate their promotion.
 

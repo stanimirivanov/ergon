@@ -2,13 +2,17 @@
 
 ## TL;DR
 
+M07-PR8 adds [registered fixture execution and immutable reports](../simulation.md#evaluation-execution-and-reports).
+Reports derive assertions and budgets from verified pinned materials, preserve
+unsupported observations, and retain exact retry attribution. Promotion remains separate.
+
 M07-PR7 adds [deterministic budget accounting](../simulation.md#deterministic-budgets)
 for exact pinned pricing, explicit usage and simulated attempt duration. Missing
-measurements stay unknown; report orchestration and promotion remain separate.
+measurements stay unknown; PR8 composes these measurements into reports.
 
 M07-PR6 adds the [pure-domain assertion evaluator](../simulation.md#typed-scenario-assertions)
 with independent expectations and explicit pass/fail/error/unsupported results.
-Fixture execution/report orchestration and promotion remain separate work.
+PR8 composes these assertions into durable reports; promotion remains separate.
 
 M07-PR5 adds [scripted model proposal replay](../simulation.md#scripted-model-proposals).
 Pinned responses are untrusted suggestions checked against production planning
