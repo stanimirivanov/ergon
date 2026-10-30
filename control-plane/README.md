@@ -662,3 +662,22 @@ SQL repeats qualification and membership checks. Tenant-safe relational ledgers
 commit atomically and cannot be amended later. Application rollback preserves
 immutable manifests and audit links. No worker or new dependency is introduced.
 See [ADR 0087](../docs/decisions/0087-publish-review-qualified-evidence-bundles.md).
+
+
+## Documentary contract requirements
+
+M06-PR12 adds strict `ergon.dev/resolution-contract/v1alpha2` publication/validation
+and exact revision reads on the existing internal contract endpoints. Its
+`documentaryEvidence` entries pin tenant-owned historical bundle UUIDs and canonical
+manifest SHA-256 values independently of operational facts. Standalone validation
+is structural; publication verifies exact historical references and writes complete
+immutable links atomically. No browser authoring or new authority policy is added.
+
+Apply V20261030100000 before new writers and deploy compatible readers before
+publishing this version. Existing v1alpha1 shapes/meaning remain unchanged.
+Documentary contracts return `DOCUMENTARY_EVIDENCE_UNSUPPORTED`, produce no next
+step and cannot start runs until M06-PR13 supplies case-pinned evaluation. Database
+admission also enforces this interim guard. Rollback retains immutable history and
+requires readers that understand new-schema records; use forward migrations.
+See [contracts](../docs/contracts.md#v1alpha2-documentary-requirements) and
+[ADR 0088](../docs/decisions/0088-declare-exact-documentary-contract-requirements.md).

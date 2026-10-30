@@ -1,5 +1,6 @@
 package org.ergon.controlplane.contracts
 
+import org.ergon.controlplane.contracts.application.PublishedContractBundles
 import org.ergon.controlplane.contracts.application.ResolutionContractDocumentDecoder
 import org.ergon.controlplane.contracts.application.ResolutionContractReferenceRegistry
 import org.ergon.controlplane.contracts.application.ResolutionContractReferenceValidator
@@ -21,7 +22,8 @@ class ContractConfiguration {
         decoder: ResolutionContractDocumentDecoder,
         referenceValidator: ResolutionContractReferenceValidator,
         repository: ResolutionContractRevisionRepository,
-    ) = ResolutionContractRevisionService(decoder, referenceValidator, repository)
+        bundles: PublishedContractBundles,
+    ) = ResolutionContractRevisionService(decoder, referenceValidator, repository, bundles)
 
     @Bean
     fun referenceValidator(registry: ResolutionContractReferenceRegistry): ResolutionContractReferenceValidator =

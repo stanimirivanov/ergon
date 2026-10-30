@@ -3,6 +3,7 @@ package org.ergon.contracts.domain
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Test
+import java.util.UUID
 
 class ResolutionContractTest {
     @Test
@@ -84,20 +85,47 @@ class ResolutionContractTest {
         assertThatIllegalArgumentException().isThrownBy { CapabilityName.of("UnlockAccount") }
     }
 
+    @Test
+    fun `documentary references are bounded exact immutable snapshots separate from operational facts`() {
+        val reference = DocumentaryBundleRequirement(UUID.randomUUID(), "a".repeat(64))
+        val supplied = mutableListOf(reference)
+        val contract = accessRestorationContract(documentaryEvidence = supplied)
+        supplied.clear()
+        assertThat(contract.documentaryEvidence).containsExactly(reference)
+        assertThat(contract.requiredEvidence).containsExactly(ACCOUNT_STATE)
+        assertThat(accessRestorationContract().documentaryEvidence).isEmpty()
+        assertThatIllegalArgumentException().isThrownBy { contract.requiringDocumentaryEvidence(emptyList()) }
+        assertThatIllegalArgumentException().isThrownBy {
+            DocumentaryBundleRequirement(reference.bundleId, "A".repeat(64))
+        }
+        assertThatIllegalArgumentException().isThrownBy {
+            accessRestorationContract(
+                documentaryEvidence = listOf(reference, reference.copy(sha256 = "b".repeat(64))),
+            )
+        }
+        assertThatIllegalArgumentException().isThrownBy {
+            accessRestorationContract(
+                documentaryEvidence = (1..21).map { reference.copy(bundleId = UUID(0, it.toLong())) },
+            )
+        }
+    }
+
     private fun accessRestorationContract(
         requiredEvidence: List<ContractFactType> = listOf(ACCOUNT_STATE),
         steps: List<ResolutionStep> = listOf(STEP),
-    ) = ResolutionContract.define(
-        identity =
-            ResolutionContractIdentity(
-                key = ResolutionContractKey.of("restore-workspace-access"),
-                revision = ResolutionContractRevision.of(1),
-            ),
-        applicability = FactCondition(ACCOUNT_STATE, ContractFactValue.of("LOCKED")),
-        requiredEvidence = requiredEvidence,
-        steps = steps,
-        outcomeProof = FactCondition(ACCOUNT_STATE, ContractFactValue.of("ACTIVE")),
-    )
+        documentaryEvidence: List<DocumentaryBundleRequirement> = emptyList(),
+    ) = ResolutionContract
+        .define(
+            identity =
+                ResolutionContractIdentity(
+                    key = ResolutionContractKey.of("restore-workspace-access"),
+                    revision = ResolutionContractRevision.of(1),
+                ),
+            applicability = FactCondition(ACCOUNT_STATE, ContractFactValue.of("LOCKED")),
+            requiredEvidence = requiredEvidence,
+            steps = steps,
+            outcomeProof = FactCondition(ACCOUNT_STATE, ContractFactValue.of("ACTIVE")),
+        ).let { if (documentaryEvidence.isEmpty()) it else it.requiringDocumentaryEvidence(documentaryEvidence) }
 
     private companion object {
         val ACCOUNT_STATE = ContractFactType.of("account.access.state")

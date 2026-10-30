@@ -1,5 +1,7 @@
 package org.ergon.contracts.domain
 
+import java.util.UUID
+
 private const val CONTRACT_KEY_PATTERN = "[a-z0-9][a-z0-9-]{0,99}"
 private const val QUALIFIED_NAME_PATTERN = "[a-z][a-z0-9]*(\\.[a-z][a-z0-9-]*)+"
 private const val STEP_ID_PATTERN = "[a-z0-9][a-z0-9-]{0,99}"
@@ -162,24 +164,53 @@ data class ResolutionStep(
     }
 }
 
+/** Exact historical documentary manifest, never an operational fact or authority grant. */
+data class DocumentaryBundleRequirement(
+    val bundleId: UUID,
+    val sha256: String,
+) {
+    init {
+        require(sha256.matches(Regex("[a-f0-9]{64}"))) { "documentary bundle digest must be lowercase SHA-256" }
+    }
+}
+
 /**
  * Immutable, ordered resolution instructions validated independently of their wire format.
  *
  * [applicability] must reference one of [requiredEvidence]. Step identities and
  * evidence names are unique. Lists are bounded to keep later validation and
- * execution deterministic under untrusted input.
+ * execution deterministic under untrusted input. [documentaryEvidence] pins exact
+ * historical manifests separately from operational facts; its presence requires
+ * a documentary-aware readiness evaluator.
  */
 class ResolutionContract private constructor(
-    val key: ResolutionContractKey,
-    val revision: ResolutionContractRevision,
+    private val identity: ResolutionContractIdentity,
     val applicability: FactCondition,
     val requiredEvidence: List<ContractFactType>,
     val steps: List<ResolutionStep>,
     val outcomeProof: FactCondition,
+    val documentaryEvidence: List<DocumentaryBundleRequirement>,
 ) {
+    val key: ResolutionContractKey get() = identity.key
+    val revision: ResolutionContractRevision get() = identity.revision
+
+    /**
+     * Returns a new definition requiring exact historical documentary manifests.
+     * Publication still rejects replacement of any already stored key/revision.
+     * @throws IllegalArgumentException for empty, excessive or duplicate bundle identities.
+     */
+    fun requiringDocumentaryEvidence(requirements: List<DocumentaryBundleRequirement>): ResolutionContract {
+        require(requirements.size in 1..MAX_DOCUMENTARY_EVIDENCE) { "documentary evidence must contain 1–20 entries" }
+        require(requirements.map { it.bundleId }.distinct().size == requirements.size) {
+            "documentary evidence must not repeat a bundle identity"
+        }
+        return ResolutionContract(identity, applicability, requiredEvidence, steps, outcomeProof, requirements.toList())
+    }
+
     companion object {
         const val MAX_REQUIRED_EVIDENCE = 50
         const val MAX_STEPS = 50
+        const val MAX_DOCUMENTARY_EVIDENCE = 20
 
         /**
          * Defines a contract after enforcing cross-field invariants.
@@ -213,12 +244,12 @@ class ResolutionContract private constructor(
                 "contract step ids must be unique"
             }
             return ResolutionContract(
-                key = identity.key,
-                revision = identity.revision,
+                identity = identity,
                 applicability = applicability,
                 requiredEvidence = requiredEvidence.toList(),
                 steps = steps.toList(),
                 outcomeProof = outcomeProof,
+                documentaryEvidence = emptyList(),
             )
         }
     }

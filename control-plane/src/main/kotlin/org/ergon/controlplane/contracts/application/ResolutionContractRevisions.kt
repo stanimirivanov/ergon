@@ -56,6 +56,7 @@ class ResolutionContractRevisionService(
     private val decoder: ResolutionContractDocumentDecoder,
     private val referenceValidator: ResolutionContractReferenceValidator,
     private val repository: ResolutionContractRevisionRepository,
+    private val bundles: PublishedContractBundles,
 ) {
     /**
      * Validates [document] and all semantic references before atomically
@@ -72,6 +73,18 @@ class ResolutionContractRevisionService(
     ): StoredResolutionContractRevision {
         val contract = decoder.decode(document)
         referenceValidator.validate(contract)
+        val unavailable =
+            contract.documentaryEvidence.mapIndexedNotNull { index, requirement ->
+                if (bundles.contains(tenantId, requirement)) {
+                    null
+                } else {
+                    ContractDocumentViolation(
+                        "$.documentaryEvidence[$index]",
+                        "exact documentary bundle is unavailable",
+                    )
+                }
+            }
+        if (unavailable.isNotEmpty()) throw InvalidContractDocumentaryEvidenceException(unavailable)
         return repository.publish(tenantId, contract)
     }
 

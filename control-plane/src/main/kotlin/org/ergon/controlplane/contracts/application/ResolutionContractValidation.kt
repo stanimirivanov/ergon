@@ -5,6 +5,13 @@ import org.ergon.contracts.domain.ResolutionContract
 /** Compatibility identifier required by the first resolution-contract document schema. */
 const val RESOLUTION_CONTRACT_DOCUMENT_SCHEMA = "ergon.dev/resolution-contract/v1alpha1"
 
+/** Version adding required exact documentary manifests; v1alpha1 remains operational-only. */
+const val DOCUMENTARY_RESOLUTION_CONTRACT_SCHEMA = "ergon.dev/resolution-contract/v1alpha2"
+
+/** Native contracts without documentary requirements retain the original normalized schema. */
+fun ResolutionContract.documentSchema(): String =
+    if (documentaryEvidence.isEmpty()) RESOLUTION_CONTRACT_DOCUMENT_SCHEMA else DOCUMENTARY_RESOLUTION_CONTRACT_SCHEMA
+
 /** Decodes one external contract document into a fully validated domain contract. */
 fun interface ResolutionContractDocumentDecoder {
     /**

@@ -4,6 +4,7 @@ import org.ergon.contracts.domain.ApprovalRequirement
 import org.ergon.contracts.domain.CapabilityName
 import org.ergon.contracts.domain.ContractFactType
 import org.ergon.contracts.domain.ContractFactValue
+import org.ergon.contracts.domain.DocumentaryBundleRequirement
 import org.ergon.contracts.domain.FactCondition
 import org.ergon.contracts.domain.ResolutionContract
 import org.ergon.contracts.domain.ResolutionContractIdentity
@@ -13,6 +14,7 @@ import org.ergon.contracts.domain.ResolutionStep
 import org.ergon.contracts.domain.ResolutionStepId
 import org.ergon.contracts.domain.StepRisk
 import org.ergon.controlplane.contracts.application.ContractDocumentViolation
+import org.ergon.controlplane.contracts.application.DOCUMENTARY_RESOLUTION_CONTRACT_SCHEMA
 import org.ergon.controlplane.contracts.application.InvalidResolutionContractDocumentException
 import org.ergon.controlplane.contracts.application.RESOLUTION_CONTRACT_DOCUMENT_SCHEMA
 import org.ergon.controlplane.contracts.application.ResolutionContractDocumentDecoder
@@ -21,15 +23,17 @@ import org.yaml.snakeyaml.LoaderOptions
 import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.constructor.SafeConstructor
 import org.yaml.snakeyaml.error.YAMLException
+import java.util.UUID
 
 private const val MAX_CODE_POINTS = 50_000
 private const val MAX_NESTING_DEPTH = 20
 private val ROOT_KEYS =
     setOf("schema", "key", "revision", "applicability", "requiredEvidence", "steps", "outcomeProof")
+private val DOCUMENTARY_KEYS = setOf("bundleId", "sha256")
 private val CONDITION_KEYS = setOf("fact", "equals")
 private val STEP_KEYS = setOf("id", "capability", "risk", "approval")
 
-/** Strict YAML decoder for the `ergon.dev/resolution-contract/v1alpha1` contract schema. */
+/** Strict version-dispatched YAML decoder; old documents cannot carry documentary semantics. */
 @Component
 class SnakeYamlResolutionContractDocumentDecoder : ResolutionContractDocumentDecoder {
     override fun decode(document: String): ResolutionContract {
@@ -41,8 +45,20 @@ class SnakeYamlResolutionContractDocumentDecoder : ResolutionContractDocumentDec
                 invalid("$", "document is not valid, unambiguous YAML")
             }
         val contract = root.stringKeyMap("$")
-        contract.requireKeys(ROOT_KEYS, "$")
-        contract.requireSchema()
+        val schema = contract.requireSchema()
+        val keys =
+            if (schema == DOCUMENTARY_RESOLUTION_CONTRACT_SCHEMA) {
+                ROOT_KEYS + "documentaryEvidence"
+            } else {
+                ROOT_KEYS
+            }
+        contract.requireKeys(keys, "$")
+        val documentary =
+            if (schema == DOCUMENTARY_RESOLUTION_CONTRACT_SCHEMA) {
+                contract.documentaryRequirements()
+            } else {
+                emptyList()
+            }
 
         val key = domainValue("$.key") { ResolutionContractKey.of(contract.string("key", "$")) }
         val revision =
@@ -56,13 +72,14 @@ class SnakeYamlResolutionContractDocumentDecoder : ResolutionContractDocumentDec
         val steps = contract.objectList("steps").mapIndexed(::step)
 
         return domainValue("$") {
-            ResolutionContract.define(
-                identity = ResolutionContractIdentity(key, revision),
-                applicability = contract.condition("applicability"),
-                requiredEvidence = requiredEvidence,
-                steps = steps,
-                outcomeProof = contract.condition("outcomeProof"),
-            )
+            ResolutionContract
+                .define(
+                    identity = ResolutionContractIdentity(key, revision),
+                    applicability = contract.condition("applicability"),
+                    requiredEvidence = requiredEvidence,
+                    steps = steps,
+                    outcomeProof = contract.condition("outcomeProof"),
+                ).let { if (documentary.isEmpty()) it else it.requiringDocumentaryEvidence(documentary) }
         }
     }
 
@@ -79,10 +96,28 @@ class SnakeYamlResolutionContractDocumentDecoder : ResolutionContractDocumentDec
             ),
         )
 
-    private fun Map<String, Any>.requireSchema() {
+    private fun Map<String, Any>.requireSchema(): String {
         val schema = string("schema", "$")
-        if (schema != RESOLUTION_CONTRACT_DOCUMENT_SCHEMA) {
-            invalid("$.schema", "must equal $RESOLUTION_CONTRACT_DOCUMENT_SCHEMA")
+        if (schema !in setOf(RESOLUTION_CONTRACT_DOCUMENT_SCHEMA, DOCUMENTARY_RESOLUTION_CONTRACT_SCHEMA)) {
+            invalid("$.schema", "unsupported resolution contract schema")
+        }
+        return schema
+    }
+
+    private fun Map<String, Any>.documentaryRequirements(): List<DocumentaryBundleRequirement> {
+        val values = objectList("documentaryEvidence")
+        if (values.size !in 1..ResolutionContract.MAX_DOCUMENTARY_EVIDENCE) {
+            invalid("$.documentaryEvidence", "must contain 1–20 exact documentary bundle requirements")
+        }
+        return values.mapIndexed { index, item ->
+            val path = "$.documentaryEvidence[$index]"
+            item.requireKeys(DOCUMENTARY_KEYS, path)
+            domainValue(path) {
+                val id = item.string("bundleId", path)
+                val parsed = UUID.fromString(id)
+                require(parsed.toString() == id) { "bundleId must be a canonical lowercase UUID" }
+                DocumentaryBundleRequirement(parsed, item.string("sha256", path))
+            }
         }
     }
 

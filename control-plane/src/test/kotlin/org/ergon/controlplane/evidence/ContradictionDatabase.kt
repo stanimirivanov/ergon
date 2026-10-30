@@ -25,6 +25,7 @@ import java.util.UUID
 /** Each test exercises an upgrade with two previously accepted claims, isolated by a unique PostgreSQL schema. */
 internal class ContradictionDatabase(
     postgres: PostgreSQLContainer,
+    migrationTarget: String = "latest",
 ) {
     val f = ContradictionFixtures()
     val schema = "contradiction_" + UUID.randomUUID().toString().replace("-", "")
@@ -66,7 +67,7 @@ internal class ContradictionDatabase(
             claims.register(proposal, f.source.actor)
             accept(proposal, candidate.reviewCommandId)
         }
-        val current = migrations.target("latest").load()
+        val current = migrations.target(migrationTarget).load()
         current.migrate()
         current.validate()
     }

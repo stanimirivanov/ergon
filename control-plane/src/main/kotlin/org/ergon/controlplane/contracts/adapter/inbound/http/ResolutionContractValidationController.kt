@@ -1,15 +1,17 @@
 package org.ergon.controlplane.contracts.adapter.inbound.http
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import org.ergon.contracts.domain.FactCondition
 import org.ergon.contracts.domain.ResolutionContract
 import org.ergon.contracts.domain.ResolutionStep
 import org.ergon.controlplane.contracts.application.ContractDocumentViolation
 import org.ergon.controlplane.contracts.application.ContractRevisionAlreadyExistsException
 import org.ergon.controlplane.contracts.application.ContractRevisionNotFoundException
+import org.ergon.controlplane.contracts.application.InvalidContractDocumentaryEvidenceException
 import org.ergon.controlplane.contracts.application.InvalidResolutionContractDocumentException
-import org.ergon.controlplane.contracts.application.RESOLUTION_CONTRACT_DOCUMENT_SCHEMA
 import org.ergon.controlplane.contracts.application.ResolutionContractValidationService
 import org.ergon.controlplane.contracts.application.UnregisteredContractReferencesException
+import org.ergon.controlplane.contracts.application.documentSchema
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ProblemDetail
@@ -46,6 +48,13 @@ data class ValidatedResolutionContractResponse(
     val requiredEvidence: List<String>,
     val steps: List<ResolutionStepResponse>,
     val outcomeProof: FactConditionResponse,
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    val documentaryEvidence: List<DocumentaryBundleRequirementResponse>? = null,
+)
+
+data class DocumentaryBundleRequirementResponse(
+    val bundleId: java.util.UUID,
+    val sha256: String,
 )
 
 data class FactConditionResponse(
@@ -104,6 +113,19 @@ class ResolutionContractExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(problem)
     }
 
+    @ExceptionHandler(InvalidContractDocumentaryEvidenceException::class)
+    fun documentaryUnavailable(exception: InvalidContractDocumentaryEvidenceException): ResponseEntity<ProblemDetail> {
+        val problem =
+            ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "Exact documentary bundles are unavailable.",
+            )
+        problem.type = URI.create("urn:ergon:problem:unavailable-contract-documentary-evidence")
+        problem.title = "Unavailable documentary evidence"
+        problem.setProperty("violations", exception.violations.map(ContractDocumentViolation::toResponse))
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(problem)
+    }
+
     @ExceptionHandler(ContractRevisionNotFoundException::class)
     fun revisionNotFound(exception: ContractRevisionNotFoundException): ProblemDetail =
         problem(
@@ -143,13 +165,20 @@ private fun ContractDocumentViolation.toResponse() = ContractDocumentViolationRe
 
 internal fun ResolutionContract.toResponse() =
     ValidatedResolutionContractResponse(
-        schema = RESOLUTION_CONTRACT_DOCUMENT_SCHEMA,
+        schema = documentSchema(),
         key = key.value,
         revision = revision.value,
         applicability = applicability.toResponse(),
         requiredEvidence = requiredEvidence.map { it.value },
         steps = steps.map(ResolutionStep::toResponse),
         outcomeProof = outcomeProof.toResponse(),
+        documentaryEvidence =
+            documentaryEvidence.takeIf { it.isNotEmpty() }?.map {
+                DocumentaryBundleRequirementResponse(
+                    it.bundleId,
+                    it.sha256,
+                )
+            },
     )
 
 private fun FactCondition.toResponse() = FactConditionResponse(fact.value, expectedValue.value)

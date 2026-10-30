@@ -24,6 +24,9 @@ class ResolutionEvidence private constructor(
 
 /** Deterministic outcome of evaluating one contract against one evidence snapshot. */
 sealed interface ResolutionReadiness {
+    /** PR13 must replace this explicit gate with case-bound documentary evaluation. */
+    data object DocumentaryEvidenceUnsupported : ResolutionReadiness
+
     /** Every required fact exists and the applicability condition is satisfied. */
     data class Ready(
         val condition: FactCondition,
@@ -62,6 +65,16 @@ object ResolutionReadinessEvaluator {
      * exact equality because contract fact values are deliberately opaque.
      */
     fun evaluate(
+        contract: ResolutionContract,
+        evidence: ResolutionEvidence,
+    ): ResolutionReadiness =
+        if (contract.documentaryEvidence.isNotEmpty()) {
+            ResolutionReadiness.DocumentaryEvidenceUnsupported
+        } else {
+            evaluateOperational(contract, evidence)
+        }
+
+    private fun evaluateOperational(
         contract: ResolutionContract,
         evidence: ResolutionEvidence,
     ): ResolutionReadiness {

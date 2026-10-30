@@ -74,6 +74,10 @@ data class BrowserReadinessApplicability(
 private fun RunPinnedReadiness.toBrowserReadiness(): BrowserRunPinnedReadiness {
     val condition =
         when (val result = readiness) {
+            ResolutionReadiness.DocumentaryEvidenceUnsupported -> {
+                null
+            }
+
             is ResolutionReadiness.MissingEvidence -> {
                 null
             }
@@ -96,6 +100,7 @@ private fun RunPinnedReadiness.toBrowserReadiness(): BrowserRunPinnedReadiness {
         pin.revision.contract.revision.value,
         "ergon.dev/evaluation/pinned-readiness/v1",
         when (readiness) {
+            ResolutionReadiness.DocumentaryEvidenceUnsupported -> "DOCUMENTARY_EVIDENCE_UNSUPPORTED"
             is ResolutionReadiness.Ready -> "READY"
             is ResolutionReadiness.NotApplicable -> "NOT_APPLICABLE"
             is ResolutionReadiness.MissingEvidence -> "WAITING_FOR_EVIDENCE"
