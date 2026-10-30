@@ -2,6 +2,11 @@
 
 ## TL;DR
 
+M07-PR1 defines [versioned simulation fixtures](../simulation.md) with bounded,
+immutable artifact references and deterministic semantic identities. It adds no
+fixture persistence, replay execution, model provider, evaluation report or
+promotion behavior.
+
 M06-PR1–PR13 implement bounded documentary compilation, human review, typed
 contradiction adjudication, immutable evidence bundles and case-pinned v1alpha2
 contract consumption. PR14 supplies real licensed fixtures, composed acceptance
