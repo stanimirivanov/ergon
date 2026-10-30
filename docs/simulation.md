@@ -81,3 +81,71 @@ Run `./mvnw -B -ntp -pl domain-kernel test`, then repository policy and the full
 `./mvnw -B -ntp verify`. The domain suite includes an independently calculated
 binary identity vector, input sensitivity, ordering, mutation resistance, bounds,
 unsupported version, model configuration and historical timestamp tests.
+
+## Internal fixture registration
+
+M07-PR2 registers self-contained curated packages. It neither executes their
+contents nor claims that historical material has been automatically sanitized.
+The internal endpoint inherits the trusted-machine deployment boundary: do not
+expose it to browsers or public ingress. `X-Ergon-Actor-Id` is claimed attribution,
+not authentication. The actor must already be registered in the path tenant,
+including for retries; no resolver or promotion authority is granted or checked.
+
+POST JSON to `/internal/v1/tenants/{tenantId}/simulation-fixtures/{key}/revisions/{revision}`
+with the actor UUID header. GET the same path to retrieve the exact registration.
+Keys/revisions use the bounded artifact identifier grammar above. The package is:
+
+| Field | Meaning |
+|:--|:--|
+| `manifest` | All v1 manifest fields, using the domain property names; timestamps are ISO-8601 instants, UUIDs strings, enum values uppercase names. |
+| `digest` | Expected v1 manifest semantic digest, independently checked on registration. |
+| `materials` | Array of `{ "reference": { "key": "...", "revision": "...", "sha256": "..." }, "content": "..." }`. |
+| `provenance` | `{ "kind": "SYNTHETIC", "description": "Reviewed fixture origin" }`; kind also permits `CURATED_HISTORICAL`. |
+
+The manifest's nullable `modelConfiguration` and `budget` fields must be present
+as JSON null when absent; lists must be present even when empty. Nested artifacts
+use `key`, `revision`, `sha256`; `casePrefix` uses `caseId`, `streamVersion`,
+`material`; documentary pins use `bundle`, `streamVersion`, `attachedAt`; scripts
+use `kind`, `material`. Unknown fields, duplicate JSON keys, scalar coercions,
+unknown enum/version values, malformed UTF-8 and trailing JSON are rejected.
+Provenance and content must be valid Unicode without NUL characters (PostgreSQL
+JSON validation cannot represent NUL).
+
+Each distinct manifest artifact requires exactly one matching material. Its digest
+is SHA-256 of the decoded content string's exact UTF-8 bytes, without newline or
+Unicode normalization. Different references may share bytes. Conflicting digests
+for the same artifact key/revision, missing/extra material and duplicate references
+are rejected. Material schemas are not evaluated until the consuming replay slice;
+a registered `{}` contract artifact is not a validated production contract.
+
+Ingress and normalized JSON are bounded to 1,048,576 UTF-8 bytes. The provenance
+description is nonblank and at most 2,000 UTF-16 code units. Content is inert text:
+no referenced URL is fetched, script executed, archive expanded or production case
+read. Case IDs are simulation identities, not foreign keys into live cases.
+
+A new revision returns 201 with Location; exact retry returns 200 and original
+actor/time. Responses contain `identity`, `digest`, `definition` (the normalized
+package JSON as a string), `submittedBy`, and `recordedAt`. All responses use
+`Cache-Control: no-store`. Documentary and material set ordering is normalized;
+script order, provenance and material bytes remain significant. Changed meaning
+or provenance for an existing revision returns 409. Invalid packages/path grammar
+return 422, oversized packages 413, and absent/foreign revisions or unregistered
+tenant actors 404. Malformed UUID/header binding uses the standard 400 response.
+
+## Storage and rollout
+
+Apply the additive `simulation_fixture_revisions` migration before deploying the
+registration API. It scans no existing tables and does no backfill. One row stores
+normalized JSON text, manifest canonical bytes, digest and original attribution
+atomically. Text storage deliberately preserves the bounded normalized UTF-8
+representation rather than expanding JSONB whitespace. SQL checks the manifest
+schema/tenant/digest, canonical digest and size, and the tenant-scoped actor FK;
+read reconstruction verifies the complete package again. UPDATE and DELETE are
+rejected. Concurrent registration waits on the immutable tenant/key/revision key,
+then compares the winning row using a fresh READ COMMITTED snapshot.
+
+Rollback application code without dropping registrations or editing the shared
+migration. Packages may contain sensitive curated material: retain them in the
+existing trusted database/backup boundary and review privacy before submission.
+There is no export, automatic redaction or deletion API in this slice. Browser
+entitlements, replay and promotion remain later M07 work. See [ADR 0091](decisions/0091-register-curated-simulation-fixtures.md).

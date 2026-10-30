@@ -2,6 +2,10 @@
 
 ## TL;DR
 
+M07-PR2 adds internal registration and retrieval of complete immutable curated
+simulation packages, with tenant attribution and exact retry. It does not execute
+material or certify privacy, runtime semantics or promotion.
+
 M07-PR1 defines [versioned simulation fixtures](../simulation.md) with bounded,
 immutable artifact references and deterministic semantic identities. It adds no
 fixture persistence, replay execution, model provider, evaluation report or

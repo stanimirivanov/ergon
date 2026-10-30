@@ -12,6 +12,10 @@ Confirmed failed-run retries separately create and assign only a fresh successor
 they inherit no execution authorization.
 Assignment is neither a control lease nor capability-execution authority.
 
+Internal [simulation fixture registration](../docs/simulation.md#internal-fixture-registration)
+stores complete immutable curated packages with original tenant actor attribution.
+It does not execute fixtures or expose a browser authorization boundary.
+
 ## Purpose
 
 `control-plane` is the active Spring Boot application for Ergon cases,
