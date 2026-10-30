@@ -111,20 +111,30 @@ class PostgresPromotionAuthorityRepository(
     override fun current(
         tenant: UUID,
         actor: UUID,
-    ): ContractPromotionAuthority? =
+    ): ContractPromotionAuthority? {
+        // Command/contract locks precede this actor lock; revocation cannot race exact retries or fresh admission.
         jdbc
+            .sql("SELECT lock_simulation_authority(:tenant, :actor)")
+            .param("tenant", tenant)
+            .param("actor", actor)
+            .query { _, _ -> Unit }
+            .single()
+        return jdbc
             .sql(
                 """
-                SELECT * FROM contract_promotion_authorities
-                WHERE tenant_id = :tenant AND actor_id = :actor
-                  AND attested_at <= clock_timestamp() AND expires_at > clock_timestamp()
-                ORDER BY expires_at DESC, evidence_id LIMIT 1
+                SELECT a.* FROM contract_promotion_authorities a
+                WHERE a.tenant_id = :tenant AND a.actor_id = :actor
+                  AND a.attested_at <= clock_timestamp() AND a.expires_at > clock_timestamp()
+                  AND NOT EXISTS (SELECT 1 FROM contract_promotion_revocations r
+                      WHERE r.tenant_id = a.tenant_id AND r.evidence_id = a.evidence_id)
+                ORDER BY a.expires_at DESC, a.evidence_id LIMIT 1
                 """.trimIndent(),
             ).param("tenant", tenant)
             .param("actor", actor)
             .query { row, _ -> authority(row) }
             .optional()
             .orElse(null)
+    }
 
     private fun authority(row: ResultSet) =
         ContractPromotionAuthority(

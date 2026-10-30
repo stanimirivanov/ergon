@@ -164,3 +164,4 @@ benchmarks rather than duplicating them.
 | 0098 | [Gate exact evaluation suites](0098-gate-exact-evaluation-suites.md) |
 | 0099 | [Record authorized contract promotions](0099-record-authorized-contract-promotions.md) |
 | 0100 | [Enforce current promotion on run admission](0100-enforce-current-promotion-on-run-admission.md) |
+| 0101 | [Expose authorized Simulation Lab contracts](0101-expose-authorized-simulation-lab-contracts.md) |

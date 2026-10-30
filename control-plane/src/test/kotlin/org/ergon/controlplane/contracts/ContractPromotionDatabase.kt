@@ -33,6 +33,7 @@ import java.util.UUID
 /** Seed the released PR9 reference graph before upgrading; promotions never replace that graph. */
 internal class ContractPromotionDatabase(
     private val postgres: PostgreSQLContainer,
+    private val upgradeFrom: String = "20261030171119",
 ) {
     val schema = "promotion_" + UUID.randomUUID().toString().replace("-", "")
     val h = SuiteHarness()
@@ -57,7 +58,7 @@ internal class ContractPromotionDatabase(
     val suite: org.ergon.evaluation.domain.SimulationArtifact
 
     init {
-        migration("20261030171119").migrate()
+        migration(upgradeFrom).migrate()
         actor(tenant, actor)
         val fixtures = PostgresSimulationFixtureRepository(jdbc, transactions, h.f.packages)
         fixtures.register(h.fixtureId, h.fixture, actor)
