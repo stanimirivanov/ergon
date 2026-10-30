@@ -42,6 +42,7 @@ data class CaseResolutionReadinessResponse(
 
 /** Closed set of readiness outcomes exposed by the internal HTTP contract. */
 enum class ResolutionReadinessStatus {
+    DOCUMENTARY_EVIDENCE_UNSUPPORTED,
     WAITING_FOR_CONTRACT,
     WAITING_FOR_EVIDENCE,
     NOT_APPLICABLE,
@@ -81,6 +82,10 @@ internal fun CaseReadiness.toResponse(): CaseResolutionReadinessResponse =
 
 private fun ResolutionReadiness.toResponse(snapshot: CaseReadiness.Evaluated): CaseResolutionReadinessResponse =
     when (this) {
+        ResolutionReadiness.DocumentaryEvidenceUnsupported -> {
+            snapshot.response(ResolutionReadinessStatus.DOCUMENTARY_EVIDENCE_UNSUPPORTED)
+        }
+
         is ResolutionReadiness.MissingEvidence -> {
             snapshot.response(
                 status = ResolutionReadinessStatus.WAITING_FOR_EVIDENCE,

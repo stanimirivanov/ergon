@@ -5,6 +5,7 @@ import org.ergon.contracts.domain.ApprovalRequirement
 import org.ergon.contracts.domain.CapabilityName
 import org.ergon.contracts.domain.ContractFactType
 import org.ergon.contracts.domain.ContractFactValue
+import org.ergon.contracts.domain.DocumentaryBundleRequirement
 import org.ergon.contracts.domain.FactCondition
 import org.ergon.contracts.domain.ResolutionContract
 import org.ergon.contracts.domain.ResolutionContractIdentity
@@ -14,6 +15,7 @@ import org.ergon.contracts.domain.ResolutionStep
 import org.ergon.contracts.domain.ResolutionStepId
 import org.ergon.contracts.domain.StepRisk
 import org.junit.jupiter.api.Test
+import java.util.UUID
 
 class ResolutionReadinessEvaluatorTest {
     @Test
@@ -46,6 +48,23 @@ class ResolutionReadinessEvaluatorTest {
             )
 
         assertThat(result).isEqualTo(ResolutionReadiness.Ready(CONTRACT.applicability, actual))
+    }
+
+    @Test
+    fun `documentary requirements never become ready through operational evidence alone`() {
+        val documentary =
+            ResolutionContract
+                .define(
+                    ResolutionContractIdentity(CONTRACT.key, CONTRACT.revision),
+                    CONTRACT.applicability,
+                    CONTRACT.requiredEvidence,
+                    CONTRACT.steps,
+                    CONTRACT.outcomeProof,
+                ).requiringDocumentaryEvidence(listOf(DocumentaryBundleRequirement(UUID.randomUUID(), "a".repeat(64))))
+        for (snapshot in listOf(ResolutionEvidence.of(emptyMap()), evidence(ContractFactValue.of("LOCKED")))) {
+            assertThat(ResolutionReadinessEvaluator.evaluate(documentary, snapshot))
+                .isEqualTo(ResolutionReadiness.DocumentaryEvidenceUnsupported)
+        }
     }
 
     private fun evidence(accountState: ContractFactValue) =

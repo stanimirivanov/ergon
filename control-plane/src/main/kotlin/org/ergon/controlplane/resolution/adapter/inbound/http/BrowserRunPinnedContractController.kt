@@ -1,7 +1,8 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import org.ergon.contracts.domain.FactCondition
-import org.ergon.controlplane.contracts.application.RESOLUTION_CONTRACT_DOCUMENT_SCHEMA
+import org.ergon.controlplane.contracts.application.documentSchema
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.resolution.application.RunPinnedContract
 import org.ergon.controlplane.resolution.application.RunPinnedContractService
@@ -51,7 +52,7 @@ data class BrowserRunPinnedContract(
     val contract: BrowserPinnedContractDefinition,
 )
 
-/** Declared order and safeguards retain immutable v1alpha1 meaning, independently of runtime-effective policy. */
+/** Declared order and safeguards retain their immutable schema meaning, independently of runtime-effective policy. */
 data class BrowserPinnedContractDefinition(
     val schema: String,
     val key: String,
@@ -60,6 +61,13 @@ data class BrowserPinnedContractDefinition(
     val requiredEvidence: List<String>,
     val steps: List<BrowserContractStep>,
     val outcomeProof: BrowserContractCondition,
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    val documentaryEvidence: List<BrowserDocumentaryBundleRequirement>? = null,
+)
+
+data class BrowserDocumentaryBundleRequirement(
+    val bundleId: UUID,
+    val sha256: String,
 )
 
 /** Equality values remain exact/case-sensitive declarations, not assessed evidence or accepted proof. */
@@ -91,7 +99,7 @@ private fun RunPinnedContract.toBrowserContract(): BrowserRunPinnedContract {
         pinnedStepId.value,
         revision.recordedAt,
         BrowserPinnedContractDefinition(
-            RESOLUTION_CONTRACT_DOCUMENT_SCHEMA,
+            definition.documentSchema(),
             definition.key.value,
             definition.revision.value,
             definition.applicability.toBrowserCondition(),
@@ -100,6 +108,9 @@ private fun RunPinnedContract.toBrowserContract(): BrowserRunPinnedContract {
                 BrowserContractStep(it.id.value, it.capability.value, it.risk.name, it.approval.name)
             },
             definition.outcomeProof.toBrowserCondition(),
+            definition.documentaryEvidence.takeIf { it.isNotEmpty() }?.map {
+                BrowserDocumentaryBundleRequirement(it.bundleId, it.sha256)
+            },
         ),
     )
 }

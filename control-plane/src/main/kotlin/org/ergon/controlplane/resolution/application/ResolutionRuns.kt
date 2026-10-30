@@ -167,6 +167,9 @@ private fun PlannedResolutionStep.requireAllowed(): StepPolicyDecision.Requireme
 internal fun CaseResolutionPlan.toRunPlan(expectedVersion: Long): ResolutionRunPlan {
     requireVersion(expectedVersion)
     val evaluated = requireReady()
+    if (evaluated.contract.documentaryEvidence.isNotEmpty()) {
+        throw ResolutionRunNotReadyException("DOCUMENTARY_EVIDENCE_UNSUPPORTED")
+    }
     val planned = requireNextStep()
     return ResolutionRunPlan(
         caseStreamVersion = expectedVersion,
@@ -186,6 +189,7 @@ private fun CaseReadiness.statusName(): String =
 
         is CaseReadiness.Evaluated -> {
             when (readiness) {
+                ResolutionReadiness.DocumentaryEvidenceUnsupported -> "DOCUMENTARY_EVIDENCE_UNSUPPORTED"
                 is ResolutionReadiness.MissingEvidence -> "WAITING_FOR_EVIDENCE"
                 is ResolutionReadiness.NotApplicable -> "NOT_APPLICABLE"
                 is ResolutionReadiness.Ready -> "READY"

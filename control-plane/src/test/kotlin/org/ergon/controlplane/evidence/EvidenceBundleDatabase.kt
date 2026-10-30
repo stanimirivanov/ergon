@@ -25,8 +25,9 @@ import java.util.UUID
 internal class EvidenceBundleDatabase(
     postgres: PostgreSQLContainer,
     acceptProcedure: Boolean = true,
+    migrationTarget: String = "latest",
 ) {
-    val db = ContradictionDatabase(postgres)
+    val db = ContradictionDatabase(postgres, migrationTarget)
     val f = db.f
     val transactions = TransactionTemplate(DataSourceTransactionManager(db.data))
     val codec = EvidenceBundleCodec()
