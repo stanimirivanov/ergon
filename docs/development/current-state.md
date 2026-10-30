@@ -2,6 +2,10 @@
 
 ## TL;DR
 
+M07-PR3 adds [in-process pinned readiness replay](../simulation.md#pinned-readiness-replay)
+through the production planner with isolated read-only inputs. It assesses neither
+execution nor assertions, budgets or promotion.
+
 M07-PR2 adds internal registration and retrieval of complete immutable curated
 simulation packages, with tenant attribution and exact retry. It does not execute
 material or certify privacy, runtime semantics or promotion.
