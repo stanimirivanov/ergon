@@ -1,10 +1,12 @@
 package org.ergon.controlplane.resolution.adapter.inbound.http
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import org.ergon.contracts.domain.ContractFactValue
 import org.ergon.contracts.domain.FactCondition
 import org.ergon.controlplane.identity.adapter.inbound.security.AuthenticatedHumanActorResolver
 import org.ergon.controlplane.resolution.application.RunPinnedReadiness
 import org.ergon.controlplane.resolution.application.RunPinnedReadinessService
+import org.ergon.resolution.domain.DocumentaryRequirementAssessment
 import org.ergon.resolution.domain.ResolutionReadiness
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.CacheControl
@@ -62,6 +64,8 @@ data class BrowserRunPinnedReadiness(
     val missingEvidence: List<String>,
     val applicability: BrowserReadinessApplicability?,
     val selectedEvidence: List<BrowserPinnedEvidenceFact>,
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    val documentaryEvidence: List<BrowserDocumentaryReadiness>? = null,
 )
 
 /** Available only after all requirements exist; values preserve exact case-sensitive equality semantics. */
@@ -74,7 +78,7 @@ data class BrowserReadinessApplicability(
 private fun RunPinnedReadiness.toBrowserReadiness(): BrowserRunPinnedReadiness {
     val condition =
         when (val result = readiness) {
-            ResolutionReadiness.DocumentaryEvidenceUnsupported -> {
+            is ResolutionReadiness.DocumentaryEvidenceUnavailable -> {
                 null
             }
 
@@ -98,16 +102,42 @@ private fun RunPinnedReadiness.toBrowserReadiness(): BrowserRunPinnedReadiness {
         pin.observedAt,
         pin.revision.contract.key.value,
         pin.revision.contract.revision.value,
-        "ergon.dev/evaluation/pinned-readiness/v1",
+        if (pin.revision.contract.documentaryEvidence
+                .isEmpty()
+        ) {
+            "ergon.dev/evaluation/pinned-readiness/v1"
+        } else {
+            "ergon.dev/evaluation/pinned-readiness/v2"
+        },
         when (readiness) {
-            ResolutionReadiness.DocumentaryEvidenceUnsupported -> "DOCUMENTARY_EVIDENCE_UNSUPPORTED"
-            is ResolutionReadiness.Ready -> "READY"
-            is ResolutionReadiness.NotApplicable -> "NOT_APPLICABLE"
-            is ResolutionReadiness.MissingEvidence -> "WAITING_FOR_EVIDENCE"
+            is ResolutionReadiness.DocumentaryEvidenceUnavailable -> {
+                if (readiness.missing) {
+                    "WAITING_FOR_DOCUMENTARY_EVIDENCE"
+                } else {
+                    "UNSUITABLE_DOCUMENTARY_EVIDENCE"
+                }
+            }
+
+            is ResolutionReadiness.Ready -> {
+                "READY"
+            }
+
+            is ResolutionReadiness.NotApplicable -> {
+                "NOT_APPLICABLE"
+            }
+
+            is ResolutionReadiness.MissingEvidence -> {
+                "WAITING_FOR_EVIDENCE"
+            }
         },
         (readiness as? ResolutionReadiness.MissingEvidence)?.facts?.map { it.value } ?: emptyList(),
         condition,
         selectedEvidence.map { it.toBrowserFact() },
+        documentaryEvidence
+            .takeIf {
+                pin.revision.contract.documentaryEvidence
+                    .isNotEmpty()
+            }?.map { it.toBrowserDocumentary() },
     )
 }
 
@@ -116,4 +146,24 @@ private fun FactCondition.toBrowserApplicability(actual: ContractFactValue): Bro
         fact = fact.value,
         expectedValue = expectedValue.value,
         actualValue = actual.value,
+    )
+
+/** BFF-owned historical documentary declaration, separate from operational selected evidence and authorization. */
+data class BrowserDocumentaryReadiness(
+    val bundleId: UUID,
+    val sha256: String,
+    val status: String,
+    val reason: String?,
+    val pinStreamVersion: Long?,
+    val attachedAt: Instant?,
+)
+
+private fun DocumentaryRequirementAssessment.toBrowserDocumentary() =
+    BrowserDocumentaryReadiness(
+        requirement.bundleId,
+        requirement.sha256,
+        status.name,
+        reason?.name,
+        pin?.streamVersion,
+        pin?.attachedAt,
     )

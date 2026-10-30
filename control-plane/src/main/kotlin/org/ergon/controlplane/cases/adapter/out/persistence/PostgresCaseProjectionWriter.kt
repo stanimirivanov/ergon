@@ -4,6 +4,7 @@ import org.ergon.cases.domain.AccountAccessStateBound
 import org.ergon.cases.domain.CaseEvent
 import org.ergon.cases.domain.CaseOpened
 import org.ergon.cases.domain.CaseVerifiedResolved
+import org.ergon.cases.domain.DocumentaryBundlePinned
 import org.ergon.cases.domain.ErgonCase
 import org.ergon.cases.domain.ObservationOriginType
 import org.ergon.cases.domain.ObservationRecorded
@@ -27,6 +28,7 @@ class PostgresCaseProjectionWriter(
         when (val first = events.first().event) {
             is CaseOpened -> insertCase(case, first)
 
+            is DocumentaryBundlePinned,
             is AccountAccessStateBound,
             is CaseVerifiedResolved,
             is ObservationRecorded,
@@ -35,6 +37,8 @@ class PostgresCaseProjectionWriter(
         }
         events.forEach { stored ->
             when (val event = stored.event) {
+                is DocumentaryBundlePinned -> insertDocumentaryPin(case, stored, event)
+
                 is AccountAccessStateBound -> insertAccountAccessFact(case, stored, event)
 
                 is ResolutionContractRevisionPinned -> insertResolutionContractPin(case, stored, event)
@@ -159,6 +163,29 @@ class PostgresCaseProjectionWriter(
             .update()
     }
 
+    private fun insertDocumentaryPin(
+        case: ErgonCase,
+        stored: StoredCaseEvent,
+        event: DocumentaryBundlePinned,
+    ) {
+        jdbcClient
+            .sql(
+                """
+                INSERT INTO case_documentary_bundle_pins (
+                    tenant_id, case_id, bundle_id, manifest_sha256, stream_version, event_id, pinned_at, recorded_at
+                ) VALUES (:tenant, :case, :bundle, :digest, :version, :event, :pinned, :recorded)
+                """.trimIndent(),
+            ).param("tenant", case.tenantId.value)
+            .param("case", case.id.value)
+            .param("bundle", event.bundleId)
+            .param("digest", event.sha256)
+            .param("version", stored.streamVersion)
+            .param("event", stored.eventId)
+            .param("pinned", event.occurredAt.atOffset(ZoneOffset.UTC))
+            .param("recorded", stored.recordedAt.atOffset(ZoneOffset.UTC))
+            .update()
+    }
+
     private fun insertResolutionContractPin(
         case: ErgonCase,
         stored: StoredCaseEvent,
@@ -188,6 +215,7 @@ class PostgresCaseProjectionWriter(
 
     private fun CaseEvent.eventType(): String =
         when (this) {
+            is DocumentaryBundlePinned -> error("documentary pins use their dedicated projection")
             is AccountAccessStateBound -> error("account-access facts use their dedicated projection")
             is CaseOpened -> "CASE_OPENED"
             is CaseVerifiedResolved -> error("case closure has no timeline observation")
@@ -197,6 +225,7 @@ class PostgresCaseProjectionWriter(
 
     private fun CaseEvent.summary(): String =
         when (this) {
+            is DocumentaryBundlePinned -> error("documentary pins use their dedicated projection")
             is AccountAccessStateBound -> error("account-access facts use their dedicated projection")
             is CaseOpened -> "Case opened from requester observation"
             is CaseVerifiedResolved -> error("case closure has no timeline observation")
@@ -206,6 +235,10 @@ class PostgresCaseProjectionWriter(
 
     private fun CaseEvent.observation(): ObservationColumns =
         when (this) {
+            is DocumentaryBundlePinned -> {
+                error("documentary pins use their dedicated projection")
+            }
+
             is AccountAccessStateBound -> {
                 error("account-access facts use their dedicated projection")
             }

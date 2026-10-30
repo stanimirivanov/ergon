@@ -10,6 +10,7 @@ import org.ergon.controlplane.cases.application.CaseEventStore
 import org.ergon.controlplane.cases.application.CaseNotFoundException
 import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
 import org.ergon.identity.domain.TenantId
+import org.ergon.resolution.domain.PinnedDocumentaryBundle
 import org.ergon.resolution.domain.ResolutionEvidence
 import org.ergon.resolution.domain.ResolutionReadiness
 import org.ergon.resolution.domain.ResolutionReadinessEvaluator
@@ -32,6 +33,7 @@ sealed interface CaseReadiness {
         override val caseStreamVersion: Long,
         val contract: ResolutionContract,
         val readiness: ResolutionReadiness,
+        val documentaryEvidence: List<PinnedDocumentaryBundle> = emptyList(),
     ) : CaseReadiness
 }
 
@@ -39,6 +41,7 @@ sealed interface CaseReadiness {
 class ResolutionReadinessService(
     private val eventStore: CaseEventStore,
     private val contractRevisions: ResolutionContractRevisionRepository,
+    private val documentary: PinnedDocumentaryEvidenceReader,
 ) {
     /**
      * Evaluates the exact case history visible at one stream version.
@@ -68,11 +71,18 @@ class ResolutionReadinessService(
             contractRevisions.find(scopedTenantId, contractIdentity.key, contractIdentity.revision)?.contract
                 ?: error("pinned resolution contract revision cannot be recovered")
 
+        val bundles =
+            if (contract.documentaryEvidence.isEmpty()) {
+                emptyList()
+            } else {
+                documentary.find(scopedTenantId, scopedCaseId, case.streamVersion)
+            }
         return CaseReadiness.Evaluated(
             caseId = caseId,
             caseStreamVersion = case.streamVersion,
             contract = contract,
-            readiness = ResolutionReadinessEvaluator.evaluate(contract, history.toEvidence()),
+            readiness = ResolutionReadinessEvaluator.evaluate(contract, history.toEvidence(), bundles),
+            documentaryEvidence = bundles,
         )
     }
 }

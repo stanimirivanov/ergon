@@ -14,6 +14,7 @@ import org.ergon.controlplane.resolution.application.ApprovalDecisionService
 import org.ergon.controlplane.resolution.application.ApprovalRequestIdentityGenerator
 import org.ergon.controlplane.resolution.application.ApprovalRequestRepository
 import org.ergon.controlplane.resolution.application.ApprovalRequestService
+import org.ergon.controlplane.resolution.application.PinnedDocumentaryEvidenceReader
 import org.ergon.controlplane.resolution.application.ResolutionPlanningService
 import org.ergon.controlplane.resolution.application.ResolutionReadinessService
 import org.ergon.controlplane.resolution.application.ResolutionRunIdentityGenerator
@@ -39,7 +40,8 @@ class ResolutionConfiguration {
     fun resolutionReadinessService(
         eventStore: CaseEventStore,
         contractRevisions: ResolutionContractRevisionRepository,
-    ) = ResolutionReadinessService(eventStore, contractRevisions)
+        documentary: PinnedDocumentaryEvidenceReader,
+    ) = ResolutionReadinessService(eventStore, contractRevisions, documentary)
 
     @Bean
     fun resolutionPolicy(): ResolutionPolicy =

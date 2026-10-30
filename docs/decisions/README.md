@@ -152,3 +152,4 @@ benchmarks rather than duplicating them.
 | 0086 | [Adjudicate bounded documentary contradictions](0086-adjudicate-bounded-documentary-contradictions.md) |
 | 0087 | [Publish review-qualified evidence bundles](0087-publish-review-qualified-evidence-bundles.md) |
 | 0088 | [Declare exact documentary contract requirements](0088-declare-exact-documentary-contract-requirements.md) |
+| 0089 | [Consume case-pinned documentary evidence](0089-consume-case-pinned-documentary-evidence.md) |

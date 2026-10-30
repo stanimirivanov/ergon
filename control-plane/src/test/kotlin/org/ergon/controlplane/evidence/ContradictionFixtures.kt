@@ -17,7 +17,9 @@ import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
 import java.time.Instant
 import java.util.UUID
 
-internal class ContradictionFixtures {
+internal class ContradictionFixtures(
+    private val broadValidity: Boolean = false,
+) {
     val source = ProcedureFixtures()
     val now = Instant.parse("2026-10-29T12:00:00Z")
     val key = DocumentaryClaimKey(DocumentaryProperty.SUPPORT, "recovery", "staff")
@@ -55,8 +57,8 @@ internal class ContradictionFixtures {
                     DocumentaryValue.Support(supported),
                     key.subject,
                     key.scope,
-                    now.minusSeconds(60),
-                    now.plusSeconds(60),
+                    if (broadValidity) Instant.parse("0001-01-01T00:00:00Z") else now.minusSeconds(60),
+                    if (broadValidity) Instant.parse("9999-12-31T23:59:59.999999Z") else now.plusSeconds(60),
                 ),
             )
         return AcceptedClaimCandidate(StoredClaimProposal(proposal, source.actor, now), UUID(0, id + 100))

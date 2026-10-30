@@ -125,7 +125,7 @@ class ProcedureProposalIntegrationTest {
                 .current()
                 .version
                 .toString(),
-        ).isEqualTo("20261030100000")
+        ).isEqualTo("20261030120000")
     }
 
     private fun database(): Database {

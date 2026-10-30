@@ -5,6 +5,8 @@ import org.ergon.contracts.domain.ContractFactType
 import org.ergon.contracts.domain.ContractFactValue
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.identity.domain.TenantId
+import org.ergon.resolution.domain.DocumentaryEvidenceEvaluator
+import org.ergon.resolution.domain.DocumentaryRequirementAssessment
 import org.ergon.resolution.domain.ResolutionEvidence
 import org.ergon.resolution.domain.ResolutionReadiness
 import org.ergon.resolution.domain.ResolutionReadinessEvaluator
@@ -44,6 +46,7 @@ data class RunPinnedReadiness(
     val pin: RunPinnedContract,
     val readiness: ResolutionReadiness,
     val selectedEvidence: List<PinnedAccountAccessFact>,
+    val documentaryEvidence: List<DocumentaryRequirementAssessment> = emptyList(),
 )
 
 /** Separates readiness at the run's immutable evidence boundary from current-case planning and outcome verification. */
@@ -51,6 +54,7 @@ class RunPinnedReadinessService(
     private val pinnedContracts: RunPinnedContractService,
     private val evidence: PinnedReadinessEvidenceReader,
     private val transactions: TransactionRunner,
+    private val documentary: PinnedDocumentaryEvidenceReader,
 ) {
     /**
      * Reuses exact current supervisor/resolver gating before private evidence access.
@@ -82,10 +86,17 @@ class RunPinnedReadinessService(
                 selected?.let {
                     mapOf(ACCOUNT_ACCESS_STATE to ContractFactValue.of(it.value.name))
                 } ?: emptyMap()
+            val bundles =
+                if (contract.documentaryEvidence.isEmpty()) {
+                    emptyList()
+                } else {
+                    documentary.find(TenantId(tenantId), pin.caseId, pin.caseStreamVersion)
+                }
             RunPinnedReadiness(
                 pin,
-                ResolutionReadinessEvaluator.evaluate(contract, ResolutionEvidence.of(values)),
+                ResolutionReadinessEvaluator.evaluate(contract, ResolutionEvidence.of(values), bundles),
                 listOfNotNull(selected),
+                DocumentaryEvidenceEvaluator.assess(contract.documentaryEvidence, bundles),
             )
         }
 }

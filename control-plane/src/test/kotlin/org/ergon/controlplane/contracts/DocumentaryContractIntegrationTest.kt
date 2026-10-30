@@ -105,7 +105,7 @@ class DocumentaryContractIntegrationTest {
     }
 
     @Test
-    fun `unsupported documentary runs and mixed schema direct definitions fail closed`() {
+    fun `unattached documentary runs and mixed schema direct definitions fail closed`() {
         val d = Database()
         d.service.publish(d.tenant, d.document)
         assertThatThrownBy {
@@ -120,14 +120,15 @@ class DocumentaryContractIntegrationTest {
         }.isInstanceOfSatisfying(DataAccessException::class.java) { error ->
             val causes = generateSequence<Throwable>(error) { it.cause }.filterIsInstance<SQLException>()
             assertThat(causes.first().sqlState)
-                .isEqualTo("0A000")
+                .isEqualTo("P7801")
         }
         for ((schema, definition) in listOf("v1alpha1" to "{\"documentaryEvidence\":[]}", "v1alpha2" to "{}")) {
             assertThatThrownBy {
                 d.b.db.jdbc
                     .sql(
                         """
-                        INSERT INTO resolution_contract_revisions (tenant_id, contract_key, revision, schema_id, definition)
+                        INSERT INTO resolution_contract_revisions
+                            (tenant_id, contract_key, revision, schema_id, definition)
                         VALUES (:tenant, 'invalid', 1, :schema, CAST(:definition AS JSONB))
                         """.trimIndent(),
                     ).param("tenant", d.tenant.value)
@@ -182,7 +183,7 @@ class DocumentaryContractIntegrationTest {
                 .current()
                 .version
                 .toString(),
-        ).isEqualTo("20261030100000")
+        ).isEqualTo("20261030120000")
     }
 
     private fun migrations(schema: String): Flyway =

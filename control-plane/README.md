@@ -675,9 +675,28 @@ immutable links atomically. No browser authoring or new authority policy is adde
 
 Apply V20261030100000 before new writers and deploy compatible readers before
 publishing this version. Existing v1alpha1 shapes/meaning remain unchanged.
-Documentary contracts return `DOCUMENTARY_EVIDENCE_UNSUPPORTED`, produce no next
-step and cannot start runs until M06-PR13 supplies case-pinned evaluation. Database
-admission also enforces this interim guard. Rollback retains immutable history and
+M06-PR13 adds version-fenced internal case documentary attachment and deterministic
+readiness at the event's database recording time. Missing/unsuitable documentary
+inputs prevent planning and runs; satisfaction still needs operational facts,
+policy, approvals, capability authorization and outcome proof. The database
+independently checks exact case-prefix attachments and suitability at run admission. Rollback retains immutable history and
 requires readers that understand new-schema records; use forward migrations.
 See [contracts](../docs/contracts.md#v1alpha2-documentary-requirements) and
 [ADR 0088](../docs/decisions/0088-declare-exact-documentary-contract-requirements.md).
+
+
+## Case documentary attachments
+
+Apply V20261030120000 before enabling
+`POST /internal/v1/tenants/{tenantId}/cases/{caseId}/documentary-bundles` with quoted
+`If-Match` and exact `bundleId`/`sha256`. Each open case accepts at most 20 immutable
+distinct attachments; these are not connector observations or source timeline entries.
+The authoritative attachment time is the case event database recording time.
+
+Current and protected run readiness expose missing/unsuitable/satisfied documentary
+requirements and exact attachment coordinates. Run reads retain their fixed case
+prefix; later pins and evidence cannot rewrite it. Historical validity is deliberately
+frozen at attachment, not present freshness. PR12's temporary refusals are replaced
+by documentary-aware application and database admission. No browser authoring,
+authority policy, contract promotion or proof shortcut is introduced. See
+[ADR 0089](../docs/decisions/0089-consume-case-pinned-documentary-evidence.md).

@@ -24,8 +24,16 @@ class ResolutionEvidence private constructor(
 
 /** Deterministic outcome of evaluating one contract against one evidence snapshot. */
 sealed interface ResolutionReadiness {
-    /** PR13 must replace this explicit gate with case-bound documentary evaluation. */
-    data object DocumentaryEvidenceUnsupported : ResolutionReadiness
+    /** Missing takes precedence over unsuitable, and both precede operational evidence/applicability. */
+    data class DocumentaryEvidenceUnavailable(
+        val assessments: List<DocumentaryRequirementAssessment>,
+    ) : ResolutionReadiness {
+        init {
+            require(assessments.any { it.status != DocumentaryRequirementStatus.SATISFIED })
+        }
+
+        val missing: Boolean get() = assessments.any { it.status == DocumentaryRequirementStatus.MISSING }
+    }
 
     /** Every required fact exists and the applicability condition is satisfied. */
     data class Ready(
@@ -67,12 +75,15 @@ object ResolutionReadinessEvaluator {
     fun evaluate(
         contract: ResolutionContract,
         evidence: ResolutionEvidence,
-    ): ResolutionReadiness =
-        if (contract.documentaryEvidence.isNotEmpty()) {
-            ResolutionReadiness.DocumentaryEvidenceUnsupported
+        documentary: List<PinnedDocumentaryBundle> = emptyList(),
+    ): ResolutionReadiness {
+        val assessments = DocumentaryEvidenceEvaluator.assess(contract.documentaryEvidence, documentary)
+        return if (assessments.any { it.status != DocumentaryRequirementStatus.SATISFIED }) {
+            ResolutionReadiness.DocumentaryEvidenceUnavailable(assessments)
         } else {
             evaluateOperational(contract, evidence)
         }
+    }
 
     private fun evaluateOperational(
         contract: ResolutionContract,

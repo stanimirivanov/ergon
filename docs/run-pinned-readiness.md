@@ -65,3 +65,19 @@ UI and guide; unknown missing routes are unsupported, not empty assessments.
 Rollback removes read/presentation without mutating durable facts.
 
 See [ADR 0062](decisions/0062-inspect-readiness-at-supervised-run-pin.md).
+
+
+## Documentary contract requirements
+
+For v1alpha2 contracts, M06-PR13 uses evaluator
+`ergon.dev/evaluation/pinned-readiness/v2` and includes per-requirement documentary
+results. Exact bundle identity/digest, pin stream version and database attachment
+time explain MISSING, UNSUITABLE or SATISFIED. Only attachments in the immutable
+run prefix participate. Selected claim bounds are evaluated at attachment, not at
+this read's current time; later acceptance/adjudication does not rewrite history.
+
+Operational-only contracts retain evaluator v1 and their existing response shape.
+Documentary satisfaction supplies no operational observation, approval or action
+permission. Missing/unsuitable requirements deny readiness before operational
+applicability. This is evaluator replay of fixed inputs, not persisted historical
+planner reasoning. See [ADR 0089](decisions/0089-consume-case-pinned-documentary-evidence.md).

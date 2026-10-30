@@ -1,10 +1,12 @@
 package org.ergon.cases.domain
 
+import org.ergon.contracts.domain.DocumentaryBundleRequirement
 import org.ergon.contracts.domain.ResolutionContractIdentity
 import org.ergon.contracts.domain.ResolutionContractKey
 import org.ergon.contracts.domain.ResolutionContractRevision
 import org.ergon.identity.domain.TenantId
 import java.time.Instant
+import java.util.UUID
 
 /**
  * The case aggregate: owns the ordered event stream for one case and
@@ -17,6 +19,7 @@ import java.time.Instant
  * it and is responsible for durably saving [pendingEvents] after any call that
  * records new ones.
  */
+@Suppress("TooManyFunctions") // Typed case commands and exhaustive replay stay on their invariant-owning aggregate.
 class ErgonCase private constructor(
     val id: CaseId,
     val tenantId: TenantId,
@@ -33,6 +36,8 @@ class ErgonCase private constructor(
     /** Exact instructions selected for this case, or `null` until planning pins them. */
     var pinnedResolutionContract: ResolutionContractIdentity? = null
         private set
+
+    private val documentaryBundles = mutableSetOf<UUID>()
 
     private val changes = mutableListOf<CaseEvent>()
     private val observations = mutableMapOf<ObservationId, ObservationOrigin>()
@@ -168,6 +173,15 @@ class ErgonCase private constructor(
         )
     }
 
+    /** Attach once per exact bundle identity on an open case; replacement requires a future explicit event model. */
+    fun pinDocumentaryBundle(
+        reference: DocumentaryBundleRequirement,
+        at: Instant,
+    ) {
+        requireOpen()
+        record(DocumentaryBundlePinned(reference.bundleId, reference.sha256, at))
+    }
+
     private fun record(event: CaseEvent) {
         apply(event)
         changes += event
@@ -175,6 +189,14 @@ class ErgonCase private constructor(
 
     private fun apply(event: CaseEvent) {
         when (event) {
+            is DocumentaryBundlePinned -> {
+                requireOpen()
+                require(documentaryBundles.size < MAX_DOCUMENTARY_BUNDLES) {
+                    "case supports at most 20 documentary bundles"
+                }
+                require(documentaryBundles.add(event.bundleId)) { "documentary bundle is already attached" }
+            }
+
             is CaseOpened -> {
                 goal = CaseGoal.of(event.goal)
                 status = CaseStatus.OPEN
@@ -235,6 +257,8 @@ class ErgonCase private constructor(
     }
 
     companion object {
+        const val MAX_DOCUMENTARY_BUNDLES = 20
+
         /**
          * Opens a new case at stream version one from a requester's initial
          * observation.

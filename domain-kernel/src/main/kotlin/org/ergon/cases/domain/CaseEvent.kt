@@ -91,3 +91,15 @@ data class VerifiedResolution(
     val factId: FactId,
     val observationId: ObservationId,
 )
+
+/** Pins a historical documentary manifest. This event is neither a source observation nor operational proof. */
+data class DocumentaryBundlePinned(
+    val bundleId: UUID,
+    val sha256: String,
+    override val occurredAt: Instant,
+) : CaseEvent {
+    init {
+        org.ergon.contracts.domain
+            .DocumentaryBundleRequirement(bundleId, sha256)
+    }
+}

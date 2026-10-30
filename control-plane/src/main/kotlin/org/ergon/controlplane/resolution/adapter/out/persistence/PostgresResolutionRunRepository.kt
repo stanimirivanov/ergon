@@ -12,6 +12,7 @@ import org.ergon.controlplane.cases.application.CaseNotFoundException
 import org.ergon.controlplane.cases.application.ConcurrentCaseModificationException
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.resolution.application.ResolutionRunAlreadyExistsException
+import org.ergon.controlplane.resolution.application.ResolutionRunNotReadyException
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.StoredResolutionRunStart
 import org.ergon.identity.domain.TenantId
@@ -19,9 +20,11 @@ import org.ergon.resolution.domain.ResolutionPolicyRevision
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunInitialState
 import org.ergon.resolution.domain.ResolutionRunStart
+import org.springframework.dao.DataAccessException
 import org.springframework.jdbc.core.DataClassRowMapper
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
+import java.sql.SQLException
 import java.time.OffsetDateTime
 import java.util.UUID
 import kotlin.jvm.optionals.getOrNull
@@ -38,6 +41,27 @@ class PostgresResolutionRunRepository(
     private val jdbcClient: JdbcClient,
 ) : ResolutionRunRepository {
     override fun create(
+        tenantId: TenantId,
+        run: ResolutionRunStart,
+    ): StoredResolutionRunStart = documentaryAdmission { createInitial(tenantId, run) }
+
+    override fun createRetry(
+        tenantId: TenantId,
+        run: ResolutionRunStart,
+    ): StoredResolutionRunStart = documentaryAdmission { persistRetry(tenantId, run) }
+
+    private fun documentaryAdmission(block: () -> StoredResolutionRunStart): StoredResolutionRunStart =
+        try {
+            block()
+        } catch (error: DataAccessException) {
+            when ((error.mostSpecificCause as? SQLException)?.sqlState) {
+                "P7801" -> throw ResolutionRunNotReadyException("WAITING_FOR_DOCUMENTARY_EVIDENCE")
+                "P7802" -> throw ResolutionRunNotReadyException("UNSUITABLE_DOCUMENTARY_EVIDENCE")
+                else -> throw error
+            }
+        }
+
+    private fun createInitial(
         tenantId: TenantId,
         run: ResolutionRunStart,
     ): StoredResolutionRunStart {
@@ -98,7 +122,7 @@ class PostgresResolutionRunRepository(
         return StoredResolutionRunStart(run, recordedAt.toInstant())
     }
 
-    override fun createRetry(
+    private fun persistRetry(
         tenantId: TenantId,
         run: ResolutionRunStart,
     ): StoredResolutionRunStart {

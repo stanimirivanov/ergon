@@ -1,5 +1,6 @@
 package org.ergon.controlplane.cases.adapter.inbound.http
 
+import org.ergon.controlplane.cases.application.CaseDocumentaryBundleUnavailable
 import org.ergon.controlplane.cases.application.CaseNotFoundException
 import org.ergon.controlplane.cases.application.ConcurrentCaseModificationException
 import org.ergon.controlplane.contracts.application.ContractRevisionNotFoundException
@@ -16,6 +17,7 @@ import java.net.URI
     assignableTypes =
         [
             CaseController::class,
+            CaseDocumentaryBundleController::class,
             ConnectorObservationController::class,
             CaseAccountAccessFactController::class,
             AccountAccessStateBindingController::class,
@@ -25,6 +27,15 @@ import java.net.URI
         ],
 )
 class CaseExceptionHandler {
+    @ExceptionHandler(CaseDocumentaryBundleUnavailable::class)
+    fun documentaryUnavailable(): ProblemDetail =
+        problem(
+            HttpStatus.NOT_FOUND,
+            "urn:ergon:problem:case-documentary-bundle-unavailable",
+            "Documentary bundle unavailable",
+            "Exact documentary bundle is unavailable.",
+        )
+
     @ExceptionHandler(CaseNotFoundException::class)
     fun notFound(exception: CaseNotFoundException): ProblemDetail =
         problem(

@@ -4,6 +4,7 @@ import org.ergon.cases.domain.AccountAccessStateBound
 import org.ergon.cases.domain.CaseEvent
 import org.ergon.cases.domain.CaseOpened
 import org.ergon.cases.domain.CaseVerifiedResolved
+import org.ergon.cases.domain.DocumentaryBundlePinned
 import org.ergon.cases.domain.ObservationRecorded
 import org.ergon.cases.domain.ResolutionContractRevisionPinned
 import org.springframework.stereotype.Component
@@ -16,6 +17,10 @@ class CaseEventJsonCodec(
 ) {
     fun encode(event: CaseEvent): EncodedCaseEvent =
         when (event) {
+            is DocumentaryBundlePinned -> {
+                EncodedCaseEvent("DocumentaryBundlePinned", 1, objectMapper.writeValueAsString(event))
+            }
+
             is AccountAccessStateBound -> {
                 EncodedCaseEvent("AccountAccessStateBound", 1, objectMapper.writeValueAsString(event))
             }
@@ -44,6 +49,10 @@ class CaseEventJsonCodec(
     ): CaseEvent {
         require(schemaVersion == 1) { "unsupported $eventType schema version $schemaVersion" }
         return when (eventType) {
+            "DocumentaryBundlePinned" -> {
+                objectMapper.readValue(payload, DocumentaryBundlePinned::class.java)
+            }
+
             "AccountAccessStateBound" -> {
                 objectMapper.readValue(payload, AccountAccessStateBound::class.java)
             }
