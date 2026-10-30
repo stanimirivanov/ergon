@@ -158,3 +158,4 @@ benchmarks rather than duplicating them.
 | 0092 | [Replay pinned planning inputs](0092-replay-pinned-planning-inputs.md) |
 | 0093 | [Simulate capability and proof](0093-simulate-capability-and-proof.md) |
 | 0094 | [Replay untrusted model proposals](0094-replay-untrusted-model-proposals.md) |
+| 0095 | [Assess explicit scenario observations](0095-assess-explicit-scenario-observations.md) |

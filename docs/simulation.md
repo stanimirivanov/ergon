@@ -330,3 +330,60 @@ provider quality certification, execution and promotion remain separate work.
 `ModelProposalScenarioTest` covers deterministic selection and digest provenance,
 malformed/adversarial output, invented capabilities/references, policy safeguards
 and documentary attachment validity alongside both earlier replay suites.
+
+## Typed scenario assertions
+
+M07-PR6 adds the pure-domain `ScenarioAssertionEvaluator.evaluate(assertions, trace)`
+API. It compares independently authored expectations against typed observations;
+it never calls the planner, proof evaluator, connector or model being tested.
+This is the assertion foundation consumed by PR8 report orchestration and later
+required-suite gates. It does not yet decode the manifest's opaque assertion
+material, execute fixtures or persist reports. See
+[ADR 0095](decisions/0095-assess-explicit-scenario-observations.md).
+
+An assertion catalog has 1–100 ordered entries, unique IDs matching
+`[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}`, and at least one required entry. Every entry
+produces exactly one ordered result with its ID, required flag, status and stable
+explanation code. Empty and all-optional catalogs are invalid. Results retain
+optional failures/errors as well as required ones. `requiredChecksPassed` is true
+only when every required result is `PASS`; it is not a promotion decision.
+
+Available checks are:
+
+| Check | Comparison |
+|:--|:--|
+| Outcome | Exact observed outcome versus authored expectation. |
+| AllowedInvocations | Every observed gateway capability belongs to the authored allowlist; an empty allowlist forbids all calls. |
+| ExactInvocations | Ordered capability sequence, preserving repeated calls and retries. |
+| Policy | Exact policy decision, including required approval/risk or denial. |
+| Grounding | Exact sets of existing fact IDs and documentary bundle ID/digest pairs; reference order is immaterial. |
+| AcceptedProof | Accepted assessment matching the authored condition, successful action receipt, post-run source position, assessed prefix and post-action observation time. |
+| NoUnprovedClosure | A reported VERIFIED outcome requires the same proof checks; an observed non-verified outcome satisfies this conditional safety property. |
+| Escalation | Exact expected reason or observed absence, consistent with whether the observed outcome is ESCALATED. |
+| Unsupported | Explicit unknown catalog entry; always returns UNSUPPORTED. |
+
+Trace fields distinguish `Available(value)`, `Missing`, `Unsupported` and `Error`.
+For example, observed zero calls and observed no escalation are available values;
+missing fields must never be filled with empty lists or false. Required missing
+observations produce `ERROR`, while unsupported observations produce `UNSUPPORTED`.
+An observation error takes precedence over unsupported data when the escalation
+check requires both fields. Conditional closure checks require proof only when
+closure was observed as VERIFIED.
+
+`FAIL` reports an expectation mismatch, non-accepted proof or invalid proof
+provenance. `PASS` means only that this particular property matched its inputs.
+The evaluator does not certify trace authenticity, tenant attribution, full source
+history, latest-evidence selection or escalation authorization. It also does not
+infer policy eligibility from an allowlist or turn a valid citation into evidence.
+Trace production and later report orchestration own those boundaries.
+
+In particular, PR4's `PROOF_ACCEPTED` is not VERIFIED closure, and PR5's consistent
+proposal is not executed capability/proof. These runners do not observe escalation.
+Their unavailable closure/escalation observations must remain unsupported in later
+projections. Never copy the fixture's expected outcome into its observed outcome.
+Future assertion-material encoding must version these semantics explicitly.
+
+`ScenarioAssertionsTest` uses independently constructed and deliberately corrupted
+traces. It covers forbidden invocation, retry multiplicity, wrong policy/capability,
+missing grounding, false closure, stale or wrong proof, contradictory escalation,
+required/optional behavior, missing/error/unsupported states and collection mutation.
