@@ -10,6 +10,10 @@ Tests use checked-in bytes and perform no network access or API invocation.
 | `petstore.json` | The preceding YAML example | Adapted by Ergon: serialize the same YAML data as UTF-8 JSON, indent 2, one trailing LF. OpenAPI semantics are unchanged. No parser dependency is added; regeneration used existing PyYAML 6.0.3 and Python's `json.dumps(..., ensure_ascii=False, indent=2)`. |
 | `review-runbook.md` | Authored for Ergon acceptance | Original training procedure under this repository's license; not copied or attributed to upstream. |
 
+The unmodified upstream YAML retains its original trailing spaces on line 33.
+This is deliberate byte preservation, and `git diff --check` reports that single
+vendor-fixture line. Do not normalize it without updating provenance and hashes.
+
 `SHA256SUMS` pins each source/adaptation. Retain provenance and upstream licenses
 when redistributing these inputs. Upstream commands, links and server addresses
 are inert text; the test does not run them.
