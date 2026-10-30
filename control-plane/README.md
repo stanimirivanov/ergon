@@ -21,7 +21,8 @@ production readiness/planning services using read-only simulation ports. A separ
 capability/proof evaluator exercises approval, invocation and proof rules with
 isolated scripted adapters. Model proposal replay checks scripted suggestions
 against the production plan and pinned references without granting authority.
-Assertion scoring and promotion remain unsupported.
+Domain assertion evaluation and explicit simulated-budget accounting are available
+as composable APIs. Evaluation/report orchestration and promotion remain separate.
 
 ## Purpose
 

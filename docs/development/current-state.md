@@ -2,6 +2,10 @@
 
 ## TL;DR
 
+M07-PR7 adds [deterministic budget accounting](../simulation.md#deterministic-budgets)
+for exact pinned pricing, explicit usage and simulated attempt duration. Missing
+measurements stay unknown; report orchestration and promotion remain separate.
+
 M07-PR6 adds the [pure-domain assertion evaluator](../simulation.md#typed-scenario-assertions)
 with independent expectations and explicit pass/fail/error/unsupported results.
 Fixture execution/report orchestration and promotion remain separate work.
