@@ -2,15 +2,20 @@ package org.ergon.controlplane.evaluation
 
 import org.ergon.controlplane.evaluation.application.CapabilityScenarioDecoder
 import org.ergon.controlplane.evaluation.application.CapabilityScenarioReplay
+import org.ergon.controlplane.evaluation.application.EvaluatePromotionEligibility
 import org.ergon.controlplane.evaluation.application.EvaluationExecution
 import org.ergon.controlplane.evaluation.application.EvaluationProgramDecoder
 import org.ergon.controlplane.evaluation.application.EvaluationReportCodec
 import org.ergon.controlplane.evaluation.application.EvaluationReportRepository
 import org.ergon.controlplane.evaluation.application.EvaluationReportRunner
+import org.ergon.controlplane.evaluation.application.EvaluationSuites
+import org.ergon.controlplane.evaluation.application.GateDocumentCodec
+import org.ergon.controlplane.evaluation.application.GateDocumentRepository
 import org.ergon.controlplane.evaluation.application.ModelProposalDecoder
 import org.ergon.controlplane.evaluation.application.ModelProposalScenario
 import org.ergon.controlplane.evaluation.application.PinnedScenarioDecoder
 import org.ergon.controlplane.evaluation.application.PinnedScenarioReplay
+import org.ergon.controlplane.evaluation.application.PublishedEvaluationContract
 import org.ergon.controlplane.evaluation.application.ScenarioInvocationRunner
 import org.ergon.controlplane.evaluation.application.SimulationFixtureDecoder
 import org.ergon.controlplane.evaluation.application.SimulationFixtureRepository
@@ -20,6 +25,26 @@ import org.springframework.context.annotation.Configuration
 
 @Configuration(proxyBeanMethods = false)
 class SimulationConfiguration {
+    @Bean
+    fun evaluationSuites(
+        documents: GateDocumentRepository,
+        codec: GateDocumentCodec,
+        fixtures: SimulationFixtureRepository,
+        programs: EvaluationProgramDecoder,
+        contracts: PublishedEvaluationContract,
+    ) = EvaluationSuites(documents, codec, fixtures, programs, contracts)
+
+    @Bean
+    @Suppress("LongParameterList") // Composition of existing immutable storage and codecs.
+    fun promotionEligibility(
+        suites: EvaluationSuites,
+        documents: GateDocumentCodec,
+        reports: EvaluationReportRepository,
+        reportCodec: EvaluationReportCodec,
+        fixtures: SimulationFixtureRepository,
+        fixtureCodec: SimulationFixtureDecoder,
+    ) = EvaluatePromotionEligibility(suites, documents, reports, reportCodec, fixtures, fixtureCodec)
+
     @Bean
     fun evaluationReportRunner(
         decoder: EvaluationProgramDecoder,

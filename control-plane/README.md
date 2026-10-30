@@ -24,7 +24,9 @@ against the production plan and pinned references without granting authority.
 Domain assertion evaluation and explicit simulated-budget accounting are available
 as composable APIs. Internal [evaluation execution](../docs/simulation.md#evaluation-execution-and-reports)
 now composes these into immutable reports from registered fixtures. Deploy additive
-V20261030153650 first; retain audit rows on rollback. Promotion remains separate.
+V20261030153650 first; retain audit rows on rollback. M07-PR9 adds
+[required suites and eligibility](../docs/simulation.md#required-suites-and-promotion-eligibility)
+with additive V20261030171119. Promotion recording and runtime enforcement remain separate.
 
 ## Purpose
 

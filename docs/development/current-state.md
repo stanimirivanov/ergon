@@ -2,6 +2,11 @@
 
 ## TL;DR
 
+M07-PR9 adds [required suites and exact promotion eligibility](../simulation.md#required-suites-and-promotion-eligibility).
+Immutable suite/policy revisions bind published contract meaning and complete
+report evidence. Eligibility grants no authority or runtime admission; promotion
+recording and enforcement remain separate.
+
 M07-PR8 adds [registered fixture execution and immutable reports](../simulation.md#evaluation-execution-and-reports).
 Reports derive assertions and budgets from verified pinned materials, preserve
 unsupported observations, and retain exact retry attribution. Promotion remains separate.
