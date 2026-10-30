@@ -230,3 +230,50 @@ There is no duplicated readiness or policy algorithm in the simulation adapter.
 latest-bound evidence, waiting/missing/nonapplicable states, policy denial,
 documentary attachment cutoffs, invalid prefixes and explicit unsupported results.
 Run it through the existing Maven test harness and retain full repository verification.
+
+## Capability and proof replay
+
+M07-PR4 adds the separate evaluator identifier
+`ergon.simulation/capability-proof/v1` (exact UTF-8 bytes, no newline).
+The readiness evaluator retains its original script rejection semantics.
+The new evaluator accepts the same pinned planning materials plus exactly one
+`CONNECTOR` script with schema `ergon.simulation/capability-scenario/v1`.
+See [ADR 0093](decisions/0093-simulate-capability-and-proof.md).
+
+The script contains these required fields (nullable values remain explicit):
+
+- `authority`: nullable object with `actor` UUID, `authority` enum, nullable
+  `caseId`, and `fromSeconds`/`untilSeconds` relative to evaluation time.
+- `decision`: nullable `APPROVED` or `REJECTED`; `requestLifetimeSeconds` (1–86,400)
+  and `consumeAfterSeconds` (0–86,400). Authority offsets are within ±86,400 seconds.
+- `route`: nullable object with `capability` and `connector` names.
+- `calls`: 1–100 ordered objects with `outcome` (`SUCCEEDED`, `FAILED`, `UNKNOWN`)
+  and `elapsedNanoseconds` (0–60 billion, exact microsecond multiples).
+- `invocationCount`: 1–100 explicit invocations. An unknown call may be followed
+  by another call using the same operation key. Terminal replay consumes no
+  additional script entry; missing or unused outcomes fail validation once invoked.
+- `proofCaseVersion` and `proof`: up to 100 curated entries containing `factId`,
+  `observationId`, `fact`, `value`, `observationVersion`, `factVersion`, `observedAt`
+  and `boundAt`. IDs and stream positions are unique; timestamps use exact
+  microseconds. These inputs are not authentic production attestations.
+
+Production approval decision, grant and consumption rules gate the first planned
+step. Missing/rejected/invalid approval or route cannot invoke the gateway.
+Approval-free execution is explicitly unsupported because the existing grant
+path requires an approved decision. This is not production admission, supervision
+or authority discovery. It does not orchestrate successor runs.
+
+The production invocation service runs with fresh in-memory stores and a scripted
+gateway, clock and ticker. Preparation precedes gateway I/O outside a transaction;
+unknown outcomes retain an attempt but no terminal receipt. Explicit retry reuses
+the consumption key; terminal receipt replay makes no additional gateway call.
+Only successful receipts reach the production outcome-proof evaluator. Missing,
+stale or incorrect evidence remains pending, and failed receipts cannot prove an
+outcome. `PROOF_ACCEPTED` is an assessment, not finalization or case closure.
+
+Traces retain the fixture digest, bounded status, operation keys, attempt timing,
+terminal receipt and proof assessment. Replaying the same package yields the same
+trace. There is no live connector, production write, automatic retry policy,
+HTTP execution endpoint, assertion scoring, budget enforcement or promotion.
+`CapabilityScenarioReplayTest` covers these gates alongside the existing planning
+suite; full Maven verification remains required.

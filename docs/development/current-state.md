@@ -2,6 +2,10 @@
 
 ## TL;DR
 
+M07-PR4 adds [capability and proof replay](../simulation.md#capability-and-proof-replay)
+with simulated approval, production invocation rules, deterministic connector
+outcomes and independent proof assessment. It adds no live execution or closure.
+
 M07-PR3 adds [in-process pinned readiness replay](../simulation.md#pinned-readiness-replay)
 through the production planner with isolated read-only inputs. It assesses neither
 execution nor assertions, budgets or promotion.

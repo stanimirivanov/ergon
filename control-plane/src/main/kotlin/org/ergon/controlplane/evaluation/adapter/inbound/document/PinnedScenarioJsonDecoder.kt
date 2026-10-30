@@ -67,9 +67,17 @@ class PinnedScenarioJsonDecoder(
             }.build()
     private val events = CaseEventJsonCodec(strict)
 
-    override fun decode(bytes: ByteArray): PinnedScenarioInput =
+    override fun decode(bytes: ByteArray): PinnedScenarioInput = decodeSupported(bytes, false)
+
+    /** Separate evaluator identity; existing readiness v1 continues to reject all scripts. */
+    fun decodeCapability(bytes: ByteArray): PinnedScenarioInput = decodeSupported(bytes, true)
+
+    private fun decodeSupported(
+        bytes: ByteArray,
+        capability: Boolean,
+    ): PinnedScenarioInput =
         try {
-            decodeValidated(packages.decode(bytes).definition)
+            decodeValidated(packages.decode(bytes).definition, capability)
         } catch (_: JacksonException) {
             throw InvalidSimulationFixture()
         } catch (_: IllegalArgumentException) {
@@ -82,14 +90,20 @@ class PinnedScenarioJsonDecoder(
             throw UnsupportedPinnedScenario(UnsupportedScenarioReason.CONTRACT_VOCABULARY)
         }
 
-    private fun decodeValidated(definition: String): PinnedScenarioInput {
+    private fun decodeValidated(
+        definition: String,
+        capability: Boolean,
+    ): PinnedScenarioInput {
         val document = strict.readValue(definition, SimulationPackageDocument::class.java)
         val fixture = document.manifest.toDomain()
         val material = document.materials.associate { it.reference to it.content }
-        if (material.getValue(fixture.evaluator) != EVALUATOR_MATERIAL) {
+        val evaluator = if (capability) CAPABILITY_EVALUATOR_MATERIAL else EVALUATOR_MATERIAL
+        if (material.getValue(fixture.evaluator) != evaluator) {
             throw UnsupportedPinnedScenario(UnsupportedScenarioReason.EVALUATOR)
         }
-        if (fixture.scripts.isNotEmpty()) throw UnsupportedPinnedScenario(UnsupportedScenarioReason.EXECUTION_SCRIPT)
+        if (!capability && fixture.scripts.isNotEmpty()) {
+            throw UnsupportedPinnedScenario(UnsupportedScenarioReason.EXECUTION_SCRIPT)
+        }
         val contract = contracts.decode(material.getValue(fixture.contract))
         require(contract.key.value == fixture.contract.key)
         require(contract.revision.value.toString() == fixture.contract.revision)
@@ -189,7 +203,7 @@ class PinnedScenarioJsonDecoder(
         )
     }
 
-    private fun <T> read(
+    internal fun <T> read(
         content: String,
         type: Class<T>,
         schema: String,
@@ -209,6 +223,7 @@ class PinnedScenarioJsonDecoder(
     }
 
     companion object {
+        const val CAPABILITY_EVALUATOR_MATERIAL = "ergon.simulation/capability-proof/v1"
         const val EVALUATOR_MATERIAL = "ergon.simulation/readiness-policy/v1"
         const val PREFIX_SCHEMA = "ergon.simulation/case-prefix/v1"
         const val POLICY_SCHEMA = "ergon.simulation/policy/v1"

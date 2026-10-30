@@ -156,3 +156,4 @@ benchmarks rather than duplicating them.
 | 0090 | [Pin simulation fixture identity](0090-pin-simulation-fixture-identity.md) |
 | 0091 | [Register curated simulation fixtures](0091-register-curated-simulation-fixtures.md) |
 | 0092 | [Replay pinned planning inputs](0092-replay-pinned-planning-inputs.md) |
+| 0093 | [Simulate capability and proof](0093-simulate-capability-and-proof.md) |
