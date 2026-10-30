@@ -391,8 +391,7 @@ required/optional behavior, missing/error/unsupported states and collection muta
 ## Deterministic budgets
 
 M07-PR7 adds `EvaluationBudgetEvaluator` and `ScenarioBudgetAccounting` for explicit
-usage and pinned pricing. These APIs neither execute fixtures nor decode the
-manifest's opaque budget material; PR8 owns verified material decoding and report
+usage and pinned pricing. PR8 composes these APIs with verified budget-material decoding and report
 orchestration. See [ADR 0096](decisions/0096-account-for-explicit-simulation-usage.md).
 
 `EvaluationBudget` names one uppercase three-letter currency identifier and optional
@@ -447,3 +446,114 @@ The domain and application tests cover inclusive equality, independent limits,
 unknown versus zero, currency/revision/digest mismatches, exact token rates,
 product/sum overflow, unsuccessful attempts, retry accounting, receipt replay,
 missing model measurements, exact identity binding and caller mutation.
+
+## Evaluation execution and reports
+
+M07-PR8 composes the existing evaluators, assertions and accounting through a
+bounded synchronous internal API. See [ADR 0097](decisions/0097-record-reproducible-evaluation-reports.md).
+This is the trusted machine boundary used for registration, not browser access or
+promotion authority. Deploy V20261030153650 first; allow for the composite fixture
+index's scan/lock window. Rollback retains additive schema and immutable reports.
+
+POST `/internal/v1/tenants/{tenantId}/simulation-fixtures/{key}/revisions/{revision}/evaluations/{id}`
+requires a registered `X-Ergon-Actor-Id` and an empty body. It runs the stored package
+through its exact supported evaluator. 201 creates the report; 200 recovers an exact
+retry with the original actor and database recording time. The Location points to
+GET `/internal/v1/tenants/{tenantId}/simulation-evaluations/{id}`. Both responses are
+no-store. Tenant/command IDs are unique across fixtures. Changing the fixture or
+computed report for a command returns 409; unavailable tenant fixture/actor/report
+returns 404; malformed or unsupported material returns 422; size excess returns 413.
+Unexpected execution/storage errors remain errors. There is no partial report or
+queued status: only complete reports are inserted, after offline execution and in
+a short transaction. Concurrent exact commands converge on the same record.
+
+The response envelope contains `command`, `fixtureDigest`, `reportDigest`, canonical
+JSON string `definition`, `passed`, `submittedBy` and `recordedAt`. Report schema
+`ergon.simulation/report/v1` records the fixture digest, evaluator/assertion/budget
+references, normalized observed fields, ordered checks and budget dimensions.
+Canonicalization sorts object keys recursively, retains array order and emits
+compact UTF-8 JSON. SHA-256 covers precisely these bytes, excluding command, actor
+and recording time. The report and registered fixture together retain exact input
+provenance; raw scripted model text is not duplicated into the report. Different
+commands for identical inputs produce identical report bytes and digest. Report
+reads validate canonical form, hash and the derived pass flag.
+
+The first check, reserved ID `fixture-outcome`, is always required and compares the
+observed outcome with the independent manifest expectation. Authored required checks
+and every configured budget must also pass. A fixture expecting FAILED can pass when
+failure is observed; a fixture expecting VERIFIED cannot pass merely because proof
+was accepted. Existing capability replay stops at proof assessment, so closure and
+escalation remain UNSUPPORTED. Ready planning and model suggestion replay likewise
+do not manufacture terminal outcomes. Optional failed/unsupported checks remain
+visible without failing the report. Completed failing reports are persisted normally.
+
+### Executable assertion material
+
+Registration still permits opaque assertion material. Execution requires this strict
+schema, embedded as the assertion material's content and pinned by its exact hash:
+
+```json
+{
+  "schemaVersion": "ergon.simulation/assertions/v1",
+  "checks": [
+    {"id": "readiness", "required": true, "target": "scenario",
+     "kind": "OUTCOME", "expected": "NOT_READY"}
+  ]
+}
+```
+
+Supply 1–99 unique checks, including at least one required check. `target` is
+`scenario` or the exact model script key; model keys cannot be `scenario`. Unknown
+targets produce ERROR, never a passing empty trace. Unsupported check kinds produce
+UNSUPPORTED. Expected values are independent authored inputs:
+
+| Kind | Expected JSON |
+| --- | --- |
+| OUTCOME | Simulation expected-outcome string |
+| ALLOWED_INVOCATIONS / EXACT_INVOCATIONS | Capability-name array |
+| POLICY | `{"decision":"DENIED","reason":"…"}` or `{"decision":"REQUIREMENTS","risk":"…","approval":"…"}` |
+| GROUNDING | `{"factIds":["UUID"],"documentary":[{"bundleId":"UUID","sha256":"digest"}]}` |
+| ACCEPTED_PROOF / NO_UNPROVED_CLOSURE | `{"fact":"fact-type","value":"expected-value"}` |
+| ESCALATION | Escalation-reason string or null |
+
+Enums and fact values use the existing domain vocabulary. Unknown fields, duplicate
+JSON fields, scalar coercion, trailing content and malformed expected shapes are
+rejected. Changing immutable material requires a new fixture revision and hashes.
+
+### Executable budget and pricing material
+
+A manifest budget reference requires `ergon.simulation/budget/v1` with fields
+`currency`, `maxCostNanos`, `maxLatencyNanoseconds`, `pricing`, `connectorPricing`,
+`modelPricing` and `modelUsage`. Supply nullable fields explicitly and configure at
+least one limit. `pricing` contains up to 100 `{reference, content}` materials;
+references use the existing `{key, revision, sha256}` shape. Each content string is
+strict `ergon.simulation/pricing/v1` JSON with `currency` and `rates`, for example:
+
+```json
+{"schemaVersion":"ergon.simulation/pricing/v1","currency":"USD","rates":{"CALL":10}}
+```
+
+The nested content hash must match its reference. The budget material hash therefore
+pins all nested pricing. Connector execution requires `connectorPricing`; model
+execution requires `modelPricing`. These are exact artifact references. Missing
+referenced prices/rates remain UNKNOWN, not free. Planning supplies no measured
+usage. No budget material means no budget requirement.
+
+Model usage contains up to 100 entries with `script`, `configuration`,
+`responseSha256`, `pricing`, `inputTokens`, `outputTokens`, `latencyNanoseconds`.
+Artifact references and response hashes must match the package exactly; duplicates,
+extra scripts and negative quantities are rejected. Unknown quantities are null.
+The executor supplies the current fixture digest, avoiding a circular hash inside
+the fixture. Missing usage entries remain unknown; malformed responses are still
+charged for supplied usage. Only model fixtures may supply model usage.
+
+Reports retain each dimension's limit, measurement, status and reason. These are
+simulated accounting claims under pinned prices, not real billing or wall-clock
+performance. A configured UNKNOWN/ERROR/FAIL budget makes the report fail. Reports
+are bounded to one MiB; existing package, script and invocation bounds still apply.
+No new dependency, background worker, runtime mutation or promotion is introduced.
+
+`EvaluationExecutionTest` and `EvaluationReplayReportTest` exercise canonical retry,
+mandatory outcomes, actual capability/model replay, strict input rejection and HTTP
+behavior. `EvaluationReportIntegrationTest` requires Docker and covers upgrade,
+concurrency, tenant isolation, immutable storage and the full migration chain.

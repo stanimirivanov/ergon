@@ -22,7 +22,9 @@ capability/proof evaluator exercises approval, invocation and proof rules with
 isolated scripted adapters. Model proposal replay checks scripted suggestions
 against the production plan and pinned references without granting authority.
 Domain assertion evaluation and explicit simulated-budget accounting are available
-as composable APIs. Evaluation/report orchestration and promotion remain separate.
+as composable APIs. Internal [evaluation execution](../docs/simulation.md#evaluation-execution-and-reports)
+now composes these into immutable reports from registered fixtures. Deploy additive
+V20261030153650 first; retain audit rows on rollback. Promotion remains separate.
 
 ## Purpose
 

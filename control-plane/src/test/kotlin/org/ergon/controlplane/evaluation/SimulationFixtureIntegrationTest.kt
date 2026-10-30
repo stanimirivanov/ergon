@@ -152,7 +152,7 @@ class SimulationFixtureIntegrationTest {
                 .current()
                 .version
                 .toString(),
-        ).isEqualTo("20261030130000")
+        ).isEqualTo("20261030153650")
     }
 
     private fun actor(
