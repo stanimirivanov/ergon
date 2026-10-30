@@ -17,8 +17,9 @@ stores complete immutable curated packages with original tenant actor attributio
 It does not execute fixtures or expose a browser authorization boundary.
 
 The in-process pinned scenario replay service now evaluates those packages through
-production readiness/planning services using read-only simulation ports. Execution,
-assertion scoring and promotion remain unsupported.
+production readiness/planning services using read-only simulation ports. A separate
+capability/proof evaluator exercises approval, invocation and proof rules with
+isolated scripted adapters. Assertion scoring and promotion remain unsupported.
 
 ## Purpose
 
