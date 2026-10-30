@@ -14,6 +14,7 @@ import org.ergon.contracts.domain.ResolutionStep
 import org.ergon.contracts.domain.ResolutionStepId
 import org.ergon.contracts.domain.StepRisk
 import org.ergon.controlplane.cases.application.TransactionRunner
+import org.ergon.controlplane.resolution.application.RunPromotionAdmission
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ResolutionPolicyRevision
 import org.ergon.resolution.domain.ResolutionReadiness
@@ -52,11 +53,44 @@ class ResolutionRunServiceTest {
                 repository = NeverCalledRunRepository,
                 identities = ResolutionRunIdentityGenerator { error("identity must not be allocated") },
                 transactionRunner = ImmediateTransactionRunner,
+                promotionAdmission = RunPromotionAdmission { _, _ -> },
             )
 
         assertThatThrownBy { service.start(tenantId, caseId, expectedCaseVersion = 4) }
             .isInstanceOf(ResolutionRunPolicyDeniedException::class.java)
             .hasMessageContaining("CAPABILITY_NOT_ALLOWED")
+    }
+
+    @Test
+    fun `promotion refusal prevents initial identity allocation and persistence`() {
+        val definition = contract()
+        val plan =
+            CaseResolutionPlan(
+                CaseReadiness.Evaluated(
+                    UUID.randomUUID(),
+                    4,
+                    definition,
+                    ResolutionReadiness.Ready(definition.applicability, LOCKED),
+                ),
+                POLICY_REVISION,
+                PlannedResolutionStep(
+                    definition.steps.single(),
+                    StepPolicyDecision.Requirements(StepRisk.HIGH, ApprovalRequirement.REQUESTER),
+                ),
+            )
+        val service =
+            ResolutionRunService(
+                ResolutionPlanner { _, _ -> plan },
+                NeverCalledRunRepository,
+                ResolutionRunIdentityGenerator { error("identity must not be allocated") },
+                ImmediateTransactionRunner,
+                RunPromotionAdmission { _, pinned ->
+                    check(pinned == ResolutionContractIdentity(definition.key, definition.revision))
+                    throw ResolutionRunPromotionRequiredException()
+                },
+            )
+        assertThatThrownBy { service.start(UUID.randomUUID(), plan.readiness.caseId, 4) }
+            .isInstanceOf(ResolutionRunPromotionRequiredException::class.java)
     }
 
     private fun contract(): ResolutionContract =

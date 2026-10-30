@@ -91,6 +91,7 @@ class ResolutionRunService(
     private val repository: ResolutionRunRepository,
     private val identities: ResolutionRunIdentityGenerator,
     private val transactionRunner: TransactionRunner,
+    private val promotionAdmission: RunPromotionAdmission,
 ) {
     /**
      * Re-evaluates the plan and durably pins its first allowed step.
@@ -113,6 +114,7 @@ class ResolutionRunService(
         return transactionRunner.required {
             val plan = planningService.plan(tenantId, caseId)
             val runPlan = plan.toRunPlan(expectedCaseVersion)
+            promotionAdmission.requireCurrent(tenantId, runPlan.contract)
             val run =
                 ResolutionRunStart.create(
                     id = identities.next(),

@@ -15,6 +15,7 @@ import org.ergon.controlplane.resolution.application.ResolutionRunIdentityGenera
 import org.ergon.controlplane.resolution.application.ResolutionRunNotReadyException
 import org.ergon.controlplane.resolution.application.ResolutionRunRepository
 import org.ergon.controlplane.resolution.application.ResolutionRunService
+import org.ergon.controlplane.resolution.application.RunPromotionAdmission
 import org.ergon.resolution.domain.CapabilityPolicyRule
 import org.ergon.resolution.domain.ResolutionEvidence
 import org.ergon.resolution.domain.ResolutionPolicy
@@ -77,7 +78,14 @@ class DocumentaryContractReadinessTest {
             object : TransactionRunner {
                 override fun <T : Any> required(block: () -> T): T = block()
             }
-        val service = ResolutionRunService(ResolutionPlanner { _, _ -> plan }, repository, identities, transactions)
+        val service =
+            ResolutionRunService(
+                ResolutionPlanner { _, _ -> plan },
+                repository,
+                identities,
+                transactions,
+                RunPromotionAdmission { _, _ -> },
+            )
         assertThatThrownBy { service.start(tenant, case, 3) }
             .isInstanceOfSatisfying(ResolutionRunNotReadyException::class.java) {
                 assertThat(it.readiness).isEqualTo("WAITING_FOR_DOCUMENTARY_EVIDENCE")

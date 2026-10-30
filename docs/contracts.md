@@ -250,4 +250,5 @@ ineligible or malformed commands return 422; oversized bodies return 413. Respon
 use `Cache-Control: no-store`. GETs retrieve recorded facts, not current authority.
 
 Apply V20261030180229 before these writers. Roll back application code with command
-writers disabled and preserve immutable history. Runtime enforcement remains PR11.
+writers disabled and preserve immutable history. [PR11 enforcement](operations/contract-promotion.md) requires current-binding promotion
+for fresh starts and successors in the configured tenant allowlist.
