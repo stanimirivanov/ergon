@@ -23,7 +23,13 @@ import org.ergon.controlplane.evaluation.application.CapabilityScenarioStatus
 import org.ergon.controlplane.evaluation.application.CapabilityScenarioTrace
 import org.ergon.controlplane.evaluation.application.InvalidSimulationFixture
 import org.ergon.controlplane.evaluation.application.ScenarioAuthority
+import org.ergon.controlplane.evaluation.application.ScenarioBudgetAccounting
 import org.ergon.controlplane.resolution.application.CapabilityInvocationCallOutcome
+import org.ergon.evaluation.domain.BudgetMeasurement
+import org.ergon.evaluation.domain.BudgetPricing
+import org.ergon.evaluation.domain.BudgetUnit
+import org.ergon.evaluation.domain.EvaluationBudget
+import org.ergon.evaluation.domain.EvaluationBudgetEvaluator
 import org.ergon.evaluation.domain.SimulationArtifact
 import org.ergon.evaluation.domain.SimulationScript
 import org.ergon.evaluation.domain.SimulationScriptKind
@@ -158,6 +164,15 @@ class CapabilityScenarioReplayTest {
         val result = trace(scenario.copy(invocationCount = 3))
         assertThat(result.idempotencyKeys).hasSize(1)
         assertThat(result.attempts).hasSize(1)
+        val price = SimulationArtifact("price", "1", "a".repeat(64))
+        val accounting =
+            EvaluationBudgetEvaluator.evaluate(
+                EvaluationBudget("USD", 5, 1_000_000),
+                ScenarioBudgetAccounting.capability(result, price),
+                listOf(BudgetPricing(price, "USD", mapOf(BudgetUnit.CALL to 5L))),
+            )
+        assertThat(accounting.cost.measurement).isEqualTo(BudgetMeasurement.Known(5))
+        assertThat(accounting.configuredBudgetsPassed).isTrue()
         val failed =
             trace(
                 scenario.copy(

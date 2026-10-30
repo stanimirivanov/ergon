@@ -387,3 +387,63 @@ Future assertion-material encoding must version these semantics explicitly.
 traces. It covers forbidden invocation, retry multiplicity, wrong policy/capability,
 missing grounding, false closure, stale or wrong proof, contradictory escalation,
 required/optional behavior, missing/error/unsupported states and collection mutation.
+
+## Deterministic budgets
+
+M07-PR7 adds `EvaluationBudgetEvaluator` and `ScenarioBudgetAccounting` for explicit
+usage and pinned pricing. These APIs neither execute fixtures nor decode the
+manifest's opaque budget material; PR8 owns verified material decoding and report
+orchestration. See [ADR 0096](decisions/0096-account-for-explicit-simulation-usage.md).
+
+`EvaluationBudget` names one uppercase three-letter currency identifier and optional
+inclusive `maxCostNanos` and `maxLatencyNanoseconds` limits. Currency nanos are exact
+billionths of that currency, not floating-point values or minor currency units.
+Pricing supplies nonnegative integer currency nanos per `CALL`, `INPUT_TOKEN` or
+`OUTPUT_TOKEN`, keyed by an exact `SimulationArtifact` including revision and digest.
+There is no latest-pricing lookup, implicit free rate, exchange conversion or rounding.
+A price finer than one currency nano per unit cannot be represented by this API.
+
+Each `BudgetAttempt` has a unique stable ID, exact pricing reference, explicit
+nonnegative unit counts and simulated duration. A nullable count or duration is
+unknown. Collections are immutable and bounded to 200 attempts/pricing entries,
+allowing the existing 100 connector and 100 model limits. Combine projections by
+concatenating their attempt lists into one `ScenarioBudgetUsage`; duplicate IDs
+are rejected. An empty collection means observed zero attempts; absent usage is
+represented by null and never becomes zero.
+
+Connector accounting uses the trace's completed gateway attempts, including FAILED
+and UNKNOWN outcomes. Each consumes one CALL, even when retries reuse an idempotency
+key. Attempt/key count mismatch is rejected. A terminal receipt is not another call;
+the existing three-invocation terminal-replay test proves only one charge remains.
+Model accounting binds supplied token/duration measurements to the fixture digest,
+configuration artifact, script artifact and exact response digest. Every scripted
+response counts, including malformed or rejected output. Missing measurements retain
+unknown token counts and duration; token counts are never estimated from response
+text. Extra, duplicate or misbound measurement entries are rejected.
+
+Cost is the exact sum of count × per-unit rate. Simulated latency is the sum of
+attempt durations; it excludes evaluator execution time, database work, preparation,
+backoff and other unmeasured overhead. It is neither wall-clock elapsed time nor a
+live-provider performance claim. Failed calls and retries retain their duration.
+
+Each dimension exposes its limit, measurement and status:
+
+- `PASS` / `FAIL`: a known total is at/below or above the configured limit.
+- `UNKNOWN`: configured dimension lacks usage, duration or exact pricing/rate.
+- `ERROR`: configured cost has a currency mismatch, or the total exceeds signed
+  64-bit capacity. Intermediate arithmetic is exact; it cannot wrap or round.
+- `NOT_CONFIGURED`: no limit, with the measurement still visible (including errors).
+
+No partial total is reported as complete when any needed input is unknown.
+A known currency mismatch takes precedence over other cost failures; a known
+subtotal overflow takes precedence over missing inputs. Otherwise the first missing
+cost component in attempt order and fixed CALL/INPUT_TOKEN/OUTPUT_TOKEN order
+supplies the explanation. Cost and duration
+remain independent, so known duration cannot hide unknown cost.
+`configuredBudgetsPassed` requires at least one configured dimension and PASS for
+all configured dimensions. It does not assess assertions or authorize promotion.
+
+The domain and application tests cover inclusive equality, independent limits,
+unknown versus zero, currency/revision/digest mismatches, exact token rates,
+product/sum overflow, unsuccessful attempts, retry accounting, receipt replay,
+missing model measurements, exact identity binding and caller mutation.
