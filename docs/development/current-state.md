@@ -2,6 +2,14 @@
 
 ## TL;DR
 
+M06-PR1–PR13 implement bounded documentary compilation, human review, typed
+contradiction adjudication, immutable evidence bundles and case-pinned v1alpha2
+contract consumption. PR14 supplies real licensed fixtures, composed acceptance
+and a coordinated simulated UI guide. The [M06 acceptance record](../roadmap/m06-acceptance.md)
+keeps Docker-dependent and live-deployment verification gaps explicit; see the
+[operations guide](../operations/evidence-compiler.md). This does not claim a live
+model, general semantic inference, production readiness or M07 promotion.
+
 M05's 28 approved implementation coordinates are delivered through 42 merged PRs
 (22 Ergon, 20 ergon-ui), ending with UI PR #233. The
 [acceptance record](../roadmap/m05-acceptance.md) maps criteria to source/tests,

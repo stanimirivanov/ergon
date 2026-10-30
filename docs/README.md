@@ -61,7 +61,11 @@ links from those documents only when the task crosses another boundary.
 - [Contributor workflow](../CONTRIBUTING.md) — issue, pull request, verification,
   and completion-report requirements.
 
+- [Evidence compiler operations](operations/evidence-compiler.md) — exact source-to-contract sequence, trust boundaries, recovery and verification.
+
 ## Planning and decisions
+
+- [M06 bounded acceptance](roadmap/m06-acceptance.md) — real-source provenance, composed acceptance and separate simulated UI/live-deployment boundaries.
 
 - [M05 acceptance record](roadmap/m05-acceptance.md) — merged delivery and final
   CI evidence, with the unverified live two-app deployment boundary kept explicit.
