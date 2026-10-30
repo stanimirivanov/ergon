@@ -2,10 +2,15 @@
 
 ## TL;DR
 
+M07-PR10 adds [authorized atomic contract promotion](../contracts.md#explicit-contract-promotion),
+with dedicated CONTRACT_PROMOTER attestations and confirmed versioned required-suite
+bindings. Receipts preserve exact evidence and attribution. Runtime enforcement
+remains PR11.
+
 M07-PR9 adds [required suites and exact promotion eligibility](../simulation.md#required-suites-and-promotion-eligibility).
 Immutable suite/policy revisions bind published contract meaning and complete
 report evidence. Eligibility grants no authority or runtime admission; promotion
-recording and enforcement remain separate.
+recording is supplied by PR10; runtime enforcement remains separate.
 
 M07-PR8 adds [registered fixture execution and immutable reports](../simulation.md#evaluation-execution-and-reports).
 Reports derive assertions and budgets from verified pinned materials, preserve
