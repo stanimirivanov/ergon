@@ -2,6 +2,10 @@
 
 ## TL;DR
 
+M07-PR6 adds the [pure-domain assertion evaluator](../simulation.md#typed-scenario-assertions)
+with independent expectations and explicit pass/fail/error/unsupported results.
+Fixture execution/report orchestration and promotion remain separate work.
+
 M07-PR5 adds [scripted model proposal replay](../simulation.md#scripted-model-proposals).
 Pinned responses are untrusted suggestions checked against production planning
 and existing evidence; they cannot create authority, facts or proof.

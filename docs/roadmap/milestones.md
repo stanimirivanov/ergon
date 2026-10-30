@@ -283,8 +283,9 @@ M07-PR2 adds bounded internal package registration and retrieval. M07-PR3 replay
 pinned readiness and first-step policy through the existing planner. M07-PR4 adds
 bounded approval, capability invocation and proof replay with isolated scripted
 adapters. M07-PR5 checks pinned scripted model suggestions as untrusted inputs
-against runtime planning and evidence. Assertions, reports and promotion remain
-later slices.
+against runtime planning and evidence. M07-PR6 adds typed domain assertions over
+explicit observations, including missing/unsupported handling. Execution/report
+orchestration and promotion remain later slices.
 
 **Message:** Replay resolution contracts against deterministic scenarios and gate their promotion.
 
