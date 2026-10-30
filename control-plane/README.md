@@ -611,3 +611,54 @@ on the group revision, with database-time authority rechecks after lock waits.
 Deploy the additive migration before the API; rollback retains audit records.
 No UI, bundles, new dependency or execution authority is introduced.
 See [ADR 0086](../docs/decisions/0086-adjudicate-bounded-documentary-contradictions.md).
+
+### Review-qualified evidence bundles
+
+Deploy V20261029220000 before these workbench OIDC session endpoints. Current
+tenant-wide resolver authority gates every call, including retries/history; POST
+requires CSRF. Responses use no-store. Requester sessions are denied.
+
+POST `/bff/v1/tenants/{tenantId}/evidence-bundles/{id}` takes strict JSON
+(maximum 32 KiB) with required claims, procedures and claimSets arrays. Select at
+most 20 proposals total. Claims/procedures are canonical ascending UUID lists.
+Each claimSets entry contains anchorId, revision, candidateIds and optional
+adjudicationId; order entries by anchor UUID. Use the exact complete candidate
+array/revision from contradiction assessment, including a singleton. Each selected
+claim must belong to exactly one supplied assessment. Procedure-only publication
+uses empty claims and claimSets arrays.
+
+All selected proposals must be accepted and their original citations verifiable.
+All assessed claims must have known validity. Compatible or disjoint known sets
+need no adjudication. Unknown validity or undetermined findings block publication,
+even for a singleton or with human preference. A known conflicting set requires
+its exact current PREFER_CLAIM adjudication, with only that preferred claim selected.
+DEFER, stale inputs, omitted alternatives and conflicting selections cannot qualify.
+Unknown accepted legacy alternatives can therefore block a key until future
+correction/supersession semantics exist; preference cannot erase them.
+
+201 creates the immutable publication; 200 recovers exact same-actor intent with
+original proof/time/cutoff even after later acceptance. Changed/stale intent returns
+409, invalid or unqualified input 422, oversized input 413 and unavailable private
+selections 404. Reassess explicitly and choose a new bundle identity after changed
+evidence; never change an uncertain original command. Infrastructure errors remain
+errors, not missing evidence.
+
+GET at the same URI returns publisher/proof, database recording time, SHA-256 and
+parsed manifest. GET with `/canonical` appended returns exact canonical UTF-8 JSON
+with its digest as ETag. The digest covers the canonical manifest, not the envelope.
+Both reads reauthorize current access without requalifying historical content.
+
+Schema ergon.dev/evidence-bundle/v1 records the assessment cutoff, selected
+proposal flags, complete assessed alternatives, exact accepted review and
+source/extraction/compiler references, full candidate/finding arrays and conflict
+decision IDs. Source references include procedure-operation sources; immutable
+proposal definitions retain their nested operation attribution. No implicit latest
+lookup, contract mutation, promotion or execution authority follows publication.
+Canonical payloads are bounded to one MiB, with at most 420 proposal/source refs.
+
+Publication identity and deterministically ordered claim-key locks serialize
+first publication/replay and acceptance. Authority is rechecked after lock waits;
+SQL repeats qualification and membership checks. Tenant-safe relational ledgers
+commit atomically and cannot be amended later. Application rollback preserves
+immutable manifests and audit links. No worker or new dependency is introduced.
+See [ADR 0087](../docs/decisions/0087-publish-review-qualified-evidence-bundles.md).

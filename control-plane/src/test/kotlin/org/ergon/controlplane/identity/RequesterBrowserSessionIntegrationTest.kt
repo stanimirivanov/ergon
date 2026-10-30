@@ -133,6 +133,8 @@ class RequesterBrowserSessionIntegrationTest(
                 "/bff/v1/tenants/$tenantId/human-follow-ups/${UUID.randomUUID()}/information-requests",
                 "/internal/v1/tenants/$tenantId/human-actors",
                 "/bff/v1/tenants/$tenantId/evidence-proposals/pending",
+                "/bff/v1/tenants/$tenantId/evidence-bundles/${UUID.randomUUID()}",
+                "/bff/v1/tenants/$tenantId/evidence-bundles/${UUID.randomUUID()}/canonical",
                 "/bff/v1/tenants/$tenantId/documentary-contradictions/claims/${UUID.randomUUID()}",
                 "/bff/v1/tenants/$tenantId/documentary-contradictions/adjudications/${UUID.randomUUID()}",
                 "/bff/v1/tenants/$tenantId/evidence-proposals/CLAIM/${UUID.randomUUID()}/review",
