@@ -41,7 +41,7 @@ class DocumentaryContractReadinessTest {
             )
         Mockito.`when`(readiness.evaluate(tenant, case)).thenReturn(evaluated)
         val response = CaseResolutionReadinessController(readiness).evaluate(tenant, case)
-        assertThat(response.status).isEqualTo(ResolutionReadinessStatus.DOCUMENTARY_EVIDENCE_UNSUPPORTED)
+        assertThat(response.status).isEqualTo(ResolutionReadinessStatus.WAITING_FOR_DOCUMENTARY_EVIDENCE)
         assertThat(response.applicability).isNull()
         val step = contract.steps.single()
         val policy =
@@ -80,7 +80,7 @@ class DocumentaryContractReadinessTest {
         val service = ResolutionRunService(ResolutionPlanner { _, _ -> plan }, repository, identities, transactions)
         assertThatThrownBy { service.start(tenant, case, 3) }
             .isInstanceOfSatisfying(ResolutionRunNotReadyException::class.java) {
-                assertThat(it.readiness).isEqualTo("DOCUMENTARY_EVIDENCE_UNSUPPORTED")
+                assertThat(it.readiness).isEqualTo("WAITING_FOR_DOCUMENTARY_EVIDENCE")
             }
         Mockito.verifyNoInteractions(repository, identities)
     }

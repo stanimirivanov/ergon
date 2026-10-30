@@ -26,8 +26,9 @@ internal class EvidenceBundleDatabase(
     postgres: PostgreSQLContainer,
     acceptProcedure: Boolean = true,
     migrationTarget: String = "latest",
+    broadValidity: Boolean = false,
 ) {
-    val db = ContradictionDatabase(postgres, migrationTarget)
+    val db = ContradictionDatabase(postgres, migrationTarget, broadValidity)
     val f = db.f
     val transactions = TransactionTemplate(DataSourceTransactionManager(db.data))
     val codec = EvidenceBundleCodec()

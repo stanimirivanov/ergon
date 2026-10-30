@@ -9,6 +9,7 @@ import org.ergon.contracts.domain.ApprovalRequirement
 import org.ergon.contracts.domain.CapabilityName
 import org.ergon.contracts.domain.ContractFactType
 import org.ergon.contracts.domain.ContractFactValue
+import org.ergon.contracts.domain.DocumentaryBundleRequirement
 import org.ergon.contracts.domain.FactCondition
 import org.ergon.contracts.domain.ResolutionContract
 import org.ergon.contracts.domain.ResolutionContractIdentity
@@ -20,6 +21,10 @@ import org.ergon.contracts.domain.StepRisk
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.contracts.application.StoredResolutionContractRevision
 import org.ergon.identity.domain.TenantId
+import org.ergon.resolution.domain.DocumentaryBundleMaterial
+import org.ergon.resolution.domain.DocumentaryBundlePin
+import org.ergon.resolution.domain.DocumentaryRequirementStatus
+import org.ergon.resolution.domain.PinnedDocumentaryBundle
 import org.ergon.resolution.domain.ResolutionReadiness
 import org.ergon.resolution.domain.ResolutionRunId
 import org.junit.jupiter.api.Test
@@ -48,14 +53,15 @@ class RunPinnedReadinessServiceTest {
                 }
             }
         }
-    private val service = RunPinnedReadinessService(contracts, reader, transactions)
+    private val documentary = Mockito.mock(PinnedDocumentaryEvidenceReader::class.java)
+    private val service = RunPinnedReadinessService(contracts, reader, transactions, documentary)
     private val property = ContractFactType.of("account.access.state")
 
     @Test
     fun `denied access prevents private evidence lookup and retires the transaction`() {
         Mockito.`when`(contracts.get(tenant, run, actor)).thenThrow(AssignedRunNotFoundException())
         assertThatThrownBy { service.get(tenant, run, actor) }.isInstanceOf(AssignedRunNotFoundException::class.java)
-        Mockito.verifyNoInteractions(reader)
+        Mockito.verifyNoInteractions(reader, documentary)
         assertThat(active).isFalse()
     }
 
@@ -118,6 +124,31 @@ class RunPinnedReadinessServiceTest {
         assertThatThrownBy { service.get(tenant, run, actor) }.hasMessage("storage")
         assertThatThrownBy { PinnedReadinessEvidence(case.value, 2, fact(AccountAccessState.LOCKED)) }
             .isInstanceOf(IllegalStateException::class.java)
+    }
+
+    @Test
+    fun `documentary reads use the exact run prefix and report absent post prefix attachments`() {
+        val reference = DocumentaryBundleRequirement(UUID.randomUUID(), "a".repeat(64))
+        val base = pin()
+        val contract = base.revision.contract.requiringDocumentaryEvidence(listOf(reference))
+        val selected = base.copy(revision = StoredResolutionContractRevision(contract, at))
+        Mockito.`when`(contracts.get(tenant, run, actor)).thenReturn(selected)
+        Mockito
+            .`when`(reader.findLatest(TenantId(tenant), case, 3))
+            .thenReturn(PinnedReadinessEvidence(case.value, 3, fact(AccountAccessState.LOCKED)))
+        Mockito.`when`(documentary.find(TenantId(tenant), case, 3)).thenReturn(emptyList())
+        val absent = service.get(tenant, run, actor)
+        assertThat(absent.documentaryEvidence.single().status).isEqualTo(DocumentaryRequirementStatus.MISSING)
+        val bundle =
+            PinnedDocumentaryBundle(
+                DocumentaryBundlePin(reference, 2, at),
+                DocumentaryBundleMaterial(reference, at, emptyList()),
+            )
+        Mockito.`when`(documentary.find(TenantId(tenant), case, 3)).thenReturn(listOf(bundle))
+        val ready = service.get(tenant, run, actor)
+        assertThat(ready.readiness).isInstanceOf(ResolutionReadiness.Ready::class.java)
+        assertThat(ready.documentaryEvidence.single().status).isEqualTo(DocumentaryRequirementStatus.SATISFIED)
+        Mockito.verify(documentary, Mockito.times(2)).find(TenantId(tenant), case, 3)
     }
 
     private fun assess(

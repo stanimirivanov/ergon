@@ -2,6 +2,7 @@ package org.ergon.controlplane.cases
 
 import org.ergon.controlplane.cases.application.CaseAccountAccessFactRepository
 import org.ergon.controlplane.cases.application.CaseCommandService
+import org.ergon.controlplane.cases.application.CaseDocumentaryBundleService
 import org.ergon.controlplane.cases.application.CaseEventCommitter
 import org.ergon.controlplane.cases.application.CaseEventStore
 import org.ergon.controlplane.cases.application.CaseProjectionWriter
@@ -14,6 +15,7 @@ import org.ergon.controlplane.cases.application.RequesterCaseProgressReader
 import org.ergon.controlplane.cases.application.RequesterCaseProgressService
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.controlplane.contracts.application.ResolutionContractRevisionRepository
+import org.ergon.controlplane.evidence.application.EvidenceBundleRepository
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
@@ -22,6 +24,14 @@ import java.util.UUID
 /** Explicitly wires the framework-free case application services to their adapters. */
 @Configuration(proxyBeanMethods = false)
 class CaseConfiguration {
+    @Bean
+    fun caseDocumentaryBundles(
+        events: CaseEventStore,
+        bundles: EvidenceBundleRepository,
+        committer: CaseEventCommitter,
+        clock: Clock,
+    ) = CaseDocumentaryBundleService(events, bundles, committer, clock)
+
     @Bean
     fun requesterCaseIntake(
         repository: RequesterCaseIntakeRepository,

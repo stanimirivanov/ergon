@@ -63,7 +63,7 @@ class ResolutionReadinessEvaluatorTest {
                 ).requiringDocumentaryEvidence(listOf(DocumentaryBundleRequirement(UUID.randomUUID(), "a".repeat(64))))
         for (snapshot in listOf(ResolutionEvidence.of(emptyMap()), evidence(ContractFactValue.of("LOCKED")))) {
             assertThat(ResolutionReadinessEvaluator.evaluate(documentary, snapshot))
-                .isEqualTo(ResolutionReadiness.DocumentaryEvidenceUnsupported)
+                .isInstanceOf(ResolutionReadiness.DocumentaryEvidenceUnavailable::class.java)
         }
     }
 

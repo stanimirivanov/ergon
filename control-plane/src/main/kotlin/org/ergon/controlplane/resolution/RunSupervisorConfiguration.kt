@@ -10,6 +10,7 @@ import org.ergon.controlplane.resolution.application.ApprovalDecisionRepository
 import org.ergon.controlplane.resolution.application.ApprovalRequestRepository
 import org.ergon.controlplane.resolution.application.AssignedRunConsoleService
 import org.ergon.controlplane.resolution.application.CapabilityInvocationReceiptRepository
+import org.ergon.controlplane.resolution.application.PinnedDocumentaryEvidenceReader
 import org.ergon.controlplane.resolution.application.PinnedReadinessEvidenceReader
 import org.ergon.controlplane.resolution.application.PinnedRunEvidenceReader
 import org.ergon.controlplane.resolution.application.RecordedRunTransitionReader
@@ -47,7 +48,8 @@ class RunSupervisorConfiguration {
         contracts: RunPinnedContractService,
         evidence: PinnedReadinessEvidenceReader,
         transactions: TransactionRunner,
-    ) = RunPinnedReadinessService(contracts, evidence, transactions)
+        documentary: PinnedDocumentaryEvidenceReader,
+    ) = RunPinnedReadinessService(contracts, evidence, transactions, documentary)
 
     @Bean
     @Suppress("LongParameterList") // Preserve distinct authority, immutable data, transaction and time ports.

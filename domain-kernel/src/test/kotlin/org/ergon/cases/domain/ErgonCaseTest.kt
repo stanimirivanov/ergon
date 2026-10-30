@@ -2,6 +2,7 @@ package org.ergon.cases.domain
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
+import org.ergon.contracts.domain.DocumentaryBundleRequirement
 import org.ergon.contracts.domain.ResolutionContractIdentity
 import org.ergon.contracts.domain.ResolutionContractKey
 import org.ergon.contracts.domain.ResolutionContractRevision
@@ -217,6 +218,22 @@ class ErgonCaseTest {
                         observedAt = OCCURRED_AT,
                     ),
             )
+        }
+    }
+
+    @Test
+    fun `documentary attachments are distinct bounded immutable case events with replayed duplicate protection`() {
+        val case = ErgonCase.open(CASE_ID, TENANT_ID, CaseGoal.of("Restore access"), requesterObservation("Locked"))
+        val reference = DocumentaryBundleRequirement(UUID.randomUUID(), "a".repeat(64))
+        case.pinDocumentaryBundle(reference, OCCURRED_AT)
+        assertThat(case.streamVersion).isEqualTo(2)
+        assertThat(case.pendingEvents().last())
+            .isEqualTo(DocumentaryBundlePinned(reference.bundleId, reference.sha256, OCCURRED_AT))
+        val replay = ErgonCase.rehydrate(CASE_ID, TENANT_ID, case.pendingEvents())
+        assertThatIllegalArgumentException().isThrownBy { replay.pinDocumentaryBundle(reference, OCCURRED_AT) }
+        repeat(19) { replay.pinDocumentaryBundle(reference.copy(bundleId = UUID.randomUUID()), OCCURRED_AT) }
+        assertThatIllegalArgumentException().isThrownBy {
+            replay.pinDocumentaryBundle(reference.copy(bundleId = UUID.randomUUID()), OCCURRED_AT)
         }
     }
 

@@ -4,8 +4,8 @@
 
 A resolution contract is strict YAML declaring when a resolution applies, the
 evidence it needs, its ordered capability requests, and the fact that proves
-success. `v1alpha2` additionally pins exact documentary bundles and remains
-non-runnable until case-bound documentary consumption is implemented. Validation
+success. `v1alpha2` additionally requires exact case-attached documentary bundles.
+Attachment-time suitability and operational evidence remain independent. Validation
 grants no authority and performs no action.
 
 The executable example is
@@ -69,11 +69,25 @@ v1alpha1 responses retain their original field set. Stored definitions use stric
 schema-selected decoders; unsupported schemas fail closed. Publish a new contract
 revision to change a documentary requirement, never edit a published revision.
 
-Until M06-PR13 delivers case-bound consumption, readiness returns
-`DOCUMENTARY_EVIDENCE_UNSUPPORTED` with no applicability conclusion or next step.
-This takes precedence over operational evidence availability. New runs are denied
-by both application and database guards. Publishing or pinning such a contract
-is therefore inspectable configuration history, not execution enablement.
+Attach an exact published bundle to an open case with
+`POST /internal/v1/tenants/{tenantId}/cases/{caseId}/documentary-bundles`, a quoted
+current stream version in `If-Match`, and JSON `bundleId` plus `sha256`. The response
+returns the new case version/ETag. Missing/foreign/digest-mismatched bundles share
+404; stale versions return 412. Each case supports 20 distinct immutable bundle
+attachments, once per identity. This is an internal case command, not a browser API.
+
+Readiness returns each requirement as `MISSING`, `UNSUITABLE` or `SATISFIED` with
+its attachment stream version and authoritative database recording time. Claims
+must be valid at that attachment instant: unknown bounds, future validity or
+expired half-open intervals are unsuitable. Procedure-only bundles require no
+claim interval. Unsuitable material may be attached, but cannot qualify a run.
+
+Suitability is historical at attachment. Later time, accepted alternatives and
+adjudications do not reinterpret the fixed manifest or pin; post-prefix attachments
+do not affect earlier runs. All selected claims must apply at the same instant,
+so disjoint temporal selections may make a published bundle unsuitable as a whole.
+Documentary satisfaction does not supply operational facts, applicability, human
+approval, capability authority or post-action outcome proof.
 
 ## Validation boundary
 
@@ -150,14 +164,15 @@ Query
 evaluate the pinned revision against one authoritative case-event snapshot.
 The response identifies the exact case stream version and one of:
 
-- `DOCUMENTARY_EVIDENCE_UNSUPPORTED`: the pinned contract requires documentary
-  consumption not yet implemented; no operational readiness conclusion is made;
+- `WAITING_FOR_DOCUMENTARY_EVIDENCE`: exact required case-prefix attachments are missing;
+- `UNSUITABLE_DOCUMENTARY_EVIDENCE`: attachments exist but fail exact identity or attachment-time suitability;
 - `WAITING_FOR_CONTRACT`: no revision is pinned;
 - `WAITING_FOR_EVIDENCE`: one or more required fact types have no value;
 - `NOT_APPLICABLE`: all evidence exists but applicability equality is false;
 - `READY`: all evidence exists and applicability equality is true.
 
-Missing evidence takes precedence over applicability. For the current slice,
+Missing documentary input precedes unsuitable documentary input; both precede
+operational missing evidence and applicability. For operational evaluation,
 the latest bound `account.access.state` in stream order supplies that registered
 fact; equality is exact and case-sensitive. The response includes the expected
 and actual applicability values only after all required evidence exists.
@@ -174,14 +189,14 @@ and an ADR with coexistence and migration rules.
 
 ## Documentary deployment and rollback
 
-Apply additive V20261030100000, then deploy schema-aware readers and fail-closed
-runtime guards before clients publish v1alpha2. The migration validates/scans the
-existing contract schema constraint and builds the exact bundle identity/digest
-unique constraint; schedule its DDL locks before enabling writers. Existing
-v1alpha1 definitions, bundles and runs are unchanged. No backfill is required.
+Apply V20261030100000 for declaration/publication and V20261030120000 for case
+attachments and consumption. Deploy compatible readers before enabling writers;
+older readers reject new case events. Existing definitions, bundles and run
+prefixes are not backfilled or rewritten. PR13 replaces all PR12 interim
+unsupported-readiness/application/database guards with exact case-bound evaluation.
 
-Older applications reject v1alpha2 rather than partially interpreting it. An app
-rollback retaining new records needs compatible readers or a forward recovery;
-do not delete history or reverse a shared migration. PR13 must replace the
-unsupported-readiness and database run-start guards when it adds case-bound
-consumption. See [ADR 0088](decisions/0088-declare-exact-documentary-contract-requirements.md).
+The database enforces complete immutable event projections and tenant/bundle/digest
+references, then independently checks case version, contract pin, prefix membership
+and attachment-time suitability on documentary run admission. App rollback must
+retain compatible readers or roll forward; do not delete history or reverse shared
+migrations. See [ADR 0089](decisions/0089-consume-case-pinned-documentary-evidence.md).

@@ -5,6 +5,8 @@ import org.ergon.contracts.domain.ResolutionContractIdentity
 import org.ergon.controlplane.cases.application.ConcurrentCaseModificationException
 import org.ergon.controlplane.cases.application.TransactionRunner
 import org.ergon.identity.domain.TenantId
+import org.ergon.resolution.domain.DocumentaryEvidenceEvaluator
+import org.ergon.resolution.domain.DocumentaryRequirementStatus
 import org.ergon.resolution.domain.ResolutionReadiness
 import org.ergon.resolution.domain.ResolutionRunId
 import org.ergon.resolution.domain.ResolutionRunPlan
@@ -167,8 +169,14 @@ private fun PlannedResolutionStep.requireAllowed(): StepPolicyDecision.Requireme
 internal fun CaseResolutionPlan.toRunPlan(expectedVersion: Long): ResolutionRunPlan {
     requireVersion(expectedVersion)
     val evaluated = requireReady()
-    if (evaluated.contract.documentaryEvidence.isNotEmpty()) {
-        throw ResolutionRunNotReadyException("DOCUMENTARY_EVIDENCE_UNSUPPORTED")
+    val documentary =
+        DocumentaryEvidenceEvaluator.assess(
+            evaluated.contract.documentaryEvidence,
+            evaluated.documentaryEvidence.filter { it.pin.streamVersion <= evaluated.caseStreamVersion },
+        )
+    if (documentary.any { it.status != DocumentaryRequirementStatus.SATISFIED }) {
+        val state = ResolutionReadiness.DocumentaryEvidenceUnavailable(documentary)
+        throw ResolutionRunNotReadyException(state.documentaryStatus())
     }
     val planned = requireNextStep()
     return ResolutionRunPlan(
@@ -189,10 +197,13 @@ private fun CaseReadiness.statusName(): String =
 
         is CaseReadiness.Evaluated -> {
             when (readiness) {
-                ResolutionReadiness.DocumentaryEvidenceUnsupported -> "DOCUMENTARY_EVIDENCE_UNSUPPORTED"
+                is ResolutionReadiness.DocumentaryEvidenceUnavailable -> readiness.documentaryStatus()
                 is ResolutionReadiness.MissingEvidence -> "WAITING_FOR_EVIDENCE"
                 is ResolutionReadiness.NotApplicable -> "NOT_APPLICABLE"
                 is ResolutionReadiness.Ready -> "READY"
             }
         }
     }
+
+private fun ResolutionReadiness.DocumentaryEvidenceUnavailable.documentaryStatus(): String =
+    if (missing) "WAITING_FOR_DOCUMENTARY_EVIDENCE" else "UNSUITABLE_DOCUMENTARY_EVIDENCE"

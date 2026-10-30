@@ -26,8 +26,9 @@ import java.util.UUID
 internal class ContradictionDatabase(
     postgres: PostgreSQLContainer,
     migrationTarget: String = "latest",
+    broadValidity: Boolean = false,
 ) {
-    val f = ContradictionFixtures()
+    val f = ContradictionFixtures(broadValidity)
     val schema = "contradiction_" + UUID.randomUUID().toString().replace("-", "")
     private val migrations =
         Flyway

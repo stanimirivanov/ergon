@@ -1,9 +1,11 @@
 package org.ergon.controlplane.cases.adapter.inbound.http
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import org.ergon.contracts.domain.FactCondition
 import org.ergon.contracts.domain.ResolutionContract
 import org.ergon.controlplane.resolution.application.CaseReadiness
 import org.ergon.controlplane.resolution.application.ResolutionReadinessService
+import org.ergon.resolution.domain.DocumentaryEvidenceEvaluator
 import org.ergon.resolution.domain.ResolutionReadiness
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -38,11 +40,14 @@ data class CaseResolutionReadinessResponse(
     val contract: ResolutionContractIdentityResponse?,
     val missingEvidence: List<String>,
     val applicability: ResolutionApplicabilityResponse?,
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    val documentaryEvidence: List<DocumentaryReadinessResponse>? = null,
 )
 
 /** Closed set of readiness outcomes exposed by the internal HTTP contract. */
 enum class ResolutionReadinessStatus {
-    DOCUMENTARY_EVIDENCE_UNSUPPORTED,
+    WAITING_FOR_DOCUMENTARY_EVIDENCE,
+    UNSUITABLE_DOCUMENTARY_EVIDENCE,
     WAITING_FOR_CONTRACT,
     WAITING_FOR_EVIDENCE,
     NOT_APPLICABLE,
@@ -82,8 +87,14 @@ internal fun CaseReadiness.toResponse(): CaseResolutionReadinessResponse =
 
 private fun ResolutionReadiness.toResponse(snapshot: CaseReadiness.Evaluated): CaseResolutionReadinessResponse =
     when (this) {
-        ResolutionReadiness.DocumentaryEvidenceUnsupported -> {
-            snapshot.response(ResolutionReadinessStatus.DOCUMENTARY_EVIDENCE_UNSUPPORTED)
+        is ResolutionReadiness.DocumentaryEvidenceUnavailable -> {
+            snapshot.response(
+                if (missing) {
+                    ResolutionReadinessStatus.WAITING_FOR_DOCUMENTARY_EVIDENCE
+                } else {
+                    ResolutionReadinessStatus.UNSUITABLE_DOCUMENTARY_EVIDENCE
+                },
+            )
         }
 
         is ResolutionReadiness.MissingEvidence -> {
@@ -119,6 +130,12 @@ private fun CaseReadiness.Evaluated.response(
     contract = contract.toResponse(),
     missingEvidence = missingEvidence,
     applicability = applicability,
+    documentaryEvidence =
+        contract.documentaryEvidence.takeIf { it.isNotEmpty() }?.let {
+            DocumentaryEvidenceEvaluator
+                .assess(it, documentaryEvidence)
+                .map { result -> result.toDocumentaryResponse() }
+        },
 )
 
 private fun ResolutionContract.toResponse() = ResolutionContractIdentityResponse(key.value, revision.value)
