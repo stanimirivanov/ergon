@@ -149,3 +149,84 @@ migration. Packages may contain sensitive curated material: retain them in the
 existing trusted database/backup boundary and review privacy before submission.
 There is no export, automatic redaction or deletion API in this slice. Browser
 entitlements, replay and promotion remain later M07 work. See [ADR 0091](decisions/0091-register-curated-simulation-fixtures.md).
+
+## Pinned readiness replay
+
+M07-PR3 supplies the in-process `PinnedScenarioReplay.replay(bytes)` application
+service. Supply the complete registration package (or a retrieved definition's
+UTF-8 bytes), not the registration response envelope. It rechecks package hashes
+before interpreting material. There is no replay HTTP endpoint in this slice.
+
+The result is either `Evaluated(fixtureDigest, plan)` or `Unsupported(reason)`.
+`plan` is the production `CaseResolutionPlan`: readiness at the fixed prefix,
+policy revision, and the first ordered step's policy decision only when ready.
+Invalid input throws `InvalidSimulationFixture`; oversized input retains the
+registration size error. An evaluated plan is not a passing assertion, verified
+resolution, approval, execution authorization, report or promotion decision.
+Fixture expectations, assertion contents and optional budgets are not assessed.
+
+The supported evaluator artifact contains exactly
+`ergon.simulation/readiness-policy/v1` as UTF-8, with no newline. Its manifest
+reference must hash those exact bytes. Unsupported evaluator content and nonempty
+connector/model script lists return explicit unsupported results. Behavior changes
+to this evaluator require a new evaluator identifier; previous identities must not
+silently acquire different semantics. See [ADR 0092](decisions/0092-replay-pinned-planning-inputs.md).
+
+### Material formats
+
+- Contract: the existing strict v1alpha1/v1alpha2 YAML format. Its key and revision
+  must match the artifact key and decimal revision. Existing reference validation
+  rejects unsupported vocabulary; no new semantic rules are inferred.
+- Policy: JSON with `schemaVersion: ergon.simulation/policy/v1`, a path-like
+  `revision` naming the actual policy, and `rules` containing `capability`,
+  `minimumRisk` and `minimumApproval`. At most 100 rules; production policy
+  constructors reject empty/duplicate or unsafe rules. The material hash pins the
+  policy revision and complete rules independently of the artifact's storage label.
+- Case prefix: JSON with `schemaVersion: ergon.simulation/case-prefix/v1`, `tenantId`,
+  `caseId`, and `events`. Each event has `version`, `type`, `schemaVersion`,
+  `recordedAt` and `payload` (the existing case-event JSON object). Versions must
+  be contiguous from 1 through the manifest's exact prefix, with at most 1,000
+  events. IDs must match the fixture. No trailing events are silently truncated.
+- Documentary material: JSON with
+  `schemaVersion: ergon.simulation/documentary-validity/v1`, `bundleId`, `sha256`,
+  `assessedAt`, and `claims` containing nullable `from` and `until` strings.
+  At most 1,000 claim intervals. Both validity endpoints absent means unknown;
+  otherwise the production interval constraints apply. This is a curated validity
+  summary, not a reconstructed production evidence publication. The outer artifact
+  digest hashes the summary bytes; its inner `sha256` identifies documentary
+  meaning carried by the case attachment and contract requirement.
+
+Material JSON rejects unknown fields, duplicate keys, missing constructor fields,
+scalar coercions and trailing content. Recording/validity timestamps are ISO-8601
+strings with exact microsecond precision. Every event recording instant must be
+at or before fixture evaluation time; event order, not wall-clock sorting, defines
+the prefix. Event `occurredAt` retains the existing case-event codec semantics.
+
+Supported case event types use schema version 1: `CaseOpened`,
+`ObservationRecorded`, `AccountAccessStateBound`, `ResolutionContractRevisionPinned`
+and `DocumentaryBundlePinned`. Unsupported events, including verified closure,
+return unsupported rather than approximating execution/proof behavior. The prefix
+must contain one opening event first and must rehydrate through the production
+case aggregate. A missing contract pin remains `WaitingForContract`; a different
+contract pin is invalid.
+
+Every documentary attachment event must have exactly one manifest pin at that
+stream position. Its manifest `attachedAt` must equal the event envelope's
+`recordedAt`, not payload occurrence time. Bundle ID/digest must match the summary.
+Production documentary readiness assesses its selected validity at attachment,
+including unknown validity, post-attachment assessment and expiry at the exclusive
+upper bound. Changing evaluation time cannot requalify that attachment.
+
+### Isolation and verification
+
+Read-only in-memory implementations of the existing case/contract/documentary
+ports feed `ResolutionReadinessService` and `ResolutionPlanningService`. Their
+write methods throw; no production repositories, connectors, clock or identity
+generator are supplied. The production services retain latest-bound account state,
+missing-evidence precedence, exact applicability and policy-strengthening semantics.
+There is no duplicated readiness or policy algorithm in the simulation adapter.
+
+`PinnedScenarioReplayTest` covers repeated values, both contract versions,
+latest-bound evidence, waiting/missing/nonapplicable states, policy denial,
+documentary attachment cutoffs, invalid prefixes and explicit unsupported results.
+Run it through the existing Maven test harness and retain full repository verification.

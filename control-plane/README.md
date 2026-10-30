@@ -16,6 +16,10 @@ Internal [simulation fixture registration](../docs/simulation.md#internal-fixtur
 stores complete immutable curated packages with original tenant actor attribution.
 It does not execute fixtures or expose a browser authorization boundary.
 
+The in-process pinned scenario replay service now evaluates those packages through
+production readiness/planning services using read-only simulation ports. Execution,
+assertion scoring and promotion remain unsupported.
+
 ## Purpose
 
 `control-plane` is the active Spring Boot application for Ergon cases,
