@@ -700,3 +700,13 @@ frozen at attachment, not present freshness. PR12's temporary refusals are repla
 by documentary-aware application and database admission. No browser authoring,
 authority policy, contract promotion or proof shortcut is introduced. See
 [ADR 0089](../docs/decisions/0089-consume-case-pinned-documentary-evidence.md).
+
+## Complete compiler acceptance
+
+M06-PR14 adds licensed real-source fixtures, offline digest/citation checks and
+`SourceToContractIntegrationTest`, which uses actual Spring use cases and
+PostgreSQL from source registration through case-pinned documentary readiness.
+It requires Docker; compilation or a skip does not establish a database pass.
+See [operations](../docs/operations/evidence-compiler.md) and
+[M06 acceptance](../docs/roadmap/m06-acceptance.md) for the supported sequence and
+separate UI/deployment verification boundaries. No product behavior is added.

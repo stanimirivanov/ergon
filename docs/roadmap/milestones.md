@@ -270,6 +270,12 @@ remains an untrusted proposal and cannot grant authority.
 Completion means one real source can produce attributable evidence that a
 contract can consume and a human can review.
 
+Bounded implementation and PR14 evidence are mapped in the
+[M06 acceptance record](m06-acceptance.md). The implemented source-to-contract
+path preserves documentary/operational/authority boundaries. Local PostgreSQL
+acceptance and live two-app/OIDC deployment remain unverified; implementation
+coverage must not be read as a passing runtime or promotion gate.
+
 ## M07 - Simulation and Promotion
 
 **Message:** Replay resolution contracts against deterministic scenarios and gate their promotion.
