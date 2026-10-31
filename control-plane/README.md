@@ -33,6 +33,10 @@ CONTRACT_PROMOTER attestations never inherit resolver authority. M07-PR11 adds
 `ERGON_CONTRACT_PROMOTION_ENFORCED_TENANTS`. Empty configuration preserves legacy
 admission; configured tenants require a current-binding promotion for each fresh
 start or retry successor. Existing runs and exact retry recovery remain unchanged.
+M07-PR12 adds [Simulation Lab browser contracts](../docs/simulation.md#authenticated-simulation-lab-browser-contracts)
+with separate viewer authority, safe report projections and confirmed promotion.
+Deploy V20261030195306 first; it introduces viewer/promoter revocation and a report
+discovery index. Browser sessions and CSRF remain mandatory.
 
 ## Purpose
 

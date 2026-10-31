@@ -2,6 +2,11 @@
 
 ## TL;DR
 
+M07-PR12 adds [authenticated Simulation Lab browser contracts](../simulation.md#authenticated-simulation-lab-browser-contracts):
+bounded safe reports, current-binding review and confirmed promotion. Dedicated
+EVALUATION_VIEWER access and append-only viewer/promoter revocation are explicit;
+frontend components remain separate.
+
 M07-PR11 adds [opt-in current-promotion admission](../operations/contract-promotion.md)
 for initial starts and fresh retry successors. The configured tenant allowlist
 requires the current required-suite binding version; existing runs and historical

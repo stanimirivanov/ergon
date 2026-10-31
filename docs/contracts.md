@@ -208,7 +208,8 @@ admission keep their existing behavior. See [ADR 0099](decisions/0099-record-aut
 A trusted machine first attests a registered actor's dedicated tenant-wide
 CONTRACT_PROMOTER entitlement. RESOLVER does not inherit it. Attestations record
 source provenance, server time and an explicit expiry up to 24 hours later, at
-microsecond precision. There is no revocation command; renewal records new evidence.
+microsecond precision. PR12 adds [append-only revocation](simulation.md#authenticated-simulation-lab-browser-contracts);
+renewal records new evidence and cannot resurrect a revoked evidence ID.
 
 All routes below are under
 `/internal/v1/tenants/{tenant}/contract-promotions` and remain trusted internal

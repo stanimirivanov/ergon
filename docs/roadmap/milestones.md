@@ -294,6 +294,8 @@ M07-PR10 records authorized atomic promotions under a dedicated CONTRACT_PROMOTE
 entitlement and a versioned required-suite binding. M07-PR11 enforces current
 promotion for initial runs and fresh retry successors in explicitly configured
 tenants; existing execution context and historical retry recovery remain intact.
+M07-PR12 exposes authenticated safe report discovery/details and reviewed promotion
+with dedicated EVALUATION_VIEWER access and explicit viewer/promoter revocation.
 
 **Message:** Replay resolution contracts against deterministic scenarios and gate their promotion.
 

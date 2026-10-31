@@ -645,3 +645,74 @@ recording, dedicated authority and versioned required-suite binding are supplied
 for fresh run admission.
 `PromotionEligibilityTest`, `EvaluationSuiteTest` and `EvaluationSuiteIntegrationTest`
 cover these boundaries; the integration suite requires Docker.
+
+## Authenticated Simulation Lab browser contracts
+
+M07-PR12 adds backend contracts for a workbench session, with no frontend or fixture
+upload/execution endpoint. See [ADR 0101](decisions/0101-expose-authorized-simulation-lab-contracts.md).
+A principal must resolve to a registered actor in the requested tenant. Current
+EVALUATION_VIEWER is required for every route; confirmed promotion additionally
+requires CONTRACT_PROMOTER. Neither grant is inherited from RESOLVER or from the
+other grant. The existing browser-session switch and CSRF boundary apply.
+
+Routes under `/bff/v1/tenants/{tenant}/simulation-lab`:
+
+| Method/path | Contract |
+|:--|:--|
+| GET `/reports?limit=20&after={reportId}` | `items` plus `nextAfter`; limit 1–50, newest recorded time then UUID first |
+| GET `/reports/{id}` | Exact report summary, evaluator/assertion references, typed checks and budget summary |
+| POST `/contracts/{key}/promotion-review` | Strict `ergon.simulation-lab/review/v1` with `reports` and `rationale`; server derives current governance |
+| POST `/promotion-commands/{id}` | Strict PR10 `ergon.contract-promotion/command/v1` with the reviewed intent; 201 new / 200 exact retry |
+
+`reports` contains exact `fixture` artifacts, `reportId` and `reportDigest`, as in
+PR9. Review returns `intent` and `eligibility`. Confirmation sends that intent's
+fields plus the command `schemaVersion`. Review is advisory and does not reserve
+permission or requirements; a binding change makes fresh confirmation stale.
+Actor fields in the body are rejected. `X-Ergon-Actor-Id` is not used for identity.
+Use the session CSRF token for both POST routes, including read-only review.
+
+List cursors are report UUIDs checked within the tenant. Follow `nextAfter` until
+null; a foreign/unknown cursor is unavailable. New reports can arrive between pages;
+this is stable keyset traversal, not snapshot export or a total count. Details omit
+raw fixtures, observed values, serialized definitions, submitting actors and
+attestation provenance. They expose exact identities/digests and derived outcomes,
+not a privacy-certified production-data export.
+
+Responses use no-store. Private absence and unavailable authority return 404;
+stale/ineligible promotion returns 409; malformed requests 422; oversized bodies
+413; storage failure 503. Session and CSRF filters retain their standard 401/403
+contracts. Confirmation receipts contain only command ID, creation flag, exact
+contract/suite, binding version and original promotion time.
+
+### Trusted grant and revocation operations
+
+These are internal issuer operations, never browser management routes. Protect
+this management boundary from browser/untrusted traffic; provenance is recorded,
+not independently authenticated by these endpoints.
+
+- POST `/internal/v1/tenants/{tenant}/simulation-lab-authorities/viewers/{id}`:
+  `schemaVersion: ergon.evaluation-viewer/authority/v1`, `actorId`, `sourceProvider`,
+  `sourceReference`, and ISO-instant `expiresAt`. Validity is at most 24 hours at
+  microsecond precision; the server stamps attestation time.
+- POST `/internal/v1/tenants/{tenant}/simulation-lab-authorities/{kind}/{id}/revocation`:
+  kind is `EVALUATION_VIEWER` or `CONTRACT_PROMOTER`; body has
+  `schemaVersion: ergon.simulation-authority/revocation/v1`, `sourceProvider`,
+  `sourceReference`, and `reason` (nonblank trimmed strings, at most 500 characters
+  for reference/reason). Server time is immutable. Exact retries return 200,
+  changed intent conflicts, and absent/foreign evidence returns 404.
+
+Revocation withdraws one evidence record. Another current unrevoked grant may still
+qualify. Reattesting the same evidence UUID does not renew or resurrect it; use a
+new grant UUID. Revocation and promotion admission share an actor lock. Confirmation
+rechecks viewer access before commit, so revoked viewer evidence cannot leave a
+partially written promotion after a lock wait. Reads have snapshot authorization.
+Historical promotions and admitted runs are not undone; PR11 still uses the current
+suite-binding version. Exact promotion retry now requires non-revoked current
+viewer and promoter grants.
+
+Deploy V20261030195306 before enabling these contracts. The migration adds ledgers
+and a report discovery index; the index scans existing reports and blocks their
+writes while being built. Plan maintenance time and disk/WAL headroom for ledger
+size. Disable affected traffic during mixed application versions. After revocation
+is used, keep revocation-aware code or roll forward; older code can acknowledge
+revoked retries. Retain all tables, shared migrations and audit history on rollback.
