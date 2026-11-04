@@ -152,20 +152,25 @@ class EvaluationSuiteTest {
     }
 }
 
-internal class SuiteHarness {
+internal class SuiteHarness(
+    document: (EvaluationReportFixtures) -> ByteArray = { it.bytes() },
+    private val requiredAssertion: String = "not-ready",
+    costRequired: Boolean = false,
+) {
     val f = EvaluationReportFixtures()
     val tenant = f.f.tenant
     val actor = UUID.randomUUID()
     val codec = GateDocumentJsonCodec(f.pinned, f.mapper)
     val fixtureId = SimulationFixtureIdentity(tenant, "sample", "1")
-    val fixture = f.packages.decode(f.bytes())
+    val bytes = document(f)
+    val fixture = f.packages.decode(bytes)
     val fixtureRef = SimulationArtifact("sample", "1", fixture.fixture.semanticDigest())
     val policyId = GateDocumentIdentity(tenant, "required", "1")
     val suiteId = GateDocumentIdentity(tenant, "regression", "1")
     val reportId = UUID.randomUUID()
-    val preparedReport = f.runner.execute(f.bytes())
+    val preparedReport = f.runner.execute(bytes)
     var contractMatches = true
-    var requireCost = false
+    var requireCost = costRequired
     val stored = mutableMapOf<Pair<GateDocumentKind, GateDocumentIdentity>, StoredGateDocument>()
     val documents =
         object : GateDocumentRepository {
@@ -260,7 +265,7 @@ internal class SuiteHarness {
 
     fun policyRef() = SimulationArtifact("required", "1", codec.decode(GateDocumentKind.POLICY, policyBytes()).digest)
 
-    fun member() = RequiredScenarioDocument(fixtureRef, listOf("not-ready"))
+    fun member() = RequiredScenarioDocument(fixtureRef, listOf(requiredAssertion))
 
     fun suiteBytes(members: List<RequiredScenarioDocument> = listOf(member())): ByteArray =
         f.mapper.writeValueAsBytes(

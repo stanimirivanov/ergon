@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "ergon.simulation/capability-scenario/v1",
+  "authority": {
+    "actor": "1a302656-f95b-48e8-bcb5-60397801cbde",
+    "authority": "RESOLVER",
+    "caseId": null,
+    "fromSeconds": -1,
+    "untilSeconds": 60
+  },
+  "decision": "APPROVED",
+  "requestLifetimeSeconds": 60,
+  "consumeAfterSeconds": 0,
+  "route": {"capability": "identity.account.unlock", "connector": "simulation.identity"},
+  "calls": [{"outcome": "__OUTCOME__", "elapsedNanoseconds": 5000}],
+  "invocationCount": __INVOCATIONS__,
+  "proofCaseVersion": __PREFIX_VERSION__,
+  "proof": []
+}

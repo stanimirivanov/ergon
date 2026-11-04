@@ -34,9 +34,9 @@ import java.util.UUID
 internal class ContractPromotionDatabase(
     private val postgres: PostgreSQLContainer,
     private val upgradeFrom: String = "20261030171119",
+    val h: SuiteHarness = SuiteHarness(),
 ) {
     val schema = "promotion_" + UUID.randomUUID().toString().replace("-", "")
-    val h = SuiteHarness()
     val tenant = h.tenant
     val actor = h.actor
     val key = h.fixture.fixture.contract.key
@@ -53,6 +53,12 @@ internal class ContractPromotionDatabase(
     val codec = PromotionDocumentCodec(h.f.pinned, h.f.mapper)
     val repository = PostgresContractPromotionRepository(jdbc, codec)
     val authorities = PostgresPromotionAuthorityRepository(jdbc, transactions)
+    val fixtures = PostgresSimulationFixtureRepository(jdbc, transactions, h.f.packages)
+    private val reports = PostgresEvaluationReportRepository(jdbc, transactions, h.f.codec)
+    val execution = EvaluationExecution(fixtures, h.f.runner, reports)
+    private val contractsCodec = ResolutionContractJsonCodec(h.f.mapper)
+    val contracts = PostgresResolutionContractRevisionRepository(jdbc, contractsCodec)
+    val eligibility: EvaluatePromotionEligibility
     val suites: EvaluationSuites
     val service: ContractPromotions
     val suite: org.ergon.evaluation.domain.SimulationArtifact
@@ -60,18 +66,14 @@ internal class ContractPromotionDatabase(
     init {
         migration(upgradeFrom).migrate()
         actor(tenant, actor)
-        val fixtures = PostgresSimulationFixtureRepository(jdbc, transactions, h.f.packages)
         fixtures.register(h.fixtureId, h.fixture, actor)
-        val contractsCodec = ResolutionContractJsonCodec(h.f.mapper)
-        val contracts = PostgresResolutionContractRevisionRepository(jdbc, contractsCodec)
         contracts.publish(
             TenantId(tenant),
             h.f.decoder
-                .decode(h.f.bytes())
+                .decode(h.bytes)
                 .pinned.contract,
         )
-        val reports = PostgresEvaluationReportRepository(jdbc, transactions, h.f.codec)
-        EvaluationExecution(fixtures, h.f.runner, reports).execute(EvaluationCommand(h.fixtureId, h.reportId), actor)
+        execution.execute(EvaluationCommand(h.fixtureId, h.reportId), actor)
         val documents = PostgresGateDocumentRepository(jdbc, transactions, h.codec)
         suites =
             EvaluationSuites(
@@ -85,6 +87,7 @@ internal class ContractPromotionDatabase(
         suite = suites.register(GateDocumentKind.SUITE, h.suiteId, h.suiteBytes(), actor).stored.reference()
         migration().migrate()
         migration().validate()
+        eligibility = EvaluatePromotionEligibility(suites, h.codec, reports, h.f.codec, fixtures, h.f.packages)
         service =
             ContractPromotions(
                 runner,
@@ -92,7 +95,7 @@ internal class ContractPromotionDatabase(
                 authorities,
                 suites,
                 h.codec,
-                EvaluatePromotionEligibility(suites, h.codec, reports, h.f.codec, fixtures, h.f.packages),
+                eligibility,
             )
     }
 
