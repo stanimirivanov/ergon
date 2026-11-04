@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicReference
     properties = [
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://identity.example.test",
         "ergon.security.human-jwt.identity-provider=workforce-sso",
+        "ergon.security.human-jwt.audience=ergon-human-api",
         "ergon.follow-up.release-enabled=true",
     ],
 )
@@ -354,6 +355,7 @@ class RevisionedHumanFollowUpClaimApiIntegrationTest(
     private fun resolverJwt(subject: String = SUBJECT) =
         jwt().jwt {
             it.issuer(TRUSTED_ISSUER)
+            it.audience(listOf("ergon-human-api"))
             it.subject(subject)
         }
 

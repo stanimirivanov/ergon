@@ -34,6 +34,7 @@ import java.util.UUID
     properties = [
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://identity.example.test",
         "ergon.security.human-jwt.identity-provider=workforce-sso",
+        "ergon.security.human-jwt.audience=ergon-human-api",
     ],
 )
 @AutoConfigureMockMvc
@@ -650,6 +651,7 @@ class ApprovalDecisionApiIntegrationTest(
         .with(
             jwt().jwt {
                 it.issuer(TRUSTED_ISSUER)
+                it.audience(listOf("ergon-human-api"))
                 it.subject(subject)
             },
         ).contentType(MediaType.APPLICATION_JSON)
@@ -1381,6 +1383,7 @@ private fun followUpClaimedAt(
 private fun humanJwt(subject: String) =
     jwt().jwt {
         it.issuer(TRUSTED_ISSUER)
+        it.audience(listOf("ergon-human-api"))
         it.subject(subject)
     }
 
@@ -1438,6 +1441,7 @@ private fun assertAuthorizedFollowUpRetrieval(
             get(followUp.location).with(
                 jwt().jwt {
                     it.issuer(TRUSTED_ISSUER)
+                    it.audience(listOf("ergon-human-api"))
                     it.subject(context.subject)
                 },
             ),
@@ -1467,6 +1471,7 @@ private fun assertAuthorizedInboxRetrieval(
                 .with(
                     jwt().jwt {
                         it.issuer(TRUSTED_ISSUER)
+                        it.audience(listOf("ergon-human-api"))
                         it.subject(context.subject)
                     },
                 ),
@@ -1485,6 +1490,7 @@ private fun assertAuthorizedInboxRetrieval(
                 .with(
                     jwt().jwt {
                         it.issuer(TRUSTED_ISSUER)
+                        it.audience(listOf("ergon-human-api"))
                         it.subject(context.subject)
                     },
                 ),
@@ -1498,6 +1504,7 @@ private fun assertAuthorizedInboxRetrieval(
                 .with(
                     jwt().jwt {
                         it.issuer(TRUSTED_ISSUER)
+                        it.audience(listOf("ergon-human-api"))
                         it.subject(context.subject)
                     },
                 ),
@@ -1566,6 +1573,7 @@ private fun assertUnauthorizedResolverSeesNoFollowUp(
             get(followUp.location).with(
                 jwt().jwt {
                     it.issuer(TRUSTED_ISSUER)
+                    it.audience(listOf("ergon-human-api"))
                     it.subject(observerSubject)
                 },
             ),
@@ -1576,6 +1584,7 @@ private fun assertUnauthorizedResolverSeesNoFollowUp(
             get(inboxLocation).with(
                 jwt().jwt {
                     it.issuer(TRUSTED_ISSUER)
+                    it.audience(listOf("ergon-human-api"))
                     it.subject(observerSubject)
                 },
             ),
@@ -1892,6 +1901,7 @@ private fun retry(
     .with(
         jwt().jwt {
             it.issuer(TRUSTED_ISSUER)
+            it.audience(listOf("ergon-human-api"))
             it.subject(subject)
         },
     ).header("If-Match", "\"$expectedCaseVersion\"")
@@ -1904,6 +1914,7 @@ private fun escalate(
     .with(
         jwt().jwt {
             it.issuer(TRUSTED_ISSUER)
+            it.audience(listOf("ergon-human-api"))
             it.subject(subject)
         },
     )

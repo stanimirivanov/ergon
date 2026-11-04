@@ -100,7 +100,9 @@ class HumanJwtSecurityConfiguration {
         jwtDecoder: JwtDecoder,
         trust: HumanJwtTrust,
         authenticationEntryPoint: HumanJwtAuthenticationEntryPoint,
+        @Value("\${ergon.security.human-jwt.audience:}") audience: String,
     ): SecurityFilterChain {
+        val humanAccess = humanBearerAccess(audience.trim())
         http
             // Ergon's HTTP API is stateless and authenticates protected requests by bearer token.
             .csrf { it.disable() }
@@ -119,16 +121,16 @@ class HumanJwtSecurityConfiguration {
                 it
                     .requestMatchers(HttpMethod.POST, "/internal/v1/tenants/*/resolution-runs/*/supervisor-assignments")
                     .denyAll()
-                it.requestMatchers(HttpMethod.GET, CURRENT_HUMAN_ACTOR_PATH).authenticated()
-                it.requestMatchers(HttpMethod.GET, HUMAN_FOLLOW_UP_COLLECTION_PATH).authenticated()
-                it.requestMatchers(HttpMethod.GET, HUMAN_FOLLOW_UP_PATH).authenticated()
-                it.requestMatchers(HttpMethod.GET, HUMAN_FOLLOW_UP_CLAIM_PATH).authenticated()
-                it.requestMatchers(HttpMethod.POST, HUMAN_FOLLOW_UP_CLAIMS_PATH).authenticated()
-                it.requestMatchers(HttpMethod.POST, HUMAN_FOLLOW_UP_CLAIM_COMMANDS_PATH).authenticated()
-                it.requestMatchers(HttpMethod.POST, HUMAN_FOLLOW_UP_RELEASE_PATH).authenticated()
-                it.requestMatchers(HttpMethod.POST, APPROVAL_DECISION_PATH).authenticated()
-                it.requestMatchers(HttpMethod.POST, RESOLUTION_RUN_RETRY_PATH).authenticated()
-                it.requestMatchers(HttpMethod.POST, RESOLUTION_RUN_ESCALATION_PATH).authenticated()
+                it.requestMatchers(HttpMethod.GET, CURRENT_HUMAN_ACTOR_PATH).access(humanAccess)
+                it.requestMatchers(HttpMethod.GET, HUMAN_FOLLOW_UP_COLLECTION_PATH).access(humanAccess)
+                it.requestMatchers(HttpMethod.GET, HUMAN_FOLLOW_UP_PATH).access(humanAccess)
+                it.requestMatchers(HttpMethod.GET, HUMAN_FOLLOW_UP_CLAIM_PATH).access(humanAccess)
+                it.requestMatchers(HttpMethod.POST, HUMAN_FOLLOW_UP_CLAIMS_PATH).access(humanAccess)
+                it.requestMatchers(HttpMethod.POST, HUMAN_FOLLOW_UP_CLAIM_COMMANDS_PATH).access(humanAccess)
+                it.requestMatchers(HttpMethod.POST, HUMAN_FOLLOW_UP_RELEASE_PATH).access(humanAccess)
+                it.requestMatchers(HttpMethod.POST, APPROVAL_DECISION_PATH).access(humanAccess)
+                it.requestMatchers(HttpMethod.POST, RESOLUTION_RUN_RETRY_PATH).access(humanAccess)
+                it.requestMatchers(HttpMethod.POST, RESOLUTION_RUN_ESCALATION_PATH).access(humanAccess)
                 it.anyRequest().permitAll()
             }.oauth2ResourceServer { resourceServer ->
                 resourceServer.authenticationEntryPoint(authenticationEntryPoint)
@@ -156,6 +158,18 @@ class HumanJwtSecurityConfiguration {
 private const val RUN_SUPERVISION_ASSIGN_SCOPE = "SCOPE_ergon.run-supervision.assign"
 private const val RUN_SUPERVISION_AUDIENCE = "ergon-run-supervision"
 private const val RUN_SUPERVISION_TENANT_CLAIM = "ergon_tenant_id"
+
+/** Applies the human audience policy after shared signature, time and issuer validation. */
+private fun humanBearerAccess(audience: String): AuthorizationManager<RequestAuthorizationContext> =
+    AuthorizationManager { authentication, _ ->
+        val token = authentication.get() as? JwtAuthenticationToken
+        AuthorizationDecision(
+            audience.isNotEmpty() &&
+                audience != RUN_SUPERVISION_AUDIENCE &&
+                token?.isAuthenticated == true &&
+                token.token.audience?.contains(audience) == true,
+        )
+    }
 
 /**
  * Requires a trusted machine token scoped to the exact path tenant before assignment dispatch.
