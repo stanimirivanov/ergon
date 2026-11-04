@@ -183,7 +183,9 @@ These are required future checks, not results reported by this plan.
 PR2 supplies approved visual baselines; PR17 adds requester scope/build/browser
 coverage to the existing harness with its first usable application. Current
 guides simulate the BFF: they do not prove live OIDC, PostgreSQL or provider
-behavior. A live two-app deployment acceptance gate remains a reported gap.
+behavior. At original delivery, live two-app acceptance was still a gap. See the
+[later live acceptance addendum](m05-acceptance.md#live-two-application-acceptance-addendum)
+for the scenarios subsequently verified.
 
 Requester authentication, intake and ownership changes are the main sizing and
 security risks. Review exact authorization, replay and disclosure contracts in

@@ -6,9 +6,9 @@ Snapshot: 2026-10-29. Milestone: M05 - Adaptive Resolution Experience.
 
 The [approved implementation sequence](m05-adaptive-resolution-experience.md)
 is delivered: 28 stable coordinates, 42 merged PRs (22 Ergon, 20 ergon-ui).
-The final backend and UI heads passed their owning CI gates. This establishes
-bounded contract/browser implementation, not a live two-app deployment or
-production-readiness claim. GitHub milestone state is not changed by this record.
+The final backend and UI heads passed their owning CI gates. The original
+snapshot establishes bounded implementation. The November 4 addendum below
+records the later live two-app gate and its coverage. GitHub owns milestone state.
 Counts cover this approved sequence, not every historical M05 or Console PR.
 
 ## Acceptance traceability
@@ -43,20 +43,27 @@ successful final-head checks. Publishing was skipped for the PR by design;
 generation success does not establish a deployed Pages site. No new production
 session, identity-provider, connector or deployment check was performed here.
 
-## Unverified deployment acceptance
+## Live two-application acceptance addendum
 
-There is no delivered live two-app acceptance gate spanning separately deployed
-origins, actual OIDC redirects/client sessions, secure cookie behavior, backend
-PostgreSQL and real UI traffic together. Backend security/integration tests and
-simulated browser guides prove different boundaries and do not substitute for it.
-This is the already reported deployment gap, not a newly imposed M05 feature.
+On 2026-11-04, [UI PR #249](https://github.com/stanimirivanov/ergon-ui/pull/249)
+added a reproducible two-application gate. The [passing PR job](https://github.com/stanimirivanov/ergon-ui/actions/runs/41904630477/job/126835884096)
+recorded UI revision `fe1add13697fa955fe733b84406467fdc3f4a161` and backend
+revision `5228826e58b33406a93f36e9d99adf919c2e730f`, with both Chromium scenarios
+passing. This result supplements the original delivery snapshot above.
 
-A future deployment acceptance change must name its environment and evidence:
-requester/resolver session separation; intake through real protected progress;
-owner-only question/answer and notification access after handover; CSRF-protected
-logout with private-state withdrawal; and a fresh authorized visit after retirement.
-Use disposable identities/data and explicit negative/foreign-tenant checks. No
-infrastructure, credentials or successful run of that gate is claimed by this PR.
+The tested environment uses distinct requester and workbench HTTPS origins,
+separately configured control-plane processes, real Keycloak authorization-code
+login, and disposable PostgreSQL. The requester scenario checks secure session
+cookies, intake through protected progress, registered non-owner and foreign
+tenant denial, CSRF rejection, local logout with private-state withdrawal, and
+fresh authorized access. The workbench session remains usable after requester
+logout. The second scenario exercises report inspection and promotion under the
+[M07 acceptance boundary](m07-acceptance.md#verification-and-rollout).
+
+Owner-only question/answer and notification access after handover still need
+live two-app coverage. The original integration tests and simulated UI guides
+remain the evidence for those paths. The disposable topology establishes
+neither production ingress nor production identity-provider acceptance.
 
 ## Scope after delivery
 
@@ -67,8 +74,6 @@ types belong to M04; general compiled claims/contradictions to M06; simulation a
 promotion to M07; evidence-generated improvement proposals to M08; integration
 SDKs to M09. Concept images are not source evidence for those features.
 
-M06 is the next feature milestone in the published ordering and still needs a
-reviewed PR-sized implementation plan. This audit does not select source formats,
-new claim semantics, compiler authorization or runtime behavior. No GitHub
-milestone is closed/reassigned automatically and no new implementation coordinate
-is appended to the completed M05 sequence.
+See the [M06 acceptance record](m06-acceptance.md) for the delivered documentary
+pipeline and its verification scope. The live gate adds evidence to this record
+without changing the original M05 implementation sequence.

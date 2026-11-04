@@ -7,9 +7,11 @@ Snapshot: 2026-10-30. Milestone: M06 - Evidence Compiler.
 The approved bounded pipeline is implemented through M06-PR13. PR14 adds
 redistributable real-source fixtures, a composed source-to-contract acceptance
 test, an operations guide and a coordinated executable UI guide. This record
-tracks implementation and verification separately: PostgreSQL acceptance remains
-unverified locally because Docker socket access is denied. No live two-app/OIDC
-deployment, production readiness or M07 promotion is claimed.
+tracks implementation and verification separately. At the snapshot date, local
+PostgreSQL acceptance could not run because Docker socket access was denied.
+The later [live OIDC gate](m05-acceptance.md#live-two-application-acceptance-addendum)
+checks requester and promotion flows. Live documentary submission and compiler
+acceptance remain outside that gate.
 
 Delivery is coordinated through [backend issue #259](https://github.com/stanimirivanov/ergon/issues/259)
 and [UI issue #240](https://github.com/stanimirivanov/ergon-ui/issues/240).
