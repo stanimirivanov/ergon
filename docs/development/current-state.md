@@ -2,6 +2,11 @@
 
 ## TL;DR
 
+M07-PR15 adds composed PostgreSQL coverage of registered scenarios, reproducible
+reports, eligibility refusal, attributed promotion and enforced new run
+admission. The [M07 acceptance record](../roadmap/m07-acceptance.md) also records
+the merged PR13 and PR14 browser delivery and its simulated verification.
+
 M07-PR12 adds [authenticated Simulation Lab browser contracts](../simulation.md#authenticated-simulation-lab-browser-contracts):
 bounded safe reports, current-binding review and confirmed promotion. Dedicated
 EVALUATION_VIEWER access and append-only viewer/promoter revocation are explicit;

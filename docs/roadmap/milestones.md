@@ -297,6 +297,11 @@ tenants; existing execution context and historical retry recovery remain intact.
 M07-PR12 exposes authenticated safe report discovery/details and reviewed promotion
 with dedicated EVALUATION_VIEWER access and explicit viewer/promoter revocation.
 
+M07-PR13 and PR14 deliver report inspection and confirmed promotion in the UI,
+including a simulated walkthrough. M07-PR15 adds the composed PostgreSQL
+acceptance scenarios. The [M07 acceptance record](m07-acceptance.md) maps the
+delivered paths, verification evidence and live deployment gaps.
+
 **Message:** Replay resolution contracts against deterministic scenarios and gate their promotion.
 
 Candidate outcomes include pinned run fixtures, deterministic connector/model
