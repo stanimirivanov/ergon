@@ -30,6 +30,7 @@ class HumanFollowUpReleaseServiceTest {
     private val commands = mock(HumanFollowUpClaimCommandRepository::class.java)
     private val releases = mock(HumanFollowUpReleaseRepository::class.java)
     private val authorities = mock(HumanAuthorityRepository::class.java)
+    private val clock = mock(Clock::class.java).also { `when`(it.instant()).thenReturn(NOW) }
     private val service =
         HumanFollowUpReleaseService(
             claims,
@@ -39,9 +40,23 @@ class HumanFollowUpReleaseServiceTest {
             object : TransactionRunner {
                 override fun <T : Any> required(block: () -> T): T = block()
             },
-            Clock.fixed(NOW, ZoneOffset.UTC),
+            clock,
             enabled = true,
         )
+
+    @Test
+    fun `authority expiring during lock acquisition denies the operation`() {
+        authorize(ACTOR_ID)
+        `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenAnswer {
+            `when`(clock.instant()).thenReturn(NOW.plusSeconds(3600))
+            true
+        }
+        `when`(releases.findByClaim(TENANT_ID, WORK_ITEM_ID, CLAIM_ID)).thenReturn(storedRelease())
+
+        assertThatThrownBy { service.release(command()) }
+            .isInstanceOf(CurrentHumanFollowUpResolverAuthorityNotFoundException::class.java)
+        verifyNoInteractions(commands)
+    }
 
     @Test
     fun `release stays closed until rollout explicitly enables it`() {
@@ -66,16 +81,22 @@ class HumanFollowUpReleaseServiceTest {
     @Test
     fun `current owner releases exact claim at its revision`() {
         authorize(ACTOR_ID)
-        `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(true)
+        val lockedAt = NOW.plusSeconds(1)
+        `when`(authorities.findCurrent(TENANT_ID, ACTOR_ID, ApprovalAuthority.RESOLVER, null, lockedAt))
+            .thenReturn(StoredApprovalAuthorityEvidence(evidence(ACTOR_ID), lockedAt))
+        `when`(claims.lockOpenWorkItem(TENANT_ID, WORK_ITEM_ID)).thenAnswer {
+            `when`(clock.instant()).thenReturn(lockedAt)
+            true
+        }
         `when`(claims.findByWorkItem(TENANT_ID, WORK_ITEM_ID)).thenReturn(storedClaim())
         `when`(commands.currentOwnershipRevision(TENANT_ID, WORK_ITEM_ID))
             .thenReturn(HumanFollowUpOwnershipRevision(1))
-        `when`(releases.record(TENANT_ID, storedClaim(), EVIDENCE_ID, HumanFollowUpOwnershipRevision(2), NOW))
-            .thenReturn(storedRelease())
+        `when`(releases.record(TENANT_ID, storedClaim(), EVIDENCE_ID, HumanFollowUpOwnershipRevision(2), lockedAt))
+            .thenReturn(storedRelease(lockedAt))
 
         assertThat(service.release(command()))
-            .isEqualTo(HumanFollowUpReleaseRecording(storedRelease(), created = true))
-        verify(releases).record(TENANT_ID, storedClaim(), EVIDENCE_ID, HumanFollowUpOwnershipRevision(2), NOW)
+            .isEqualTo(HumanFollowUpReleaseRecording(storedRelease(lockedAt), created = true))
+        verify(releases).record(TENANT_ID, storedClaim(), EVIDENCE_ID, HumanFollowUpOwnershipRevision(2), lockedAt)
     }
 
     @Test
@@ -143,15 +164,15 @@ class HumanFollowUpReleaseServiceTest {
             NOW.minusSeconds(9),
         )
 
-    private fun storedRelease() =
+    private fun storedRelease(releasedAt: Instant = NOW) =
         StoredHumanFollowUpRelease(
             WORK_ITEM_ID,
             CLAIM_ID,
             ACTOR_ID,
             EVIDENCE_ID,
             HumanFollowUpOwnershipRevision(2),
-            NOW,
-            NOW,
+            releasedAt,
+            releasedAt,
         )
 
     private fun evidence(actorId: HumanActorId) =

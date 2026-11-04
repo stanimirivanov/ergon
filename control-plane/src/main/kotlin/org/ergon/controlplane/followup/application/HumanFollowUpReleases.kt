@@ -8,6 +8,7 @@ import org.ergon.followup.domain.HumanFollowUpWorkItemId
 import org.ergon.identity.domain.HumanActorId
 import org.ergon.identity.domain.TenantId
 import org.ergon.resolution.domain.ApprovalAuthority
+import org.ergon.resolution.domain.ApprovalAuthorityEvidence
 import org.ergon.resolution.domain.ApprovalAuthorityEvidenceId
 import java.time.Clock
 import java.time.Instant
@@ -105,13 +106,13 @@ class HumanFollowUpReleaseService(
             val claimId = HumanFollowUpClaimId(command.claimId)
             val actorId = HumanActorId(command.actorId)
             val expectedRevision = HumanFollowUpOwnershipRevision(command.expectedOwnershipRevision)
-            val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
-            val authority =
-                authorities.findCurrent(tenantId, actorId, ApprovalAuthority.RESOLVER, null, now)?.evidence
-                    ?: throw CurrentHumanFollowUpResolverAuthorityNotFoundException()
+            currentResolverAuthority(tenantId, actorId, clock.instant().truncatedTo(ChronoUnit.MICROS))
             if (!claims.lockOpenWorkItem(tenantId, workItemId)) {
                 throw HumanFollowUpReleaseNotFoundException()
             }
+            // Authority can expire while another transaction holds the work-item lock.
+            val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
+            val authority = currentResolverAuthority(tenantId, actorId, now)
             releases.findByClaim(tenantId, workItemId, claimId)?.let { prior ->
                 if (prior.resolverActorId != actorId) {
                     throw HumanFollowUpReleaseNotFoundException()
@@ -140,4 +141,12 @@ class HumanFollowUpReleaseService(
             HumanFollowUpReleaseRecording(released, created = true)
         }
     }
+
+    private fun currentResolverAuthority(
+        tenantId: TenantId,
+        actorId: HumanActorId,
+        now: Instant,
+    ): ApprovalAuthorityEvidence =
+        authorities.findCurrent(tenantId, actorId, ApprovalAuthority.RESOLVER, null, now)?.evidence
+            ?: throw CurrentHumanFollowUpResolverAuthorityNotFoundException()
 }

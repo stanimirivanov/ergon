@@ -243,12 +243,13 @@ class HumanFollowUpClaimService(
             val scopedTenantId = TenantId(tenantId)
             val scopedWorkItemId = HumanFollowUpWorkItemId(workItemId)
             val scopedActorId = HumanActorId(actorId)
-            // Match PostgreSQL precision so the first response and durable replay agree.
-            val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
-            val authority = currentResolverAuthority(scopedTenantId, scopedActorId, now)
+            currentResolverAuthority(scopedTenantId, scopedActorId, clock.instant().truncatedTo(ChronoUnit.MICROS))
             if (!claims.lockOpenWorkItem(scopedTenantId, scopedWorkItemId)) {
                 throw HumanFollowUpWorkItemNotFoundException(workItemId)
             }
+            // Authority can expire while another transaction holds the work-item lock.
+            val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
+            val authority = currentResolverAuthority(scopedTenantId, scopedActorId, now)
             val currentRevision = commands.currentOwnershipRevision(scopedTenantId, scopedWorkItemId)
             // Legacy retry has no command identity and can refer only to the
             // original claim, never to a later ownership cycle.
@@ -295,12 +296,14 @@ class HumanFollowUpClaimService(
             val actorId = HumanActorId(command.actorId)
             val commandId = HumanFollowUpClaimCommandId(command.commandId)
             val expectedRevision = HumanFollowUpOwnershipRevision(command.expectedOwnershipRevision)
-            val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
-            val authority = currentResolverAuthority(tenantId, actorId, now)
+            currentResolverAuthority(tenantId, actorId, clock.instant().truncatedTo(ChronoUnit.MICROS))
 
             if (!claims.lockOpenWorkItem(tenantId, workItemId)) {
                 throw HumanFollowUpWorkItemNotFoundException(command.workItemId)
             }
+            // Authority can expire while another transaction holds the work-item lock.
+            val now = clock.instant().truncatedTo(ChronoUnit.MICROS)
+            val authority = currentResolverAuthority(tenantId, actorId, now)
             commands.findCommand(tenantId, workItemId, commandId)?.let { prior ->
                 return@required replayCommand(prior, actorId, expectedRevision)
             }
