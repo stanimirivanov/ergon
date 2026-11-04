@@ -135,6 +135,7 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_DATABASE_USERNAME` | Database user |
 | `ERGON_DATABASE_PASSWORD` | Database password |
 | `ERGON_HUMAN_JWT_ISSUER_URI` | Trusted human JWT issuer; optional only for unprotected development paths |
+| `ERGON_HUMAN_JWT_AUDIENCE` | Dedicated audience required by protected human bearer routes |
 | `ERGON_HUMAN_IDENTITY_PROVIDER` | Stable provider name paired with the issuer |
 | `ERGON_BROWSER_SESSION_ENABLED` | Enables the confidential OIDC BFF; defaults to `false` |
 | `ERGON_HUMAN_FOLLOW_UP_RELEASE_ENABLED` | Enables internal release after every ownership reader and writer is upgraded; defaults to `false` |
@@ -149,8 +150,8 @@ The application requires PostgreSQL. Flyway owns schema creation and evolution.
 | `ERGON_RUN_SUPERVISOR_ESCALATION_ENABLED` | Enables confirmed exhausted-run escalation and atomic unassigned follow-up after additive schema/backend deployment; defaults to `false` |
 | `ERGON_RUN_SUPERVISOR_CANCELLATION_ENABLED` | Enables untouched-run cancellation only after every state reader/writer fence and dependent UI is upgraded; defaults to `false` |
 
-The JWT variables are a pair. Protected human operations fail closed when the
-trust mapping is absent. Enabling browser sessions additionally requires the
+The issuer and identity provider are configured together. Human bearer routes
+also require a dedicated JWT audience. Enabling browser sessions requires the
 Spring OAuth client registration `ergon-workbench`, including a secret supplied
 by deployment configuration. See [authentication](../docs/authentication.md)
 for the exact registration contract. The server listens on port `8090`.

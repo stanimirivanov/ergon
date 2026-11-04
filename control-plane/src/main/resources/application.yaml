@@ -43,6 +43,7 @@ ergon:
       enabled: ${ERGON_BROWSER_SESSION_ENABLED:false}
       audience: ${ERGON_BROWSER_SESSION_AUDIENCE:workbench}
     human-jwt:
+      audience: ${ERGON_HUMAN_JWT_AUDIENCE:}
       identity-provider: ${ERGON_HUMAN_IDENTITY_PROVIDER:}
 
 server:

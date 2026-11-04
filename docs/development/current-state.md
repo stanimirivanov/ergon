@@ -379,10 +379,11 @@ Flyway. Its active configuration requires:
 - `ERGON_DATABASE_USERNAME`
 - `ERGON_DATABASE_PASSWORD`
 
-Human-authenticated endpoints also use:
+Human authentication uses:
 
 - `ERGON_HUMAN_JWT_ISSUER_URI`
 - `ERGON_HUMAN_IDENTITY_PROVIDER`
+- `ERGON_HUMAN_JWT_AUDIENCE` (for protected human bearer routes)
 
 The browser session boundary additionally uses:
 

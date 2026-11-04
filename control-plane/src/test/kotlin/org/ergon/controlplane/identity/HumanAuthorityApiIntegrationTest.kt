@@ -37,6 +37,7 @@ import java.util.UUID
     properties = [
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://identity.example.test",
         "ergon.security.human-jwt.identity-provider=workforce-sso",
+        "ergon.security.human-jwt.audience=ergon-human-api",
     ],
 )
 @AutoConfigureMockMvc
@@ -57,6 +58,7 @@ class HumanAuthorityApiIntegrationTest(
                     .with(
                         jwt().jwt {
                             it.issuer(TRUSTED_ISSUER)
+                            it.audience(listOf("ergon-human-api"))
                             it.subject("employee-42")
                         },
                     ),
@@ -86,6 +88,7 @@ class HumanAuthorityApiIntegrationTest(
                     .with(
                         jwt().jwt {
                             it.issuer("https://untrusted.example.test")
+                            it.audience(listOf("ergon-human-api"))
                             it.subject("employee-42")
                         },
                     ),
@@ -98,6 +101,7 @@ class HumanAuthorityApiIntegrationTest(
                     .with(
                         jwt().jwt {
                             it.issuer(TRUSTED_ISSUER)
+                            it.audience(listOf("ergon-human-api"))
                             it.subject("employee-42")
                         },
                     ),

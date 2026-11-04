@@ -84,11 +84,15 @@ The token's `sub` is treated as opaque and matched with the mapped provider in
 identity. A missing binding returns `403` without revealing whether it exists
 in another tenant. Missing or invalid bearer credentials return `401`.
 
-Only current-actor resolution is protected here. Existing case and internal
-ingestion APIs retain their current exposure until their caller and service
-authentication models are designed. Authentication does not confer approval
-authority: a later decision must still match current, scoped authority evidence
-to the authenticated actor and approval request.
+Set `ERGON_HUMAN_JWT_AUDIENCE` to the exact access-token audience issued for
+the human API. Configure the IdP to emit it before rolling out the backend.
+Current-actor resolution, human follow-up bearer operations, approval decisions,
+and human retry/escalation requests require this audience. A verified token
+without it returns `403`, including when the setting is blank or set to the
+reserved machine audience. Browser OIDC sessions use their own client policy.
+
+Authentication does not confer approval authority. Decisions must still match
+current, scoped authority evidence to the authenticated actor and request.
 
 The run-supervisor assignment command is a narrower machine-token exception
 to those development-only internal routes. It requires a bearer token from
