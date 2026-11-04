@@ -3,6 +3,7 @@ package org.ergon.controlplane.followup
 import com.jayway.jsonpath.JsonPath
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.awaitility.Awaitility.await
 import org.hamcrest.Matchers.startsWith
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -32,11 +33,13 @@ import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
 import java.time.Clock
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 @SpringBootTest(
     properties = [
@@ -51,9 +54,62 @@ import java.util.concurrent.TimeUnit
 class RevisionedHumanFollowUpClaimApiIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val jdbcClient: JdbcClient,
+    @Autowired private val clock: RevisionedClaimTestClock,
     @Autowired transactionManager: PlatformTransactionManager,
 ) {
     private val transactions = TransactionTemplate(transactionManager)
+
+    @Test
+    fun `authority expiring while the command waits for work denies all writes`() {
+        val tenantId = UUID.randomUUID()
+        val workItemId = UUID.randomUUID()
+        seedOpenWork(tenantId, workItemId, registerActor(tenantId))
+        val commandId = UUID.randomUUID()
+        val time = AtomicReference(NOW)
+        Executors.newSingleThreadExecutor().use { executor ->
+            val pending =
+                requireNotNull(
+                    transactions.execute {
+                        jdbcClient
+                            .sql(
+                                "SELECT TRUE FROM human_follow_up_work_items " +
+                                    "WHERE tenant_id = :tenant AND work_item_id = :work FOR UPDATE",
+                            ).param("tenant", tenantId)
+                            .param("work", workItemId)
+                            .query(Boolean::class.java)
+                            .single()
+                        val future =
+                            executor.submit<Int> {
+                                clock.withTime(time) {
+                                    mockMvc
+                                        .perform(commandRequest(tenantId, workItemId, commandId, 0))
+                                        .andReturn()
+                                        .response.status
+                                }
+                            }
+                        // Poll using the transaction that holds the work-item lock.
+                        await().pollInSameThread().atMost(20, TimeUnit.SECONDS).until {
+                            jdbcClient
+                                .sql(
+                                    """
+                                    SELECT EXISTS (
+                                        SELECT 1 FROM pg_locks
+                                        WHERE NOT granted AND pg_backend_pid() = ANY(pg_blocking_pids(pid))
+                                    )
+                                    """.trimIndent(),
+                                ).query(Boolean::class.java)
+                                .single()
+                        }
+                        time.set(NOW.plusSeconds(60))
+                        future
+                    },
+                )
+            assertThat(pending.get(20, TimeUnit.SECONDS)).isEqualTo(403)
+        }
+        assertThat(count("human_follow_up_claims", tenantId, workItemId)).isZero()
+        assertThat(count("human_follow_up_ownership_events", tenantId, workItemId)).isZero()
+        assertThat(count("human_follow_up_claim_commands", tenantId, workItemId)).isZero()
+    }
 
     @Test
     fun `claim command requires bearer authentication`() {
@@ -455,5 +511,32 @@ class RevisionedHumanFollowUpClaimApiIntegrationTest(
 private class FixedRevisionedClaimClockConfiguration {
     @Bean
     @Primary
-    fun fixedRevisionedClaimClock(): Clock = Clock.fixed(Instant.parse("2026-09-14T10:00:00Z"), ZoneOffset.UTC)
+    fun fixedRevisionedClaimClock(): RevisionedClaimTestClock =
+        RevisionedClaimTestClock(
+            Instant.parse("2026-09-14T10:00:00Z"),
+        )
+}
+
+class RevisionedClaimTestClock(
+    private val fixedInstant: Instant,
+) : Clock() {
+    private val time = ThreadLocal<AtomicReference<Instant>>()
+
+    override fun getZone(): ZoneId = ZoneOffset.UTC
+
+    override fun withZone(zone: ZoneId): Clock = fixed(instant(), zone)
+
+    override fun instant(): Instant = time.get()?.get() ?: fixedInstant
+
+    fun <T> withTime(
+        value: AtomicReference<Instant>,
+        block: () -> T,
+    ): T {
+        time.set(value)
+        return try {
+            block()
+        } finally {
+            time.remove()
+        }
+    }
 }
