@@ -7,8 +7,8 @@
 - M01–M04 are delivered for the bounded deterministic access-restoration slice;
   this is not general execution or production readiness.
 - M05's approved bounded resolver/requester implementation is delivered through
-  42 merged PRs; its [acceptance record](m05-acceptance.md) distinguishes CI-backed
-  delivery from the unverified live two-app deployment gate.
+  42 merged PRs. Its [acceptance record](m05-acceptance.md) separates original
+  delivery checks from later live OIDC evidence for selected scenarios.
 - GitHub owns live issue state; this file owns intended sequence and boundaries.
 - M09 is the published high-water mark; published milestone numbers are never
   removed, reused, or renumbered.
@@ -272,9 +272,10 @@ contract can consume and a human can review.
 
 Bounded implementation and PR14 evidence are mapped in the
 [M06 acceptance record](m06-acceptance.md). The implemented source-to-contract
-path preserves documentary/operational/authority boundaries. Local PostgreSQL
-acceptance and live two-app/OIDC deployment remain unverified; implementation
-coverage must not be read as a passing runtime or promotion gate.
+path preserves documentary, operational and authority boundaries. The acceptance
+record distinguishes its historical local PostgreSQL limitation from the scope
+of the later live gate. Live documentary submission and compiler acceptance
+are outside that gate.
 
 ## M07 - Simulation and Promotion
 
@@ -300,7 +301,8 @@ with dedicated EVALUATION_VIEWER access and explicit viewer/promoter revocation.
 M07-PR13 and PR14 deliver report inspection and confirmed promotion in the UI,
 including a simulated walkthrough. M07-PR15 adds the composed PostgreSQL
 acceptance scenarios. The [M07 acceptance record](m07-acceptance.md) maps the
-delivered paths, verification evidence and live deployment gaps.
+delivered paths, including the later live report inspection and promotion check,
+and remaining rollout gaps.
 
 **Message:** Replay resolution contracts against deterministic scenarios and gate their promotion.
 
@@ -375,8 +377,12 @@ not capabilities established by predecessor cleanup.
   the checker remains offline and does not query GitHub.
 - M01–M04 delivery assessments apply to the bounded first slice, not every future
   extension. An empty issue list or a completed prerequisite does not complete a
-  milestone. M06–M09 still have undelivered outcomes; M05's bounded implementation
-  delivery does not close its reported deployment-acceptance gap.
+  milestone. [M06](m06-acceptance.md) and [M07](m07-acceptance.md) have bounded
+  delivery records with explicit exclusions. M08 proposal generation and M09
+  production integration outcomes remain open. M05 has a passing
+  [disposable live OIDC gate](m05-acceptance.md#live-two-application-acceptance-addendum)
+  for the recorded scenarios. Live handover-related access and production
+  acceptance remain separate.
 - This file owns intended sequencing until an issue is created.
 - Every issue names exactly one milestone using its exact title.
 - Move an issue only when its outcome dependency changes; update this roadmap

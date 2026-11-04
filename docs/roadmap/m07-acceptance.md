@@ -7,7 +7,8 @@ Snapshot date 2026-11-04. Milestone M07 - Simulation and Promotion.
 M07-PR15 adds a composed PostgreSQL test from registered fixtures to durable run
 admission under current promotion. The corpus uses synthetic case histories,
 scripted connector responses and independently authored expectations. The merged
-UI covers inspection and confirmation against a simulated browser backend.
+UI delivery includes simulated inspection and confirmation. The later live gate
+adds evidence for both operations against the real backend.
 
 ## Acceptance traceability
 
@@ -31,8 +32,12 @@ The focused Maven run executed both composed tests against PostgreSQL 18 via
 Testcontainers, with two passes and zero skips. The delivery PR records full
 backend verification for [issue #285](https://github.com/stanimirivanov/ergon/issues/285).
 
-Live browser-to-backend deployment with OIDC, real connector or model execution,
-provider charges and production admission remain unverified. Apply the backend
+The later [live OIDC gate](m05-acceptance.md#live-two-application-acceptance-addendum)
+passed report inspection and confirmed promotion through the workbench using
+registered synthetic evidence on the recorded revision pair. The composed
+PostgreSQL tests remain the evidence for enforced run admission. Real connector
+or model execution, provider charges, and production rollout remain unverified.
+Apply the backend
 browser migrations before deploying the UI. Use the explicit tenant allowlist
 for enforcement and follow the [promotion operations guide](../operations/contract-promotion.md).
 Improvement generation remains M08 work.

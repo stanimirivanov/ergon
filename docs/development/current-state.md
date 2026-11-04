@@ -5,12 +5,13 @@
 M07-PR15 adds composed PostgreSQL coverage of registered scenarios, reproducible
 reports, eligibility refusal, attributed promotion and enforced new run
 admission. The [M07 acceptance record](../roadmap/m07-acceptance.md) also records
-the merged PR13 and PR14 browser delivery and its simulated verification.
+the merged PR13 and PR14 browser delivery, simulated verification, and later
+live report inspection and promotion.
 
 M07-PR12 adds [authenticated Simulation Lab browser contracts](../simulation.md#authenticated-simulation-lab-browser-contracts):
 bounded safe reports, current-binding review and confirmed promotion. Dedicated
 EVALUATION_VIEWER access and append-only viewer/promoter revocation are explicit;
-frontend components remain separate.
+the PR13 and PR14 workbench features consume these contracts.
 
 M07-PR11 adds [opt-in current-promotion admission](../operations/contract-promotion.md)
 for initial starts and fresh retry successors. The configured tenant allowlist
@@ -70,9 +71,10 @@ model, general semantic inference, production readiness or M07 promotion.
 M05's 28 approved implementation coordinates are delivered through 42 merged PRs
 (22 Ergon, 20 ergon-ui), ending with UI PR #233. The
 [acceptance record](../roadmap/m05-acceptance.md) maps criteria to source/tests,
-guides and successful final backend/UI CI runs. Real two-app/OIDC deployment
-acceptance remains unverified; this is bounded implementation, not production
-readiness or a general compiler/runtime claim.
+guides and successful final backend/UI CI runs. The later
+[live OIDC gate](../roadmap/m05-acceptance.md#live-two-application-acceptance-addendum)
+verifies intake, session separation and logout in a disposable two-app deployment.
+Live handover-related access and production acceptance remain open.
 
 M05-PR27 adds CSRF-protected local browser logout as an M03 prerequisite. Only
 the configured client's authenticated POST `/bff/logout` retires its HTTP session,
@@ -139,15 +141,16 @@ M05-PR15 (M03 prerequisite) adds an opt-in, separately deployed requester browse
 audience with its own confidential OIDC client and cookie. Only login, tenant
 session and CSRF reads were initially allowed; PR16 adds the explicitly owned
 progress read. All resolver/internal routes remain denied.
-Case progress, intake, requester UI/guide and logout remain separate slices.
+Later slices delivered case progress, intake, requester UI and guides, and
+local logout.
 See [requester deployment](../authentication.md#requester-browser-deployment).
 
 M05-PR13c projects current priority/revision through authorized browser shared
 and owned work and owned case summaries, including while commands are disabled.
 No assignment means NORMAL/0; value/revision are read together from immutable
 history. PR13b's command still requires exact active ownership and fresh resolver
-authority, including replay. PR14 UI/guide follows; keep the producer disabled
-until compatible UI is deployed. Priority is administrative metadata
+authority, including replay. PR14 delivered the UI and guide. Keep the producer
+disabled until compatible UI is deployed. Priority is administrative metadata
 and never changes existing queue order, ownership, risk or runtime/proof state.
 See [priority foundation](../human-follow-up.md#priority-foundation).
 
@@ -185,11 +188,10 @@ not evidence, proof or requester data. The companion UI/guide shipped as M05-PR8
   epoch. Browser control now has a separately default-off backend lease/fence;
   UI/countdown and guide updates are merged. No live multi-step
   execution tree is inferred. See [control rollout](../operations/browser-run-control.md).
-- M05's remaining resolver/requester work follows the agreed
-  [delivery plan](../roadmap/m05-adaptive-resolution-experience.md). Notes and
-  backend handover are implemented; handover UI, priority, administrative completion,
-  requester app and notifications remain planned. M01–M04 are delivered only for the bounded
-  access-restoration slice; GitHub owns formal milestone state.
+- The bounded [M05 delivery plan](../roadmap/m05-adaptive-resolution-experience.md)
+  includes notes, handover, priority, administrative completion, the requester
+  application and in-app notifications. See the acceptance record for rollout
+  limits and the live verification scope. GitHub owns formal milestone state.
 
 ## Active Ergon slice
 
@@ -441,23 +443,23 @@ GitHub SCM URL retains its factual existing repository name.
 
 ## Deliberate limitations
 
-- No queue administration, configurable routing, automatic assignment,
-  administrative reassignment, priority, due-time, completion, or
-  notification.
-- No automatic resolution-contract selection or multi-step interpreter.
-- No AI-assisted semantic binding or Ergon evidence compiler.
-- Only one built-in access-restoration vocabulary and deterministic connector.
-- No public production authorization model for internal endpoints.
-- No compensation engine, failure classification/backoff, autonomous retries,
-  simulation lab, or improvement proposal generator.
-- No general pause/cancel/branch controls, adaptive canvas, or public SDK.
-  Narrow supervisor-confirmed execution, proof finalization and failed-run retry
-  do not establish general steering. Browser control is a separate explicit lease;
-  retry, control and pinned-readiness UI/guide slices are merged.
-- Browser sessions are process-local and have no logout or provider-revocation
-  flow; supervisor recovery/forced takeover, administrative follow-up reassignment and
-  completion are not implemented. Planned bounded behavior does not establish
-  the later slices' exact authorization, replay or lifecycle contracts.
+- Queue administration, configurable routing, automatic assignment, due times,
+  and external notification delivery remain outside the delivered follow-up
+  scope. Priority and administrative completion use bounded, explicit commands.
+- Automatic contract selection, general multi-step execution and general
+  pause/cancel/branch controls remain undelivered. Supervisor-confirmed commands
+  and browser control leases apply to their documented operations.
+- The evidence compiler supports the bounded documentary pipeline. Live model
+  extraction, general semantic inference and additional source formats remain
+  outside that scope.
+- Simulation uses deterministic scenarios and scripted outcomes. Live provider
+  charges, general compensation/backoff, autonomous retries, and evidence-backed
+  improvement generation remain outside the delivered behavior.
+- Browser sessions are process-local. Local logout retires the current app
+  session. Provider-wide revocation and production ingress are separate concerns.
+- The built-in access-restoration vocabulary and deterministic connector are
+  bounded examples. Public SDKs and production authorization for trusted internal
+  endpoints remain outside current delivery.
 
 The intended sequence is maintained in
 [implementation milestones](../roadmap/milestones.md). Update this document
