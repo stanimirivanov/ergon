@@ -29,12 +29,14 @@ import org.springframework.transaction.support.TransactionTemplate
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.OffsetDateTime
 import java.util.UUID
+import javax.sql.DataSource
 
 /** Seed the released PR9 reference graph before upgrading; promotions never replace that graph. */
 internal class ContractPromotionDatabase(
     private val postgres: PostgreSQLContainer,
     private val upgradeFrom: String = "20261030171119",
     val h: SuiteHarness = SuiteHarness(),
+    decorate: (DataSource) -> DataSource = { it },
 ) {
     val schema = "promotion_" + UUID.randomUUID().toString().replace("-", "")
     val tenant = h.tenant
@@ -42,10 +44,12 @@ internal class ContractPromotionDatabase(
     val key = h.fixture.fixture.contract.key
     private val separator = if (postgres.jdbcUrl.contains('?')) "&" else "?"
     private val data =
-        DriverManagerDataSource(
-            postgres.jdbcUrl + "${separator}currentSchema=$schema",
-            postgres.username,
-            postgres.password,
+        decorate(
+            DriverManagerDataSource(
+                postgres.jdbcUrl + "${separator}currentSchema=$schema",
+                postgres.username,
+                postgres.password,
+            ),
         )
     val jdbc = JdbcClient.create(data)
     val transactions = TransactionTemplate(DataSourceTransactionManager(data))
@@ -54,7 +58,7 @@ internal class ContractPromotionDatabase(
     val repository = PostgresContractPromotionRepository(jdbc, codec)
     val authorities = PostgresPromotionAuthorityRepository(jdbc, transactions)
     val fixtures = PostgresSimulationFixtureRepository(jdbc, transactions, h.f.packages)
-    private val reports = PostgresEvaluationReportRepository(jdbc, transactions, h.f.codec)
+    val reports = PostgresEvaluationReportRepository(jdbc, transactions, h.f.codec)
     val execution = EvaluationExecution(fixtures, h.f.runner, reports)
     private val contractsCodec = ResolutionContractJsonCodec(h.f.mapper)
     val contracts = PostgresResolutionContractRevisionRepository(jdbc, contractsCodec)

@@ -1,5 +1,6 @@
 package org.ergon.controlplane.evaluation.adapter.out.persistence
 
+import org.ergon.controlplane.evaluation.application.MAX_PROMOTION_REPORTS
 import org.ergon.controlplane.evaluation.application.PreparedSimulationFixture
 import org.ergon.controlplane.evaluation.application.SimulationFixtureConflict
 import org.ergon.controlplane.evaluation.application.SimulationFixtureDecoder
@@ -62,27 +63,51 @@ class PostgresSimulationFixtureRepository(
         )
 
     override fun find(identity: SimulationFixtureIdentity): StoredSimulationFixture? =
-        identity(
-            """
-            SELECT digest, canonical, definition, submitted_by, recorded_at
-            FROM simulation_fixture_revisions
-            WHERE tenant_id = :tenant AND fixture_key = :key AND revision = :revision
-            """.trimIndent(),
-            identity,
-        ).query { row, _ ->
-            val prepared = decoder.decode(row.getString("definition").toByteArray(Charsets.UTF_8))
-            check(prepared.fixture.tenantId == identity.tenantId)
-            check(prepared.fixture.semanticDigest() == row.getString("digest"))
-            check(prepared.fixture.canonicalBytes().contentEquals(row.getBytes("canonical")))
-            StoredSimulationFixture(
-                identity,
-                row.getString("digest"),
-                prepared.definition,
-                row.getObject("submitted_by", UUID::class.java),
-                row.getObject("recorded_at", OffsetDateTime::class.java).toInstant(),
-            )
-        }.optional()
-            .orElse(null)
+        findFixtures(identity.tenantId, setOf(identity))[identity]
+
+    override fun findFixtures(
+        tenant: UUID,
+        identities: Set<SimulationFixtureIdentity>,
+    ): Map<SimulationFixtureIdentity, StoredSimulationFixture> {
+        require(identities.size <= MAX_PROMOTION_REPORTS)
+        require(identities.all { it.tenantId == tenant })
+        if (identities.isEmpty()) return emptyMap()
+        val selected = identities.toList()
+        val tuples = selected.indices.joinToString(", ") { "(:key$it, :revision$it)" }
+        val query =
+            jdbc
+                .sql(
+                    """
+                    SELECT fixture_key, revision, digest, canonical, definition, submitted_by, recorded_at
+                    FROM simulation_fixture_revisions
+                    WHERE tenant_id = :tenant AND (fixture_key, revision) IN ($tuples)
+                    """.trimIndent(),
+                ).param("tenant", tenant)
+        selected.forEachIndexed { index, identity ->
+            query.param("key$index", identity.key).param("revision$index", identity.revision)
+        }
+        return query
+            .query { row, _ ->
+                val identity =
+                    SimulationFixtureIdentity(
+                        tenant,
+                        row.getString("fixture_key"),
+                        row.getString("revision"),
+                    )
+                val prepared = decoder.decode(row.getString("definition").toByteArray(Charsets.UTF_8))
+                check(prepared.fixture.tenantId == identity.tenantId)
+                check(prepared.fixture.semanticDigest() == row.getString("digest"))
+                check(prepared.fixture.canonicalBytes().contentEquals(row.getBytes("canonical")))
+                StoredSimulationFixture(
+                    identity,
+                    row.getString("digest"),
+                    prepared.definition,
+                    row.getObject("submitted_by", UUID::class.java),
+                    row.getObject("recorded_at", OffsetDateTime::class.java).toInstant(),
+                )
+            }.list()
+            .associateBy { it.identity }
+    }
 
     private fun identity(
         sql: String,

@@ -24,7 +24,7 @@ data class EligibilityRequest(
     val reports: List<SelectedEvaluationReport>,
 ) {
     init {
-        require(reports.size <= MAX_REPORTS)
+        require(reports.size <= MAX_PROMOTION_REPORTS)
         reports.forEach { requireNotNull(it) }
         require(reports.map { it.fixture }.distinct().size == reports.size)
     }
@@ -62,7 +62,17 @@ class EvaluatePromotionEligibility(
         check(policyRecord.digest == suite.policy.sha256)
         val policyBytes = policyRecord.definition.toByteArray()
         val policy = checkNotNull(documents.decode(GateDocumentKind.POLICY, policyBytes).policy)
-        val evidence = request.reports.associate { it.fixture to evidence(identity.tenant, it) }
+        val storedReports = reports.findReports(identity.tenant, request.reports.map { it.reportId }.toSet())
+        val storedFixtures =
+            fixtures.findFixtures(
+                identity.tenant,
+                request.reports.map { fixtureIdentity(identity.tenant, it) }.toSet(),
+            )
+        val evidence =
+            request.reports.associate {
+                val fixture = storedFixtures[fixtureIdentity(identity.tenant, it)]
+                it.fixture to evidence(it, storedReports[it.reportId], fixture)
+            }
         return EligibilityAssessment(
             stored.reference(),
             request.contract,
@@ -73,17 +83,15 @@ class EvaluatePromotionEligibility(
     }
 
     private fun evidence(
-        tenant: UUID,
         selected: SelectedEvaluationReport,
+        stored: StoredEvaluationReport?,
+        fixture: StoredSimulationFixture?,
     ): GateEvidence {
-        val stored = reports.find(tenant, selected.reportId)
-        val identity = SimulationFixtureIdentity(tenant, selected.fixture.key, selected.fixture.revision)
-        val fixture = fixtures.find(identity)
         val rejection =
             when {
                 stored == null || fixture == null -> EligibilityReason.MISSING_REPORT
 
-                stored.command.fixture != identity || stored.fixtureDigest != selected.fixture.sha256 ||
+                stored.command.fixture != fixture.identity || stored.fixtureDigest != selected.fixture.sha256 ||
                     stored.reportDigest != selected.reportDigest -> EligibilityReason.REPORT_IDENTITY_MISMATCH
 
                 else -> null
@@ -91,6 +99,11 @@ class EvaluatePromotionEligibility(
         if (rejection != null) return GateEvidence(null, rejection)
         return project(checkNotNull(fixture), checkNotNull(stored))
     }
+
+    private fun fixtureIdentity(
+        tenant: UUID,
+        selected: SelectedEvaluationReport,
+    ): SimulationFixtureIdentity = SimulationFixtureIdentity(tenant, selected.fixture.key, selected.fixture.revision)
 
     private fun project(
         fixture: StoredSimulationFixture,
@@ -115,4 +128,4 @@ class EvaluatePromotionEligibility(
     }
 }
 
-private const val MAX_REPORTS = 50
+internal const val MAX_PROMOTION_REPORTS = 50

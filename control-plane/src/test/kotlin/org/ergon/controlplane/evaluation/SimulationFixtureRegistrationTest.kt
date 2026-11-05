@@ -115,6 +115,12 @@ class SimulationFixtureRegistrationTest {
         var calls = 0
         val repository =
             object : SimulationFixtureRepository {
+                override fun findFixtures(
+                    tenant: UUID,
+                    identities: Set<SimulationFixtureIdentity>,
+                ): Map<SimulationFixtureIdentity, StoredSimulationFixture> =
+                    identities.filter { it.tenantId == tenant }.mapNotNull { id -> find(id)?.let { id to it } }.toMap()
+
                 override fun register(
                     identity: SimulationFixtureIdentity,
                     prepared: PreparedSimulationFixture,
