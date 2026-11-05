@@ -1,0 +1,98 @@
+name: Shared dependency audit
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      backend_revision:
+        description: Backend commit SHA (defaults to the workflow revision)
+        type: string
+      ui_revision:
+        description: UI commit SHA (defaults to UI main)
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  paired-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Check out backend under audit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.backend_revision || github.sha }}
+          path: audit-backend
+          persist-credentials: false
+      - name: Check out UI under audit
+        uses: actions/checkout@v5
+        with:
+          repository: stanimirivanov/ergon-ui
+          ref: ${{ inputs.ui_revision || 'main' }}
+          path: audit-ui
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+          cache-dependency-path: audit-backend/**/pom.xml
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install verified audit tooling
+        run: |
+          python3 -m pip install --only-binary=:all: --require-hashes -r tools/dependency-audit/requirements.txt
+          mkdir -p "$RUNNER_TEMP/ergon-audit-bin"
+          cd "$RUNNER_TEMP/ergon-audit-bin"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/google/osv-scanner/releases/download/v2.7.0/osv-scanner_linux_amd64 \
+            --output osv-scanner
+          echo '160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b  osv-scanner' | sha256sum --check
+          chmod +x osv-scanner
+          echo "$RUNNER_TEMP/ergon-audit-bin" >> "$GITHUB_PATH"
+      - name: Verify policy and inventory logic
+        run: python3 -m unittest discover -s tools/dependency-audit -p 'test_*.py'
+      - name: Audit exact dependency pair
+        env:
+          BACKEND_INPUT: ${{ inputs.backend_revision }}
+          UI_INPUT: ${{ inputs.ui_revision }}
+        run: |
+          python3 tools/dependency-audit/check.py \
+            --backend audit-backend --backend-revision "${BACKEND_INPUT:-$(git -C audit-backend rev-parse HEAD)}" \
+            --ui audit-ui --ui-revision "${UI_INPUT:-$(git -C audit-ui rev-parse HEAD)}" \
+            --output target/dependency-audit
+      - name: Summarize audit result
+        if: ${{ !cancelled() }}
+        run: |
+          python3 - <<'PYTHON' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          path = Path("target/dependency-audit/summary.json")
+          if path.exists():
+              data = json.loads(path.read_text())
+              print("### Dependency audit: " + data["status"])
+              print()
+              print("Policy mode:", data.get("policy", {}).get("mode", "unavailable"))
+              print()
+              print("Policy findings:", data.get("blocked", "unavailable"))
+              print()
+              print("See the dependency-audit artifact for the exact revisions and evidence.")
+          else:
+              print("### Dependency audit unavailable")
+          PYTHON
+      - name: Upload audit evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-audit
+          path: target/dependency-audit/
+          retention-days: 7
