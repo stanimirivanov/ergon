@@ -51,6 +51,12 @@ fun interface SimulationFixtureDecoder {
 
 /** Atomic tenant-scoped storage. Missing and foreign identities are indistinguishable. */
 interface SimulationFixtureRepository {
+    /** Read at most 50 exact revisions in one tenant. Missing identities are omitted; empty input performs no I/O. */
+    fun findFixtures(
+        tenant: UUID,
+        identities: Set<SimulationFixtureIdentity>,
+    ): Map<SimulationFixtureIdentity, StoredSimulationFixture>
+
     /** Compare immutable meaning on retry; retain original metadata. Unknown tenant actors are unavailable. */
     fun register(
         identity: SimulationFixtureIdentity,

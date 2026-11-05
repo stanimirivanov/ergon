@@ -6,6 +6,7 @@ import org.ergon.controlplane.evaluation.application.EvaluationReportConflict
 import org.ergon.controlplane.evaluation.application.EvaluationReportRegistration
 import org.ergon.controlplane.evaluation.application.EvaluationReportRepository
 import org.ergon.controlplane.evaluation.application.EvaluationReportUnavailable
+import org.ergon.controlplane.evaluation.application.MAX_PROMOTION_REPORTS
 import org.ergon.controlplane.evaluation.application.PreparedEvaluationReport
 import org.ergon.controlplane.evaluation.application.SimulationFixtureIdentity
 import org.ergon.controlplane.evaluation.application.StoredEvaluationReport
@@ -79,15 +80,22 @@ class PostgresEvaluationReportRepository(
     override fun find(
         tenant: UUID,
         id: UUID,
-    ): StoredEvaluationReport? =
-        jdbc
+    ): StoredEvaluationReport? = findReports(tenant, setOf(id))[id]
+
+    override fun findReports(
+        tenant: UUID,
+        ids: Set<UUID>,
+    ): Map<UUID, StoredEvaluationReport> {
+        require(ids.size <= MAX_PROMOTION_REPORTS)
+        if (ids.isEmpty()) return emptyMap()
+        return jdbc
             .sql(
                 """
-                SELECT fixture_key, fixture_revision, fixture_digest, report_digest, definition, passed, submitted_by, recorded_at
-                FROM simulation_evaluation_reports WHERE tenant_id = :tenant AND evaluation_id = :id
+                SELECT evaluation_id, fixture_key, fixture_revision, fixture_digest, report_digest, definition, passed, submitted_by, recorded_at
+                FROM simulation_evaluation_reports WHERE tenant_id = :tenant AND evaluation_id IN (:ids)
                 """.trimIndent(),
             ).param("tenant", tenant)
-            .param("id", id)
+            .param("ids", ids)
             .query { row, _ ->
                 val report = codec.decode(row.getString("definition"))
                 check(report.digest == row.getString("report_digest"))
@@ -100,7 +108,7 @@ class PostgresEvaluationReportRepository(
                             row.getString("fixture_key"),
                             row.getString("fixture_revision"),
                         ),
-                        id,
+                        row.getObject("evaluation_id", UUID::class.java),
                     ),
                     report.content.fixtureDigest,
                     report.digest,
@@ -109,6 +117,7 @@ class PostgresEvaluationReportRepository(
                     row.getObject("submitted_by", UUID::class.java),
                     row.getObject("recorded_at", OffsetDateTime::class.java).toInstant(),
                 )
-            }.optional()
-            .orElse(null)
+            }.list()
+            .associateBy { it.command.id }
+    }
 }

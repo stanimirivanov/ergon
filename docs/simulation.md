@@ -622,6 +622,10 @@ strict body uses schemaVersion `ergon.simulation/eligibility-request/v1`, exact
 artifact shape as the suite. An empty or partial report list returns ineligible;
 duplicated selections are invalid. No report is chosen automatically.
 
+At most 50 reports can be selected. Assessment loads tenant-scoped reports and
+exact fixture revisions in two bounded queries, then applies the same digest,
+identity and eligibility checks. Empty selections perform no evidence reads.
+
 The response contains exact `suite`, requested `contract`/`policy`, selected report
 coordinates and `result` with `eligible`, global `reasons` and per-scenario reasons.
 A valid request returns 200 even when ineligible. Refusal reasons distinguish:

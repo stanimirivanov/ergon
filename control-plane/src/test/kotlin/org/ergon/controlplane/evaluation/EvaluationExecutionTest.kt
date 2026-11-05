@@ -188,6 +188,17 @@ private class EvaluationMemory(
     val reports = mutableMapOf<Pair<UUID, UUID>, StoredEvaluationReport>()
     val service = EvaluationExecution(this, f.runner, this)
 
+    override fun findFixtures(
+        tenant: UUID,
+        identities: Set<SimulationFixtureIdentity>,
+    ): Map<SimulationFixtureIdentity, StoredSimulationFixture> =
+        identities.filter { it.tenantId == tenant }.mapNotNull { id -> find(id)?.let { id to it } }.toMap()
+
+    override fun findReports(
+        tenant: UUID,
+        ids: Set<UUID>,
+    ): Map<UUID, StoredEvaluationReport> = ids.mapNotNull { id -> find(tenant, id)?.let { id to it } }.toMap()
+
     override fun find(identity: SimulationFixtureIdentity): StoredSimulationFixture? =
         if (identity.tenantId == command.fixture.tenantId) {
             StoredSimulationFixture(identity, digest, definition, UUID(0, 1), Instant.EPOCH)

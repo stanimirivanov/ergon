@@ -105,6 +105,12 @@ data class EvaluationReportRegistration(
 
 /** Tenant-scoped immutable command receipts; exact retries retain the first actor/time, changed content conflicts. */
 interface EvaluationReportRepository {
+    /** Read at most 50 explicit report IDs in one tenant. Missing IDs are omitted; empty input performs no I/O. */
+    fun findReports(
+        tenant: UUID,
+        ids: Set<UUID>,
+    ): Map<UUID, StoredEvaluationReport>
+
     fun record(
         command: EvaluationCommand,
         report: PreparedEvaluationReport,

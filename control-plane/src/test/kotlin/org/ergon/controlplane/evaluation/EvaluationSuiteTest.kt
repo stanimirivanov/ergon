@@ -202,6 +202,12 @@ internal class SuiteHarness(
         }
     val fixtures =
         object : SimulationFixtureRepository {
+            override fun findFixtures(
+                tenant: UUID,
+                identities: Set<SimulationFixtureIdentity>,
+            ): Map<SimulationFixtureIdentity, StoredSimulationFixture> =
+                identities.filter { it.tenantId == tenant }.mapNotNull { id -> find(id)?.let { id to it } }.toMap()
+
             override fun register(
                 identity: SimulationFixtureIdentity,
                 prepared: PreparedSimulationFixture,
@@ -219,6 +225,11 @@ internal class SuiteHarness(
         }
     val reports =
         object : EvaluationReportRepository {
+            override fun findReports(
+                tenant: UUID,
+                ids: Set<UUID>,
+            ): Map<UUID, StoredEvaluationReport> = ids.mapNotNull { id -> find(tenant, id)?.let { id to it } }.toMap()
+
             override fun record(
                 command: EvaluationCommand,
                 report: PreparedEvaluationReport,
